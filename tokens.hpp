@@ -64,13 +64,15 @@ namespace michaelcc {
 
 		//control tokens
 		MICHAELCC_TOKEN_INTEGER_LITERAL,
+		MICHAELCC_TOKEN_FLOAT32_LITERAL,
+		MICHAELCC_TOKEN_FLOAT64_LITERAL,
 		MICHAELCC_TOKEN_END
 	};
 
 	class token {
 	private:
 		token_type m_type;
-		std::variant<std::string, size_t, std::monostate> data;
+		std::variant<std::string, size_t, float, double, std::monostate> data;
 
 	public:
 		token(token_type type, std::string str) : m_type(type), data(str) {
@@ -78,6 +80,14 @@ namespace michaelcc {
 		}
 
 		token(token_type type, size_t int_literal) : m_type(type), data(int_literal) {
+
+		}
+
+		token(float f) : m_type(MICHAELCC_TOKEN_FLOAT32_LITERAL), data(f) {
+
+		}
+
+		token(double d) : m_type(MICHAELCC_TOKEN_FLOAT64_LITERAL), data(d) {
 
 		}
 
@@ -91,6 +101,14 @@ namespace michaelcc {
 
 		const std::string string() const {
 			return std::get<std::string>(data);
+		}
+
+		const float float32() const {
+			return std::get<float>(data);
+		}
+
+		const double float64() const {
+			return std::get<float>(data);
 		}
 	};
 }

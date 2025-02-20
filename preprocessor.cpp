@@ -1,4 +1,3 @@
-#include <iostream>
 #include "preprocessor.hpp"
 
 using namespace michaelcc;
@@ -70,22 +69,36 @@ token michaelcc::preprocessor::scanner::scan_token()
 		* If the number literal ends with d parse as double
 		*/
 
-		if (str_data.find('.') != std::string::npos) {
-			if (str_data.ends_with('f')) {
-
+		try {
+			if (str_data.find('.') != std::string::npos) {
+				if (str_data.ends_with('f')) {
+					str_data.pop_back();
+					return token(std::stof(str_data));
+				}
+				else if (str_data.ends_with('d')) {
+					str_data.pop_back();
+					return token(std::stod(str_data));
+				}
 			}
-			else if (str_data.ends_with('d')) {
-
+			else if (str_data.starts_with("0x")) { //parse literal
+				return token(MICHAELCC_TOKEN_INTEGER_LITERAL, std::stoull(str_data.substr(2), nullptr, 16));
+			}
+			else if (str_data.starts_with("0b")) {
+				return token(MICHAELCC_TOKEN_INTEGER_LITERAL, std::stoull(str_data.substr(2), nullptr, 2));
+			}
+			else {
+				return token(MICHAELCC_TOKEN_INTEGER_LITERAL, std::stoull(str_data));
 			}
 		}
-		else if (str_data.starts_with("0x")) { //parse literal
-
+		catch (const std::invalid_argument&) {
+			std::stringstream ss;
+			ss << "Invalid numerical literal \"" << str_data << "\".";
+			throw panic(ss.str());
 		}
-		else if (str_data.starts_with("0b")) {
-
-		}
-		else {
-			return token(MICHAELCC_TOKEN_INTEGER_LITERAL, std::stoull(str_data));
+		catch (const std::out_of_range&) {
+			std::stringstream ss;
+			ss << "Numerical literal is \"" << str_data << "\" too large to be represented in data unit.";
+			throw panic(ss.str());
 		}
 	}
 	else if (peek_char() == '#') { //parse preprocessor directive
@@ -101,6 +114,8 @@ token michaelcc::preprocessor::scanner::scan_token()
 			return token(it->second);
 		}
 
-
+		std::stringstream ss;
+		ss << "Invalid preprocessor directive #" << identifier << '.';
+		throw panic(ss.str());
 	}
 }
