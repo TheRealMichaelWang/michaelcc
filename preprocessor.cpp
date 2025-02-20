@@ -156,6 +156,43 @@ token michaelcc::preprocessor::scanner::scan_token()
 			return token(MICHAELCC_TOKEN_PERIOD);
 		case '~':
 			return token(MICHAELCC_TOKEN_TILDE);
+		case '+':
+			if (scan_if_match('=')) {
+				return token(MICHAELCC_TOKEN_INCREMENT_BY);
+			}
+			return token(scan_if_match('+') ? MICHAELCC_TOKEN_INCREMENT : MICHAELCC_TOKEN_PLUS);
+		case '-':
+			if (scan_if_match('=')) {
+				return token(MICHAELCC_TOKEN_DECREMENT_BY);
+			}
+			return token(scan_if_match('+') ? MICHAELCC_TOKEN_INCREMENT : MICHAELCC_TOKEN_MINUS);
+		case '/':
+			if (scan_if_match('/')) { //single line comment
+				//consume the rest of the line
+				while(scan_char() != '\n') { }
+				return scan_token();
+			}
+			else if (scan_if_match('*')) { //multi-line comment
+				for (;;) {
+					if (scan_char() == '*' && scan_char() == '/') {
+						break;
+					}
+				}
+				return scan_token();
+			}
+			return token(MICHAELCC_TOKEN_SLASH);
+		case '^':
+			return token(MICHAELCC_TOKEN_CARET);
+		case '&':
+			return token(scan_if_match('&') ? MICHAELCC_TOKEN_DOUBLE_AND : MICHAELCC_TOKEN_AND);
+		case '|':
+			return token(scan_if_match('|') ? MICHAELCC_TOKEN_DOUBLE_OR : MICHAELCC_TOKEN_OR);
+		case '>':
+			return token(scan_if_match('=') ? MICHAELCC_TOKEN_MORE_EQUAL : MICHAELCC_TOKEN_MORE);
+		case '<':
+			return token(scan_if_match('=') ? MICHAELCC_TOKEN_LESS_EQUAL : MICHAELCC_TOKEN_LESS);
+		case '?':
+			return token(MICHAELCC_TOKEN_QUESTION);
 		default:
 			break;
 		}
