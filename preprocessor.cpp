@@ -31,6 +31,15 @@ char michaelcc::preprocessor::scanner::peek_char()
 	return m_source.at(index);
 }
 
+bool michaelcc::preprocessor::scanner::scan_if_match(char match)
+{
+	if (peek_char() == match) {
+		scan_char();
+		return true;
+	}
+	return false;
+}
+
 token michaelcc::preprocessor::scanner::scan_token()
 {
 	while (isspace(peek_char())) {
@@ -117,5 +126,38 @@ token michaelcc::preprocessor::scanner::scan_token()
 		std::stringstream ss;
 		ss << "Invalid preprocessor directive #" << identifier << '.';
 		throw panic(ss.str());
+	}
+	else {
+		char current = scan_char();
+
+		switch (current)
+		{
+		case '[':
+			return token(MICHAELCC_TOKEN_OPEN_BRACKET);
+		case ']':
+			return token(MICHAELCC_TOKEN_CLOSE_BRACKET);
+		case '(':
+			return token(MICHAELCC_TOKEN_OPEN_PAREN);
+		case ')':
+			return token(MICHAELCC_TOKEN_CLOSE_PAREN);
+		case '{':
+			return token(MICHAELCC_TOKEN_OPEN_BRACKET);
+		case '}':
+			return token(MICHAELCC_TOKEN_CLOSE_BRACKET);
+		case ',':
+			return token(MICHAELCC_TOKEN_COMMA);
+		case ':':
+			return token(MICHAELCC_TOKEN_COLON);
+		case ';':
+			return token(MICHAELCC_TOKEN_SEMICOLON);
+		case '=':
+			return token(scan_if_match('=') ? MICHAELCC_TOKEN_EQUALS : MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR);
+		case '.':
+			return token(MICHAELCC_TOKEN_PERIOD);
+		case '~':
+			return token(MICHAELCC_TOKEN_TILDE);
+		default:
+			break;
+		}
 	}
 }

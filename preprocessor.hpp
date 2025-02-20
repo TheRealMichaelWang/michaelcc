@@ -69,6 +69,7 @@ namespace michaelcc {
 
 			char scan_char();
 			char peek_char();
+			bool scan_if_match(char match);
 		public:
 			scanner(const std::string m_source, const std::string m_file_name) : m_source(m_source), m_file_name(m_file_name), last_tok_begin(1,1) {
 
