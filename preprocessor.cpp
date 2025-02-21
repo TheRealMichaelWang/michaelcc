@@ -48,7 +48,11 @@ void preprocessor::preprocess()
 
 		switch (tok.type())
 		{
-		case token_type::MICHAELCC_TOKEN_IDENTIFIER:
+		case MICHAELCC_PREPROCESSOR_TOKEN_INCLUDE: {
+			
+			break;
+		}
+		case MICHAELCC_TOKEN_IDENTIFIER:
 		{
 			auto it = m_definitions.find(tok.string());
 			if (it != m_definitions.end()) {

@@ -72,7 +72,9 @@ namespace michaelcc {
 
 			char scan_char();
 			char peek_char();
-			bool scan_char_if_match(char match);
+			bool scan_char_if_match(char match, bool in_loop=false);
+
+			char scan_char_literal();
 
 			const compilation_error panic(const std::string msg) const noexcept {
 				return compilation_error(msg, current_row, current_col, m_file_name);
@@ -98,6 +100,8 @@ namespace michaelcc {
 			void push_backlog(const token token) {
 				token_backlog.push_back(token);
 			}
+
+			void expect_char(char expected);
 		};
 
 		class definition {

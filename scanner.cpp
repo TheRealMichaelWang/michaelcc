@@ -31,13 +31,58 @@ char michaelcc::preprocessor::scanner::peek_char()
 	return m_source.at(index);
 }
 
-bool michaelcc::preprocessor::scanner::scan_char_if_match(char match)
+bool michaelcc::preprocessor::scanner::scan_char_if_match(char match, bool in_loop)
 {
+	if (peek_char() == '\0' && in_loop) {
+		throw panic("Unexpected EOF.");
+	}
+
 	if (peek_char() == match) {
 		scan_char();
 		return true;
 	}
 	return false;
+}
+
+char michaelcc::preprocessor::scanner::scan_char_literal()
+{
+	char c = scan_char();
+
+	if (c == '\\') { //handle escape sequences here
+		c = scan_char();
+
+		switch (c)
+		{
+		case 'a':
+			return (char)0x7;
+		case 'b':
+			return (char)0x8;
+		case 'e':
+			return (char)0x1B;
+		case 'f':
+			return (char)0xC;
+		case 'n':
+			return (char)0xA;
+		case 'r':
+			return (char)0xD;
+		case 't':
+			return (char)0x9;
+		case 'v':
+			return (char)0xB;
+		case '\\':
+			[[fallthrough]];
+		case '\'':
+			[[fallthrough]];
+		case '\"':
+			return c;
+		default:
+		{
+			std::stringstream ss;
+			ss << "Unrecognized escape sequence '\\" << c << "'.";
+			throw panic(ss.str());
+		}
+		}
+	}
 }
 
 token michaelcc::preprocessor::scanner::peek_token()
@@ -82,7 +127,7 @@ token michaelcc::preprocessor::scanner::scan_token()
 
 		do {
 			str_data.push_back(scan_char());
-		} while (isdigit(peek_char()) || peek_char() == '.' || peek_char() == 'x');
+		} while (isdigit(peek_char()) || peek_char() == '.' || peek_char() == 'x' || (peek_char() >= 'A' && peek_char() <= 'F') || (peek_char() >= 'a' || peek_char() <= 'f'));
 
 		/*
 		* Rules for parsing numbers
@@ -126,8 +171,7 @@ token michaelcc::preprocessor::scanner::scan_token()
 			throw panic(ss.str());
 		}
 	}
-	else if (peek_char() == '#') { //parse preprocessor directive
-		scan_char();
+	else if (scan_char_if_match('#')) { //parse preprocessor directive
 		std::string identifier;
 
 		do {
@@ -142,6 +186,20 @@ token michaelcc::preprocessor::scanner::scan_token()
 		std::stringstream ss;
 		ss << "Invalid preprocessor directive #" << identifier << '.';
 		throw panic(ss.str());
+	}
+	else if (scan_char_if_match('\"')) {
+		std::string str;
+
+		while (!scan_char_if_match('\"', true)) {
+			str.push_back(scan_char_literal());
+		}
+
+		return token(MICHAELCC_TOKEN_STRING_LITERAL, str);
+	}
+	else if (scan_char_if_match('\'')) {
+		char c = scan_char_literal();
+		expect_char('\'');
+		return token(MICHAELCC_TOKEN_CHAR_LITERAL, c);
 	}
 	else {
 		char current = scan_char();
@@ -227,4 +285,15 @@ bool michaelcc::preprocessor::scanner::scan_token_if_match(token_type type)
 		return true;
 	}
 	return false;
+}
+
+void michaelcc::preprocessor::scanner::expect_char(char expected)
+{
+	char c = peek_char();
+	if (c != expected) {
+		std::stringstream ss;
+		ss << "Expected char \'" << expected << "\' but got \'" << c << "\' instead.";
+		throw panic(ss.str());
+	}
+	scan_char();
 }
