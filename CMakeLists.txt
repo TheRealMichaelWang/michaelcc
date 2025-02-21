@@ -12,7 +12,7 @@ endif()
 project ("michaelcc")
 
 # Add source to this project's executable
-add_executable (michaelcc "michaelcc.cpp" "ast.hpp" "preprocessor.cpp" "errors.cpp")
+add_executable (michaelcc "michaelcc.cpp" "ast.hpp" "scanner.cpp" "errors.cpp" "preprocessor.cpp")
 set_property(TARGET michaelcc PROPERTY CXX_STANDARD 20)
 
 # TODO: Add tests and install targets if needed.

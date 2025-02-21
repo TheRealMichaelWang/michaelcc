@@ -5,6 +5,7 @@
 #include <vector>
 #include <utility>
 #include <map>
+#include <deque>
 
 #include "tokens.hpp"
 #include "errors.hpp"
@@ -23,6 +24,8 @@ namespace michaelcc {
 			size_t index = 0;
 			size_t current_row = 1;
 			size_t current_col = 1;
+
+			std::deque<token> token_backlog;
 
 			const std::map<std::string, token_type> preprocessor_keywords{
 				{ "define", MICHAELCC_PREPROCESSOR_TOKEN_DEFINE },
@@ -69,25 +72,64 @@ namespace michaelcc {
 
 			char scan_char();
 			char peek_char();
-			bool scan_if_match(char match);
+			bool scan_char_if_match(char match);
+
+			const compilation_error panic(const std::string msg) const noexcept {
+				return compilation_error(msg, current_row, current_col, m_file_name);
+			}
 		public:
 			scanner(const std::string m_source, const std::string m_file_name) : m_source(m_source), m_file_name(m_file_name), last_tok_begin(1,1) {
 
 			}
 
+			const std::pair<size_t, size_t> location() const noexcept {
+				return last_tok_begin;
+			}
+
+			const std::string file_name() const noexcept {
+				return m_file_name;
+			}
+
+			token peek_token();
 			token scan_token();
 
-			const compilation_error panic(const std::string msg) const noexcept {
-				return compilation_error(msg, current_row, current_col, m_file_name);
+			bool scan_token_if_match(token_type type);
+
+			void push_backlog(const token token) {
+				token_backlog.push_back(token);
 			}
+		};
+
+		class definition {
+		private:
+			const std::string m_name;
+			const std::vector<std::string> m_params;
+
+			const std::vector<token> m_tokens;
+
+		public:
+			definition(const std::string name, const std::vector<std::string> params, const std::vector<token> tokens) : m_name(name), m_params(params), m_tokens(tokens) {
+
+			}
+
+			void expand(scanner& output, std::vector<std::vector<token>> arguments, const preprocessor& preprocessor) const;
 		};
 
 		std::vector<token> m_result;
 		std::vector<scanner> m_scanners;
+		std::map<std::string, definition> m_definitions;
 
+		const compilation_error panic(const std::string msg) const noexcept {
+			auto loc = m_scanners.back().location();
+			return compilation_error(msg, loc.first, loc.second, m_scanners.back().file_name());
+		}
+
+		token expect_token(token_type type);
 	public:
 		preprocessor(std::string source, std::string file_name) {
-			m_scanners.push_back(scanner(source, file_name));
+			m_scanners.emplace_back(scanner(source, file_name));
 		}
+
+		void preprocess();
 	};
 }

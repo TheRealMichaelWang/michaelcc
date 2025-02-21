@@ -2,198 +2,76 @@
 
 using namespace michaelcc;
 
-char preprocessor::scanner::scan_char()
+void preprocessor::definition::expand(scanner& output, std::vector<std::vector<token>> arguments, const preprocessor& preprocessor) const
 {
-	if (index == m_source.size()) {
-		return '0';
-	}
-
-	char to_return = m_source.at(index);
-	index++;
-	
-	if (to_return == '\n') {
-		current_col = 1;
-		current_row++;
-	}
-	else {
-		current_col++;
-	}
-
-	return to_return;
-}
-
-char michaelcc::preprocessor::scanner::peek_char()
-{
-	if (index == m_source.size()) {
-		return '0';
-	}
-
-	return m_source.at(index);
-}
-
-bool michaelcc::preprocessor::scanner::scan_if_match(char match)
-{
-	if (peek_char() == match) {
-		scan_char();
-		return true;
-	}
-	return false;
-}
-
-token michaelcc::preprocessor::scanner::scan_token()
-{
-	while (isspace(peek_char())) {
-		scan_char();
-	}
-
-	last_tok_begin = std::make_pair(current_row, current_col);
-	if (isalpha(peek_char())) { //parse keyword/identifier
-		std::string identifier;
-
-		do {
-			identifier.push_back(scan_char());
-		} while (isalnum(peek_char()) || peek_char() == '_');
-
-		auto it = keywords.find(identifier);
-		if (it != keywords.end()) {
-			return token(it->second, identifier);
-		}
-
-		return token(MICHAELCC_TOKEN_IDENTIFIER, identifier);
-	}
-	else if (isdigit(peek_char())) { //parse numerical literal
-		std::string str_data;
-
-		do {
-			str_data.push_back(scan_char());
-		} while (isdigit(peek_char()) || peek_char() == '.' || peek_char() == 'x');
-
-		/*
-		* Rules for parsing numbers
-		* 
-		* If the number literal begins with 0x, parse as hex
-		* If the number literal begins with 0b, parse as binary
-		* If the number literal contains a period(.), parse as a double
-		* If the number literal ends with a f parse as float
-		* If the number literal ends with d parse as double
-		*/
-
-		try {
-			if (str_data.find('.') != std::string::npos) {
-				if (str_data.ends_with('f')) {
-					str_data.pop_back();
-					return token(std::stof(str_data));
-				}
-				else if (str_data.ends_with('d')) {
-					str_data.pop_back();
-					return token(std::stod(str_data));
-				}
-			}
-			else if (str_data.starts_with("0x")) { //parse literal
-				return token(MICHAELCC_TOKEN_INTEGER_LITERAL, std::stoull(str_data.substr(2), nullptr, 16));
-			}
-			else if (str_data.starts_with("0b")) {
-				return token(MICHAELCC_TOKEN_INTEGER_LITERAL, std::stoull(str_data.substr(2), nullptr, 2));
-			}
-			else {
-				return token(MICHAELCC_TOKEN_INTEGER_LITERAL, std::stoull(str_data));
-			}
-		}
-		catch (const std::invalid_argument&) {
-			std::stringstream ss;
-			ss << "Invalid numerical literal \"" << str_data << "\".";
-			throw panic(ss.str());
-		}
-		catch (const std::out_of_range&) {
-			std::stringstream ss;
-			ss << "Numerical literal is \"" << str_data << "\" too large to be represented in data unit.";
-			throw panic(ss.str());
-		}
-	}
-	else if (peek_char() == '#') { //parse preprocessor directive
-		scan_char();
-		std::string identifier;
-
-		do {
-			identifier.push_back(scan_char());
-		} while (isalnum(peek_char()));
-
-		auto it = preprocessor_keywords.find(identifier);
-		if (it != preprocessor_keywords.end()) {
-			return token(it->second);
-		}
-
+	if (arguments.size() != m_params.size()) {
 		std::stringstream ss;
-		ss << "Invalid preprocessor directive #" << identifier << '.';
-		throw panic(ss.str());
+		ss << "Macro definition " << m_name << " expected " << m_params.size() << " argument(s), but got " << arguments.size() << " argument(s) instead.";
+		throw preprocessor.panic(ss.str());
 	}
-	else {
-		char current = scan_char();
 
-		switch (current)
-		{
-		case '[':
-			return token(MICHAELCC_TOKEN_OPEN_BRACKET);
-		case ']':
-			return token(MICHAELCC_TOKEN_CLOSE_BRACKET);
-		case '(':
-			return token(MICHAELCC_TOKEN_OPEN_PAREN);
-		case ')':
-			return token(MICHAELCC_TOKEN_CLOSE_PAREN);
-		case '{':
-			return token(MICHAELCC_TOKEN_OPEN_BRACKET);
-		case '}':
-			return token(MICHAELCC_TOKEN_CLOSE_BRACKET);
-		case ',':
-			return token(MICHAELCC_TOKEN_COMMA);
-		case ':':
-			return token(MICHAELCC_TOKEN_COLON);
-		case ';':
-			return token(MICHAELCC_TOKEN_SEMICOLON);
-		case '=':
-			return token(scan_if_match('=') ? MICHAELCC_TOKEN_EQUALS : MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR);
-		case '.':
-			return token(MICHAELCC_TOKEN_PERIOD);
-		case '~':
-			return token(MICHAELCC_TOKEN_TILDE);
-		case '+':
-			if (scan_if_match('=')) {
-				return token(MICHAELCC_TOKEN_INCREMENT_BY);
-			}
-			return token(scan_if_match('+') ? MICHAELCC_TOKEN_INCREMENT : MICHAELCC_TOKEN_PLUS);
-		case '-':
-			if (scan_if_match('=')) {
-				return token(MICHAELCC_TOKEN_DECREMENT_BY);
-			}
-			return token(scan_if_match('+') ? MICHAELCC_TOKEN_INCREMENT : MICHAELCC_TOKEN_MINUS);
-		case '/':
-			if (scan_if_match('/')) { //single line comment
-				//consume the rest of the line
-				while(scan_char() != '\n') { }
-				return scan_token();
-			}
-			else if (scan_if_match('*')) { //multi-line comment
-				for (;;) {
-					if (scan_char() == '*' && scan_char() == '/') {
-						break;
-					}
+	std::map<std::string, size_t> param_offsets;
+	for (size_t i = 0; i < m_params.size(); i++) {
+		param_offsets.insert({ m_params.at(i), i });
+	}
+
+	for (const token& token : m_tokens) {
+		if (token.type() == MICHAELCC_TOKEN_IDENTIFIER) {
+			auto it = param_offsets.find(token.string());
+			if (it != param_offsets.end()) {
+				auto& arg = arguments.at(it->second);
+				for (auto& token : arg) {
+					output.push_backlog(token);
 				}
-				return scan_token();
+				continue;
 			}
-			return token(MICHAELCC_TOKEN_SLASH);
-		case '^':
-			return token(MICHAELCC_TOKEN_CARET);
-		case '&':
-			return token(scan_if_match('&') ? MICHAELCC_TOKEN_DOUBLE_AND : MICHAELCC_TOKEN_AND);
-		case '|':
-			return token(scan_if_match('|') ? MICHAELCC_TOKEN_DOUBLE_OR : MICHAELCC_TOKEN_OR);
-		case '>':
-			return token(scan_if_match('=') ? MICHAELCC_TOKEN_MORE_EQUAL : MICHAELCC_TOKEN_MORE);
-		case '<':
-			return token(scan_if_match('=') ? MICHAELCC_TOKEN_LESS_EQUAL : MICHAELCC_TOKEN_LESS);
-		case '?':
-			return token(MICHAELCC_TOKEN_QUESTION);
+		}
+		output.push_backlog(token);
+	}
+}
+
+token michaelcc::preprocessor::expect_token(token_type type)
+{
+	token tok = m_scanners.back().scan_token();
+	if (tok.type() != type) {
+		std::stringstream ss;
+	}
+	return tok;
+}
+
+void preprocessor::preprocess()
+{
+	while (!m_scanners.empty()) {
+		auto& scanner = m_scanners.back();
+
+		token tok = scanner.scan_token();
+
+		switch (tok.type())
+		{
+		case token_type::MICHAELCC_TOKEN_IDENTIFIER:
+		{
+			auto it = m_definitions.find(tok.string());
+			if (it != m_definitions.end()) {
+				std::vector<std::vector<token>> arguments;
+				if (scanner.scan_token_if_match(MICHAELCC_TOKEN_OPEN_PAREN)) {
+					do {
+						std::vector<token> argument;
+
+						do {
+							tok = scanner.scan_token();
+							argument.push_back(tok);
+						} while (tok.type() != MICHAELCC_TOKEN_COMMA && tok.type() != MICHAELCC_TOKEN_CLOSE_PAREN);
+						argument.pop_back();
+						arguments.emplace_back(std::move(argument));
+					} while (tok.type() == MICHAELCC_TOKEN_CLOSE_PAREN);
+				}
+				it->second.expand(scanner, arguments, *this);
+				continue;
+			}
+		}
+		[[fallthrough]];
 		default:
+			m_result.push_back(tok);
 			break;
 		}
 	}
