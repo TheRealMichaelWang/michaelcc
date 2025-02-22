@@ -267,6 +267,8 @@ token michaelcc::preprocessor::scanner::scan_token()
 			return token(scan_char_if_match('=') ? MICHAELCC_TOKEN_LESS_EQUAL : MICHAELCC_TOKEN_LESS);
 		case '?':
 			return token(MICHAELCC_TOKEN_QUESTION);
+		case '\0':
+			return token(MICHAELCC_TOKEN_END);
 		default:
 		{
 			std::stringstream ss;

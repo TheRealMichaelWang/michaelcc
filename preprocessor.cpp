@@ -1,3 +1,4 @@
+#include <fstream>
 #include "preprocessor.hpp"
 
 using namespace michaelcc;
@@ -49,8 +50,23 @@ void preprocessor::preprocess()
 		switch (tok.type())
 		{
 		case MICHAELCC_PREPROCESSOR_TOKEN_INCLUDE: {
-			
-			break;
+			std::string file_path = expect_token(MICHAELCC_TOKEN_STRING_LITERAL).string();
+			std::ifstream infile(file_path);
+			if (infile.bad()) {
+				std::stringstream ss;
+				ss << "Unable to open file \"" << file_path << "\".";
+				throw panic(ss.str());
+			}
+
+			std::stringstream ss;
+			ss << infile.rdbuf();
+
+			m_scanners.push_back(preprocessor::scanner(ss.str(), file_path));
+			continue;
+		}
+		case MICHAELCC_TOKEN_END: {
+			m_scanners.pop_back();
+			continue;
 		}
 		case MICHAELCC_TOKEN_IDENTIFIER:
 		{
