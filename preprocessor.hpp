@@ -6,6 +6,7 @@
 #include <utility>
 #include <map>
 #include <deque>
+#include <optional>
 
 #include "tokens.hpp"
 #include "errors.hpp"
@@ -77,15 +78,15 @@ namespace michaelcc {
 			char scan_char_literal();
 
 			const compilation_error panic(const std::string msg) const noexcept {
-				return compilation_error(msg, current_row, current_col, m_file_name);
+				return compilation_error(msg, source_location(current_row, current_col, m_file_name));
 			}
 		public:
 			scanner(const std::string m_source, const std::string m_file_name) : m_source(m_source), m_file_name(m_file_name), last_tok_begin(1,1) {
 
 			}
 
-			const std::pair<size_t, size_t> location() const noexcept {
-				return last_tok_begin;
+			const source_location location() const noexcept {
+				return source_location(last_tok_begin.first, last_tok_begin.second, m_file_name);
 			}
 
 			const std::string file_name() const noexcept {
@@ -110,13 +111,17 @@ namespace michaelcc {
 			const std::vector<std::string> m_params;
 
 			const std::vector<token> m_tokens;
-
+			const std::optional<source_location> m_location;
 		public:
-			definition(const std::string name, const std::vector<std::string> params, const std::vector<token> tokens) : m_name(name), m_params(params), m_tokens(tokens) {
-
+			definition(const std::string name, const std::vector<std::string> params, const std::vector<token> tokens, std::optional<source_location> location) : m_name(name), m_params(params), m_tokens(tokens), m_location(location) {
+				
 			}
 
 			void expand(scanner& output, std::vector<std::vector<token>> arguments, const preprocessor& preprocessor) const;
+
+			const source_location location() {
+				return m_location.value();
+			}
 		};
 
 		std::vector<token> m_result;
@@ -124,8 +129,7 @@ namespace michaelcc {
 		std::map<std::string, definition> m_definitions;
 
 		const compilation_error panic(const std::string msg) const noexcept {
-			auto loc = m_scanners.back().location();
-			return compilation_error(msg, loc.first, loc.second, m_scanners.back().file_name());
+			return compilation_error(msg, m_scanners.back().location());
 		}
 
 		token expect_token(token_type type);

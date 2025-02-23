@@ -3,26 +3,36 @@
 #include <stdexcept>
 
 namespace michaelcc {
+	struct source_location {
+		const size_t row;
+		const size_t col;
+		const std::string file_name;
+
+		source_location(const size_t row, const size_t col, const std::string file_name) : row(row), col(col), file_name(file_name) {
+
+		}
+
+		const std::string to_string() const;
+	};
+
 	class compilation_error : public std::exception {
 	private:
 		std::string m_msg;
-		const size_t m_row;
-		const size_t m_col;
-		const std::string m_file_name;
+		const source_location m_location;
 
 	public:
-		compilation_error(const std::string msg, const size_t row, const size_t col, const std::string file_name);
+		compilation_error(const std::string msg, const source_location location);
 
-		const size_t row() const noexcept {
-			return m_row;
+		const source_location location() const noexcept {
+			return m_location;
 		}
 
-		const size_t col() const noexcept {
-			return m_col;
+		const std::string msg() const noexcept {
+			return m_msg;
 		}
 
-		const std::string file_name() const noexcept {
-			return m_file_name;
+		const char* what() const override {
+			return m_msg.c_str();
 		}
 	};
 }

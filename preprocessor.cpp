@@ -44,7 +44,8 @@ void preprocessor::preprocess()
 {
 	while (!m_scanners.empty()) {
 		auto& scanner = m_scanners.back();
-
+		
+		source_location location = scanner.location();
 		token tok = scanner.scan_token();
 
 		switch (tok.type())
@@ -64,10 +65,48 @@ void preprocessor::preprocess()
 			m_scanners.push_back(preprocessor::scanner(ss.str(), file_path));
 			continue;
 		}
+		case MICHAELCC_PREPROCESSOR_TOKEN_DEFINE: {
+			std::string macro_name = expect_token(MICHAELCC_TOKEN_IDENTIFIER).string();
+			{
+				auto it = m_definitions.find(macro_name);
+				if (it != m_definitions.end()) {
+					std::stringstream ss;
+					ss << "Redefinition of macro " << macro_name << " declared at " << it->second.location().to_string() << '.';
+					throw panic(ss.str());
+				}
+			}
+
+			scanner.scan_token();
+
+			std::vector<std::string> params;
+			if (scanner.scan_token_if_match(MICHAELCC_TOKEN_OPEN_PAREN)) {
+				if (scanner.scan_token_if_match(MICHAELCC_TOKEN_CLOSE_PAREN)) {
+					return;
+				}
+
+				do {
+					params.push_back(expect_token(MICHAELCC_TOKEN_IDENTIFIER).string());
+				} while (scanner.scan_token_if_match(MICHAELCC_TOKEN_CLOSE_PAREN));
+
+				expect_token(MICHAELCC_TOKEN_CLOSE_PAREN);
+				scanner.scan_token();
+			}
+
+			std::vector<token> tokens;
+			while (!scanner.scan_token_if_match(MICHAELCC_TOKEN_NEWLINE)) {
+				tokens.push_back(scanner.scan_token());
+			}
+
+			m_definitions.insert({ macro_name, definition(macro_name, params, tokens, location) });
+
+			break;
+		}
 		case MICHAELCC_TOKEN_END: {
 			m_scanners.pop_back();
 			continue;
 		}
+		case MICHAELCC_TOKEN_NEWLINE:
+			continue;
 		case MICHAELCC_TOKEN_IDENTIFIER:
 		{
 			auto it = m_definitions.find(tok.string());

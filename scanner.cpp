@@ -103,7 +103,7 @@ token michaelcc::preprocessor::scanner::scan_token()
 		return to_return;
 	}
 
-	while (isspace(peek_char())) {
+	while (isspace(peek_char()) && peek_char() != '\n') {
 		scan_char();
 	}
 
