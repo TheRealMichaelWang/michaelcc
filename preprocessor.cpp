@@ -36,6 +36,8 @@ token michaelcc::preprocessor::expect_token(token_type type)
 	token tok = m_scanners.back().scan_token();
 	if (tok.type() != type) {
 		std::stringstream ss;
+		ss << "Expected " << token_to_str(type) << " but got " << token_to_str(tok.type()) << " instead.";
+		throw panic(ss.str());
 	}
 	return tok;
 }
@@ -94,10 +96,28 @@ void preprocessor::preprocess()
 
 			std::vector<token> tokens;
 			while (!scanner.scan_token_if_match(MICHAELCC_TOKEN_NEWLINE)) {
-				tokens.push_back(scanner.scan_token());
+				token tok = scanner.scan_token();
+				if (tok.is_preprocessor()) {
+					std::stringstream ss;
+					ss << "Unexpected preprocessor token " << token_to_str(tok.type()) << '.';
+					throw panic(ss.str());
+				}
+				tokens.push_back(tok);
 			}
 
 			m_definitions.insert({ macro_name, definition(macro_name, params, tokens, location) });
+
+			break;
+		}
+		case MICHAELCC_PREPROCESSOR_TOKEN_IFNDEF:
+			[[fallthrough]];
+		case MICHAELCC_PREPROCESSOR_TOKEN_IFDEF: {
+			std::string identifier = expect_token(MICHAELCC_TOKEN_IDENTIFIER).string();
+			scanner.scan_token();
+
+			bool condition = ((tok.type() == MICHAELCC_PREPROCESSOR_TOKEN_IFDEF) == m_definitions.contains(identifier));
+
+			
 
 			break;
 		}

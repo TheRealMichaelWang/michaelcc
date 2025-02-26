@@ -1,12 +1,14 @@
 #pragma once
 
 #include <variant>
+#include <string>
 
 namespace michaelcc {
 	enum token_type {
 		//preprocessor tokens
 		MICHAELCC_PREPROCESSOR_TOKEN_DEFINE,
 		MICHAELCC_PREPROCESSOR_TOKEN_IFDEF,
+		MICHAELCC_PREPROCESSOR_TOKEN_IFNDEF,
 		MICHAELCC_PREPROCESSOR_TOKEN_ELSE,
 		MICHAELCC_PREPROCESSOR_TOKEN_ENDIF,
 		MICHAELCC_PREPROCESSOR_TOKEN_INCLUDE,
@@ -134,5 +136,11 @@ namespace michaelcc {
 		const double float64() const {
 			return std::get<float>(data);
 		}
+
+		const bool is_preprocessor() const noexcept {
+			return m_type >= MICHAELCC_PREPROCESSOR_TOKEN_DEFINE && m_type <= MICHAELCC_PREPROCESSOR_TOKEN_INCLUDE;
+		}
 	};
+
+	const std::string token_to_str(token_type type);
 }
