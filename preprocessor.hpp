@@ -124,6 +124,17 @@ namespace michaelcc {
 			}
 		};
 
+		struct preprocessor_scope {
+			token_type type;
+			source_location begin_location;
+			bool skip;
+			bool override_skip;
+
+			preprocessor_scope(token_type type, source_location begin_location, bool skip, bool override_skip) : type(type), begin_location(begin_location), skip(skip), override_skip(override_skip) {
+
+			}
+		};
+
 		std::vector<token> m_result;
 		std::vector<scanner> m_scanners;
 		std::map<std::string, definition> m_definitions;

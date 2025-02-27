@@ -44,11 +44,26 @@ token michaelcc::preprocessor::expect_token(token_type type)
 
 void preprocessor::preprocess()
 {
+	std::vector<preprocessor_scope> preprocessor_scopes;
+
 	while (!m_scanners.empty()) {
 		auto& scanner = m_scanners.back();
 		
 		source_location location = scanner.location();
 		token tok = scanner.scan_token();
+
+		if (!preprocessor_scopes.empty() && preprocessor_scopes.back().skip) {
+			if (tok.is_preprocessor_condition()) {
+				preprocessor_scopes.push_back(preprocessor_scope(tok.type(), location, true, true));
+			}
+			else if (tok.type() == MICHAELCC_PREPROCESSOR_TOKEN_ELSE && preprocessor_scopes.back().override_skip) {
+				preprocessor_scopes.push_back(preprocessor_scope(tok.type(), location, false, false));
+			}
+			else if (tok.type() == MICHAELCC_PREPROCESSOR_TOKEN_ENDIF) {
+				preprocessor_scopes.pop_back();
+			}
+			continue;
+		}
 
 		switch (tok.type())
 		{
@@ -115,12 +130,27 @@ void preprocessor::preprocess()
 			std::string identifier = expect_token(MICHAELCC_TOKEN_IDENTIFIER).string();
 			scanner.scan_token();
 
-			bool condition = ((tok.type() == MICHAELCC_PREPROCESSOR_TOKEN_IFDEF) == m_definitions.contains(identifier));
+			bool condition = ((tok.type() == MICHAELCC_PREPROCESSOR_TOKEN_IFDEF) ^ m_definitions.contains(identifier));
 
-			
+			preprocessor_scopes.push_back(preprocessor_scope(tok.type(), location, condition, false));
 
 			break;
 		}
+		case MICHAELCC_PREPROCESSOR_TOKEN_ELSE:
+			if (preprocessor_scopes.empty()) {
+				throw panic("Unexpected preprocessor else. No matching #ifdef or #ifndef.");
+			}
+			if (preprocessor_scopes.back().type == MICHAELCC_PREPROCESSOR_TOKEN_ELSE) {
+				std::stringstream ss;
+				ss << "Unexpected preprocessor else. Found previous #else at " << preprocessor_scopes.back().begin_location.to_string() << '.';
+				throw panic(ss.str());
+			}
+			preprocessor_scopes.pop_back();
+			preprocessor_scopes.push_back(preprocessor_scope(tok.type(), location, true, false));
+			break;
+		case MICHAELCC_PREPROCESSOR_TOKEN_ENDIF:
+			preprocessor_scopes.pop_back();
+			break;
 		case MICHAELCC_TOKEN_END: {
 			m_scanners.pop_back();
 			continue;

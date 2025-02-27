@@ -140,6 +140,10 @@ namespace michaelcc {
 		const bool is_preprocessor() const noexcept {
 			return m_type >= MICHAELCC_PREPROCESSOR_TOKEN_DEFINE && m_type <= MICHAELCC_PREPROCESSOR_TOKEN_INCLUDE;
 		}
+
+		const bool is_preprocessor_condition() const noexcept {
+			return m_type >= MICHAELCC_PREPROCESSOR_TOKEN_IFDEF && m_type <= MICHAELCC_PREPROCESSOR_TOKEN_IFNDEF;
+		}
 	};
 
 	const std::string token_to_str(token_type type);
