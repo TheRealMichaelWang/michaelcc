@@ -149,9 +149,23 @@ void preprocessor::preprocess()
 			preprocessor_scopes.push_back(preprocessor_scope(tok.type(), location, true, false));
 			break;
 		case MICHAELCC_PREPROCESSOR_TOKEN_ENDIF:
+			if (preprocessor_scopes.empty()) {
+				throw panic("Unexpected preprocessor end. No matching #ifdef or #ifndef.");
+			}
 			preprocessor_scopes.pop_back();
 			break;
 		case MICHAELCC_TOKEN_END: {
+			if (!preprocessor_scopes.empty()) {
+				std::stringstream ss;
+				for (const auto& preprocessor_scope : preprocessor_scopes) {
+					ss << "Preprocessor directive " << token_to_str(preprocessor_scope.type) << " declared at " << preprocessor_scope.begin_location.to_string() << " expected end but got none.";
+					if (&preprocessor_scope != &preprocessor_scopes.back()) {
+						ss << '\n';
+					}
+				}
+				throw panic(ss.str());
+			}
+
 			m_scanners.pop_back();
 			continue;
 		}
