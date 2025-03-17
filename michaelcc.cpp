@@ -12,7 +12,7 @@ int main()
 	std::stringstream ss;
 	ss << infile.rdbuf();
 
-	michaelcc::preprocessor preprocessor(ss.str(), "fib.c");
+	michaelcc::preprocessor preprocessor(ss.str(), "tests/fib.c");
 	preprocessor.preprocess();
 	const auto& tokens = preprocessor.result();
 	return 0;

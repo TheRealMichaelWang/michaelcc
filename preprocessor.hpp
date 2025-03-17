@@ -7,6 +7,7 @@
 #include <map>
 #include <deque>
 #include <optional>
+#include <filesystem>
 
 #include "tokens.hpp"
 #include "errors.hpp"
@@ -16,7 +17,7 @@ namespace michaelcc {
 	private:
 		class scanner {
 		private:
-			const std::string m_file_name;
+			const std::filesystem::path m_file_name;
 			const std::string m_source;
 
 			std::pair<size_t, size_t> last_tok_begin;
@@ -31,6 +32,7 @@ namespace michaelcc {
 			const std::map<std::string, token_type> preprocessor_keywords{
 				{ "define", MICHAELCC_PREPROCESSOR_TOKEN_DEFINE },
 				{ "ifdef", MICHAELCC_PREPROCESSOR_TOKEN_IFDEF },
+				{ "ifndef", MICHAELCC_PREPROCESSOR_TOKEN_IFNDEF },
 				{ "else", MICHAELCC_PREPROCESSOR_TOKEN_ELSE },
 				{ "endif", MICHAELCC_PREPROCESSOR_TOKEN_ENDIF },
 				{ "include", MICHAELCC_PREPROCESSOR_TOKEN_INCLUDE }
@@ -81,7 +83,7 @@ namespace michaelcc {
 				return compilation_error(msg, source_location(current_row, current_col, m_file_name));
 			}
 		public:
-			scanner(const std::string m_source, const std::string m_file_name) : m_source(m_source), m_file_name(m_file_name), last_tok_begin(1,1) {
+			scanner(const std::string m_source, const std::filesystem::path m_file_name) : m_source(m_source), m_file_name(m_file_name), last_tok_begin(1,1) {
 
 			}
 
@@ -89,7 +91,7 @@ namespace michaelcc {
 				return source_location(last_tok_begin.first, last_tok_begin.second, m_file_name);
 			}
 
-			const std::string file_name() const noexcept {
+			const std::filesystem::path file_name() const noexcept {
 				return m_file_name;
 			}
 
@@ -103,6 +105,8 @@ namespace michaelcc {
 			}
 
 			void expect_char(char expected);
+
+			std::optional<std::filesystem::path> resolve_file_path(std::filesystem::path file_path);
 		};
 
 		class definition {

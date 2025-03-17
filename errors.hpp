@@ -1,14 +1,15 @@
 #pragma once
 
 #include <stdexcept>
+#include <filesystem>
 
 namespace michaelcc {
 	struct source_location {
 		const size_t row;
 		const size_t col;
-		const std::string file_name;
+		const std::filesystem::path file_name;
 
-		source_location(const size_t row, const size_t col, const std::string file_name) : row(row), col(col), file_name(file_name) {
+		source_location(const size_t row, const size_t col, const std::filesystem::path file_name) : row(row), col(col), file_name(file_name) {
 
 		}
 

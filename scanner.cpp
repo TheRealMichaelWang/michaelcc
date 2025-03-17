@@ -301,3 +301,14 @@ void michaelcc::preprocessor::scanner::expect_char(char expected)
 	}
 	scan_char();
 }
+
+std::optional<std::filesystem::path> michaelcc::preprocessor::scanner::resolve_file_path(std::filesystem::path file_path)
+{
+	if (std::filesystem::exists(file_path)) {
+		return file_path;
+	}
+	else if (std::filesystem::exists(m_file_name.parent_path() / file_path)) {
+		return m_file_name.parent_path() / file_path;
+	}
+	return std::nullopt;
+}

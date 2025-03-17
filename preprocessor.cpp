@@ -56,7 +56,8 @@ void preprocessor::preprocess()
 			if (tok.is_preprocessor_condition()) {
 				preprocessor_scopes.push_back(preprocessor_scope(tok.type(), location, true, true));
 			}
-			else if (tok.type() == MICHAELCC_PREPROCESSOR_TOKEN_ELSE && preprocessor_scopes.back().override_skip) {
+			else if (tok.type() == MICHAELCC_PREPROCESSOR_TOKEN_ELSE && !preprocessor_scopes.back().override_skip) {
+				preprocessor_scopes.pop_back();
 				preprocessor_scopes.push_back(preprocessor_scope(tok.type(), location, false, false));
 			}
 			else if (tok.type() == MICHAELCC_PREPROCESSOR_TOKEN_ENDIF) {
@@ -68,18 +69,27 @@ void preprocessor::preprocess()
 		switch (tok.type())
 		{
 		case MICHAELCC_PREPROCESSOR_TOKEN_INCLUDE: {
-			std::string file_path = expect_token(MICHAELCC_TOKEN_STRING_LITERAL).string();
-			std::ifstream infile(file_path);
-			if (infile.bad()) {
+			std::string requested_path = expect_token(MICHAELCC_TOKEN_STRING_LITERAL).string();
+			auto file_path = scanner.resolve_file_path(requested_path);
+			if (!file_path.has_value()) {
 				std::stringstream ss;
-				ss << "Unable to open file \"" << file_path << "\".";
+				ss << "File \"" << requested_path << "\" doesn't exist.";
 				throw panic(ss.str());
 			}
+
+			std::ifstream infile(file_path.value());
 
 			std::stringstream ss;
 			ss << infile.rdbuf();
 
-			m_scanners.push_back(preprocessor::scanner(ss.str(), file_path));
+			if (!infile.good()) {
+				std::stringstream ss;
+				ss << "Unable to open file \"" << file_path.value() << "\".";
+				throw panic(ss.str());
+			}
+
+
+			m_scanners.push_back(preprocessor::scanner(ss.str(), file_path.value()));
 			continue;
 		}
 		case MICHAELCC_PREPROCESSOR_TOKEN_DEFINE: {
@@ -93,8 +103,6 @@ void preprocessor::preprocess()
 				}
 			}
 
-			scanner.scan_token();
-
 			std::vector<std::string> params;
 			if (scanner.scan_token_if_match(MICHAELCC_TOKEN_OPEN_PAREN)) {
 				if (scanner.scan_token_if_match(MICHAELCC_TOKEN_CLOSE_PAREN)) {
@@ -103,10 +111,9 @@ void preprocessor::preprocess()
 
 				do {
 					params.push_back(expect_token(MICHAELCC_TOKEN_IDENTIFIER).string());
-				} while (scanner.scan_token_if_match(MICHAELCC_TOKEN_CLOSE_PAREN));
+				} while (scanner.scan_token_if_match(MICHAELCC_TOKEN_COMMA));
 
 				expect_token(MICHAELCC_TOKEN_CLOSE_PAREN);
-				scanner.scan_token();
 			}
 
 			std::vector<token> tokens;
@@ -128,7 +135,6 @@ void preprocessor::preprocess()
 			[[fallthrough]];
 		case MICHAELCC_PREPROCESSOR_TOKEN_IFDEF: {
 			std::string identifier = expect_token(MICHAELCC_TOKEN_IDENTIFIER).string();
-			scanner.scan_token();
 
 			bool condition = ((tok.type() == MICHAELCC_PREPROCESSOR_TOKEN_IFDEF) ^ m_definitions.contains(identifier));
 
@@ -186,7 +192,7 @@ void preprocessor::preprocess()
 						} while (tok.type() != MICHAELCC_TOKEN_COMMA && tok.type() != MICHAELCC_TOKEN_CLOSE_PAREN);
 						argument.pop_back();
 						arguments.emplace_back(std::move(argument));
-					} while (tok.type() == MICHAELCC_TOKEN_CLOSE_PAREN);
+					} while (tok.type() != MICHAELCC_TOKEN_CLOSE_PAREN);
 				}
 				it->second.expand(scanner, arguments, *this);
 				continue;
