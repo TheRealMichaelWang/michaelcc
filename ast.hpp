@@ -46,7 +46,7 @@ namespace michaelcc::ast {
 		context_block m_to_execute;
 	};
 
-	class if_else_block : public statement {
+	class if_block : public statement {
 		std::unique_ptr<lvalue> m_condition;
 		context_block m_execute_if_true;
 	};

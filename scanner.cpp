@@ -5,7 +5,7 @@ using namespace michaelcc;
 char preprocessor::scanner::scan_char()
 {
 	if (index == m_source.size()) {
-		return '0';
+		return '\0';
 	}
 
 	char to_return = m_source.at(index);
@@ -25,7 +25,7 @@ char preprocessor::scanner::scan_char()
 char michaelcc::preprocessor::scanner::peek_char()
 {
 	if (index == m_source.size()) {
-		return '0';
+		return '\0';
 	}
 
 	return m_source.at(index);
@@ -127,7 +127,7 @@ token michaelcc::preprocessor::scanner::scan_token()
 
 		do {
 			str_data.push_back(scan_char());
-		} while (isdigit(peek_char()) || peek_char() == '.' || peek_char() == 'x' || (peek_char() >= 'A' && peek_char() <= 'F') || (peek_char() >= 'a' || peek_char() <= 'f'));
+		} while (isdigit(peek_char()) || peek_char() == '.' || peek_char() == 'x' || (peek_char() >= 'A' && peek_char() <= 'F') || (peek_char() >= 'a' && peek_char() <= 'f'));
 
 		/*
 		* Rules for parsing numbers
@@ -267,6 +267,8 @@ token michaelcc::preprocessor::scanner::scan_token()
 			return token(scan_char_if_match('=') ? MICHAELCC_TOKEN_LESS_EQUAL : MICHAELCC_TOKEN_LESS);
 		case '?':
 			return token(MICHAELCC_TOKEN_QUESTION);
+		case '\n':
+			return token(MICHAELCC_TOKEN_NEWLINE);
 		case '\0':
 			return token(MICHAELCC_TOKEN_END);
 		default:

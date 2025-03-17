@@ -150,5 +150,9 @@ namespace michaelcc {
 		}
 
 		void preprocess();
+
+		const std::vector<token>& result() const noexcept {
+			return m_result;
+		}
 	};
 }

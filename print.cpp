@@ -2,7 +2,7 @@
 
 using namespace michaelcc;
 
-const std::string token_to_str(token_type type) {
+const std::string michaelcc::token_to_str(token_type type) {
 	static const char* tok_names[] = {
 		//preprocessor tokens
 		"DEFINE",
