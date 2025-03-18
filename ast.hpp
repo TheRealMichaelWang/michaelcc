@@ -5,15 +5,39 @@
 #include <vector>
 
 namespace michaelcc::ast {
-	enum qualifier {
-		NO_QUALIFIER = 0,
-		CONST_QUALIFIER = 1,
-		VOLATILE_QUALIFIER = 2,
-		RESTRICT_QUALIFIER = 4,
-		SIGNED_QUALIFIER = 8,
-		UNSIGNED_QUALIFIER = 16,
-		LONG_QUALIFIER = 32,
-		SHORT_QUALIFIER = 64,
+	enum storage_qualifier : char {
+		NO_STORAGE_QUALIFIER = 0,
+		CONST_STORAGE_QUALIFIER = 1,
+		VOLATILE_STORAGE_QUALIFIER = 2,
+		RESTRICT_STORAGE_QUALIFIER = 4,
+		EXTERN_STORAGE_QUALIFIER = 8,
+		STATIC_STORAGE_QUALIFIER = 16,
+		REGISTER_STORAGE_QUALIFIER = 32
+	};
+
+	enum int_qualifier : char {
+		NO_INT_QUALIFIER = 0,
+		LONG_INT_QUALIFIER = 1,
+		SHORT_INT_QUALIFIER = 2,
+		SIGNED_INT_QUALIFIER = 4,
+		UNSIGNED_INT_QUALIFIER = 8
+	};
+
+	enum int_class {
+		CHAR_INT_CLASS,
+		SHORT_INT_CLASS,
+		INT_INT_CLASS,
+		LONG_INT_CLASS
+	};
+
+	enum float_class {
+		FLOAT_FLOAT_CLASS,
+		DOUBLE_FLOAT_CLASS
+	};
+
+	class top_level_element {
+	public:
+		virtual ~top_level_element() = default;
 	};
 
 	class statement {
@@ -34,6 +58,8 @@ namespace michaelcc::ast {
 	class type {
 	public:
 		virtual ~type() = default;
+
+		virtual bool check_type(std::unique_ptr<type>& type) = 0;
 	};
 
 	class context_block : public statement {
@@ -136,25 +162,67 @@ namespace michaelcc::ast {
 		explicit continue_statement(int depth) : loop_depth(depth) { }
 	};
 
-	class primitive_literal : public lvalue {
-	public:
-		enum primitive_type {
-			PRIMITIVE_CHAR,
-			PRIMITIVE_INT,
-			PRIMITIVE_FLOAT,
-			PRIMITIVE_DOUBLE
-		};
-
+	class int_type : public type {
 	private:
-		primitive_type m_type;
-		size_t m_value;
+		int_qualifier m_qualifiers;
+		int_class m_class;
 
 	public:
-		explicit primitive_literal(primitive_type type, size_t value)
-			: m_type(type), m_value(value) {}
+		int_type(int_qualifier qualifiers, int_class m_class) 
+			: m_qualifiers(qualifiers), m_class(m_class) { }
+	};
 
-		primitive_type type() const noexcept { return m_type; }
-		size_t value() const noexcept { return m_value; }
+	class float_type : public type {
+	private:
+		float_class m_class;
+
+	public:
+		explicit float_type(float_class m_class) : m_class(m_class) { }
+	};
+
+	class int_literal : public lvalue {
+	private:
+		int_qualifier m_qualifiers;
+		int_class m_class;
+		size_t m_value;
+		
+	public:
+		explicit int_literal(int_qualifier qualifiers, int_class m_class, size_t value) 
+			: m_qualifiers(qualifiers), m_class(m_class), m_value(value) { }
+
+		const int_qualifier qualifiers() const noexcept {
+			return m_qualifiers;
+		}
+
+		const int_class storage_class() const noexcept {
+			return m_class;
+		}
+
+		const size_t unsigned_value() const noexcept {
+			return m_value;
+		}
+
+		const int64_t signed_value() const noexcept {
+			return static_cast<int64_t>(m_value);
+		}
+	};
+
+	class float_literal : public lvalue {
+	private:
+		float_class m_class;
+		double m_value;
+
+	public:
+		explicit float_literal(float_class m_class, double value) 
+			: m_class(m_class), m_value(value) { }
+
+		const float_class storage_class() const noexcept {
+			return m_class;
+		}
+
+		const double value() const noexcept {
+			return m_value;
+		}
 	};
 
 	class variable_reference : public rvalue, public lvalue {
@@ -227,51 +295,56 @@ namespace michaelcc::ast {
 
 	class variable_declaration : public statement {
 	private:
-		qualifier m_qualifiers;
-		type m_type;
+		storage_qualifier m_qualifiers;
+		std::unique_ptr<type> m_type;
 		std::string m_identifier;
 		std::optional<std::unique_ptr<lvalue>> m_set_value;
+		std::optional<std::unique_ptr<lvalue>> m_array_length_value;
 
 	public:
-		variable_declaration(qualifier qualifiers,
-			type var_type,
+		variable_declaration(storage_qualifier qualifiers,
+			std::unique_ptr<type> var_type,
 			const std::string& identifier,
 			std::optional<std::unique_ptr<lvalue>> set_value = std::nullopt)
 			: m_qualifiers(qualifiers),
-			m_type(var_type),
+			m_type(std::move(var_type)),
 			m_identifier(identifier),
-			m_set_value(set_value ? std::make_optional<std::unique_ptr<lvalue>>(std::move(*set_value)) : std::nullopt) {}
+			m_set_value(set_value ? std::make_optional<std::unique_ptr<lvalue>>(std::move(set_value.value())) : std::nullopt) {}
 
-		qualifier qualifiers() const noexcept { return m_qualifiers; }
-		const type& var_type() const noexcept { return m_type; }
+		storage_qualifier qualifiers() const noexcept { return m_qualifiers; }
+		const type* type() const noexcept { return m_type.get(); }
 		const std::string& identifier() const noexcept { return m_identifier; }
 	};
 
-	// Struct representation
-	class struct_declaration : public statement {
-	public:
-		struct member {
-			type member_type;
-			std::string member_name;
-
-			member(type member_type, std::string member_name)
-				: member_type(std::move(member_type)), member_name(std::move(member_name)) {}
-		};
-
+	class typedef_declaration : public top_level_element {
 	private:
-		std::string m_struct_name;
-		std::vector<member> m_members;
+		std::unique_ptr<type> m_type;
+		std::string m_name;
 
 	public:
-		struct_declaration(std::string struct_name, std::vector<member> members)
+		typedef_declaration(std::unique_ptr<type>&& type, std::string name)
+			: m_type(std::move(type)), m_name(name) { }
+
+		const type* type() const noexcept { return m_type.get(); }
+		const std::string& name() const noexcept { return m_name; }
+	};
+
+	// Struct representation
+	class struct_declaration : public top_level_element, public type {
+	private:
+		std::optional<std::string> m_struct_name;
+		std::vector<variable_declaration> m_members;
+
+	public:
+		struct_declaration(std::optional<std::string> struct_name, std::vector<variable_declaration> members)
 			: m_struct_name(std::move(struct_name)), m_members(std::move(members)) {}
 
-		const std::string& struct_name() const noexcept { return m_struct_name; }
-		const std::vector<member>& members() const noexcept { return m_members; }
+		const std::optional<std::string> struct_name() const noexcept { return m_struct_name; }
+		const std::vector<variable_declaration>& members() const noexcept { return m_members; }
 	};
 
 	// Enum representation
-	class enum_declaration : public statement {
+	class enum_declaration : public top_level_element, public type {
 	public:
 		struct enumerator {
 			std::string name;
@@ -282,71 +355,89 @@ namespace michaelcc::ast {
 		};
 
 	private:
-		std::string m_enum_name;
+		std::optional<std::string> m_enum_name;
 		std::vector<enumerator> m_enumerators;
 
 	public:
 		enum_declaration(std::string enum_name, std::vector<enumerator> enumerators)
 			: m_enum_name(std::move(enum_name)), m_enumerators(std::move(enumerators)) {}
 
-		const std::string& enum_name() const noexcept { return m_enum_name; }
+		const std::optional<std::string> enum_name() const noexcept { return m_enum_name; }
 		const std::vector<enumerator>& enumerators() const noexcept { return m_enumerators; }
 	};
 
 	// Union representation
-	class union_declaration : public statement {
+	class union_declaration : public top_level_element, public type {
 	public:
 		struct member {
-			type member_type;
+			std::unique_ptr<type> member_type;
 			std::string member_name;
 
-			member(type member_type, std::string member_name)
+			member(std::unique_ptr<type>&& member_type, std::string member_name)
 				: member_type(std::move(member_type)), member_name(std::move(member_name)) {}
 		};
 
 	private:
-		std::string m_union_name;
+		std::optional<std::string> m_union_name;
 		std::vector<member> m_members;
 
 	public:
 		union_declaration(std::string union_name, std::vector<member> members)
 			: m_union_name(std::move(union_name)), m_members(std::move(members)) {}
 
-		const std::string& union_name() const noexcept { return m_union_name; }
+		const std::optional<std::string> union_name() const noexcept { return m_union_name; }
 		const std::vector<member>& members() const noexcept { return m_members; }
 	};
 
 	// Function representation
-	class function_declaration : public statement {
-	public:
-		struct parameter {
-			qualifier qualifiers;
-			type param_type;
-			std::string param_name;
+	struct function_parameter {
+		storage_qualifier qualifiers;
+		std::unique_ptr<type> param_type;
+		std::string param_name;
 
-			parameter(type param_type, std::string param_name, qualifier qualifiers)
-				: param_type(std::move(param_type)), param_name(std::move(param_name)), qualifiers(qualifiers) {}
-		};
+		function_parameter(std::unique_ptr<type>&& param_type, std::string param_name, storage_qualifier qualifiers)
+			: param_type(std::move(param_type)), param_name(std::move(param_name)), qualifiers(qualifiers) {}
+	};
 
+	class function_prototype : public top_level_element {
 	private:
-		type m_return_type;
+		std::unique_ptr<type> m_return_type;
 		std::string m_function_name;
-		std::vector<parameter> m_parameters;
+		std::vector<function_parameter> m_parameters;
+
+	public:
+		function_prototype(std::unique_ptr<type>&& return_type,
+			std::string function_name,
+			std::vector<function_parameter> parameters) 
+			: m_return_type(std::move(return_type)),
+			m_function_name(std::move(function_name)),
+			m_parameters(std::move(parameters)) { }
+
+		const type* return_type() const noexcept { return m_return_type.get(); }
+		const std::string& function_name() const noexcept { return m_function_name; }
+		const std::vector<function_parameter>& parameters() const noexcept { return m_parameters; }
+	};
+
+	class function_declaration : public top_level_element {
+	private:
+		std::unique_ptr<type> m_return_type;
+		std::string m_function_name;
+		std::vector<function_parameter> m_parameters;
 		context_block m_function_body;
 
 	public:
-		function_declaration(type return_type,
+		function_declaration(std::unique_ptr<type>&& return_type,
 			std::string function_name,
-			std::vector<parameter> parameters,
+			std::vector<function_parameter> parameters,
 			context_block function_body)
 			: m_return_type(std::move(return_type)),
 			m_function_name(std::move(function_name)),
 			m_parameters(std::move(parameters)),
 			m_function_body(std::move(function_body)) {}
 
-		const type& return_type() const noexcept { return m_return_type; }
+		const type* return_type() const noexcept { return m_return_type.get(); }
 		const std::string& function_name() const noexcept { return m_function_name; }
-		const std::vector<parameter>& parameters() const noexcept { return m_parameters; }
+		const std::vector<function_parameter>& parameters() const noexcept { return m_parameters; }
 		const context_block& function_body() const noexcept { return m_function_body; }
 	};
 }
