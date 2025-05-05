@@ -21,7 +21,7 @@ namespace michaelcc {
 			const std::string m_source;
 
 			std::pair<size_t, size_t> last_tok_begin;
-			token m_last_tok = token(MICHAELCC_TOKEN_END);
+			token m_last_tok = token(MICHAELCC_TOKEN_END, 0);
 
 			size_t index = 0;
 			size_t current_row = 1;

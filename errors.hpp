@@ -5,15 +5,37 @@
 
 namespace michaelcc {
 	struct source_location {
-		const size_t row;
-		const size_t col;
-		const std::filesystem::path file_name;
+	private:
+		size_t m_row;
+		size_t m_col;
+		std::filesystem::path m_file_name;
 
-		source_location(const size_t row, const size_t col, const std::filesystem::path file_name) : row(row), col(col), file_name(file_name) {
+	public:
+		source_location(const size_t row, const size_t col, const std::filesystem::path file_name) : m_row(row), m_col(col), m_file_name(file_name) {
 
 		}
 
+		const size_t row() const noexcept {
+			return m_row;
+		}
+
+		const size_t col() const noexcept {
+			return m_col;
+		}
+
+		const std::filesystem::path filename() const noexcept {
+			return m_file_name;
+		}
+
 		const std::string to_string() const;
+
+		void increment_line() noexcept {
+			m_row++;
+		}
+
+		void set_col(uint32_t col) noexcept {
+			m_col = col;
+		}
 	};
 
 	class compilation_error : public std::exception {

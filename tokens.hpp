@@ -1,7 +1,9 @@
 #pragma once
 
+#include "errors.hpp"
 #include <variant>
 #include <string>
+#include <memory>
 
 namespace michaelcc {
 	enum token_type {
@@ -12,6 +14,7 @@ namespace michaelcc {
 		MICHAELCC_PREPROCESSOR_TOKEN_ELSE,
 		MICHAELCC_PREPROCESSOR_TOKEN_ENDIF,
 		MICHAELCC_PREPROCESSOR_TOKEN_INCLUDE,
+		MICHAELCC_TOKEN_LINE_DIRECTIVE,
 
 		//punctuators
 		MICHAELCC_TOKEN_OPEN_BRACKET,
@@ -97,28 +100,51 @@ namespace michaelcc {
 
 	class token {
 	private:
+		std::variant<std::monostate, size_t, float, double, std::unique_ptr<std::string>, std::unique_ptr<source_location>> data;
 		token_type m_type;
-		std::variant<std::string, size_t, float, double, std::monostate> data;
+		uint32_t column;
 
 	public:
-		token(token_type type, std::string str) : m_type(type), data(str) {
+		token(token_type type, std::string str, uint32_t column) : m_type(type), data(std::make_unique<std::string>(str)), column(column) {
 
 		}
 
-		token(token_type type, size_t int_literal) : m_type(type), data(int_literal) {
+		token(token_type type, size_t int_literal, uint32_t column) : m_type(type), data(int_literal), column(column) {
 
 		}
 
-		token(float f) : m_type(MICHAELCC_TOKEN_FLOAT32_LITERAL), data(f) {
+		token(float f, uint32_t column) : m_type(MICHAELCC_TOKEN_FLOAT32_LITERAL), data(f), column(column) {
 
 		}
 
-		token(double d) : m_type(MICHAELCC_TOKEN_FLOAT64_LITERAL), data(d) {
+		token(double d, uint32_t column) : m_type(MICHAELCC_TOKEN_FLOAT64_LITERAL), data(d), column(column) {
 
 		}
 
-		token(token_type type) : m_type(type), data(std::monostate{}) {
+		token(source_location location) : m_type(MICHAELCC_TOKEN_LINE_DIRECTIVE), data(std::make_unique<source_location>(location)), column(location.col()) {
 
+		}
+
+		token(token_type type, uint32_t column) : m_type(type), data(std::monostate{}), column(column) {
+
+		}
+
+		token(const token& to_copy) : m_type(to_copy.m_type), data(std::monostate{}) {
+			if (std::holds_alternative<size_t>(to_copy.data)) {
+				data = to_copy.integer();
+			} 
+			else if (std::holds_alternative<double>(to_copy.data)) {
+				data = to_copy.float64();
+			}
+			else if (std::holds_alternative<float>(to_copy.data)) {
+				data = to_copy.float32();
+			}
+			else if (std::holds_alternative<std::unique_ptr<std::string>>(to_copy.data)) {
+				data = std::make_unique<std::string>(to_copy.string());
+			}
+			else if (std::holds_alternative<std::unique_ptr<source_location>>(to_copy.data)) {
+				data = std::make_unique<source_location>(to_copy.location());
+			}
 		}
 
 		const token_type type() const noexcept {
@@ -126,7 +152,7 @@ namespace michaelcc {
 		}
 
 		const std::string string() const {
-			return std::get<std::string>(data);
+			return *std::get<std::unique_ptr<std::string>>(data).get();
 		}
 
 		const float float32() const {
@@ -135,6 +161,18 @@ namespace michaelcc {
 
 		const double float64() const {
 			return std::get<float>(data);
+		}
+
+		const size_t integer() const {
+			return std::get<size_t>(data);
+		}
+
+		const source_location location() const {
+			return *std::get<std::unique_ptr<source_location>>(data).get();
+		}
+
+		const uint32_t column() const noexcept {
+			return column;
 		}
 
 		const bool is_preprocessor() const noexcept {

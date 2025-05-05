@@ -45,6 +45,7 @@ token michaelcc::preprocessor::expect_token(token_type type)
 void preprocessor::preprocess()
 {
 	std::vector<preprocessor_scope> preprocessor_scopes;
+	m_result.push_back(token(m_scanners.front().location()));
 
 	while (!m_scanners.empty()) {
 		auto& scanner = m_scanners.back();
@@ -59,9 +60,11 @@ void preprocessor::preprocess()
 			else if (tok.type() == MICHAELCC_PREPROCESSOR_TOKEN_ELSE && !preprocessor_scopes.back().override_skip) {
 				preprocessor_scopes.pop_back();
 				preprocessor_scopes.push_back(preprocessor_scope(tok.type(), location, false, false));
+				m_result.push_back(token(location));
 			}
 			else if (tok.type() == MICHAELCC_PREPROCESSOR_TOKEN_ENDIF) {
 				preprocessor_scopes.pop_back();
+				m_result.push_back(token(location));
 			}
 			continue;
 		}
@@ -90,6 +93,7 @@ void preprocessor::preprocess()
 
 
 			m_scanners.push_back(preprocessor::scanner(ss.str(), file_path.value()));
+			m_result.push_back(token(m_scanners.back().location()));
 			continue;
 		}
 		case MICHAELCC_PREPROCESSOR_TOKEN_DEFINE: {
@@ -175,8 +179,6 @@ void preprocessor::preprocess()
 			m_scanners.pop_back();
 			continue;
 		}
-		case MICHAELCC_TOKEN_NEWLINE:
-			continue;
 		case MICHAELCC_TOKEN_IDENTIFIER:
 		{
 			auto it = m_definitions.find(tok.string());
@@ -186,15 +188,18 @@ void preprocessor::preprocess()
 					do {
 						std::vector<token> argument;
 
+						token_type tok_type;
 						do {
-							tok = scanner.scan_token();
-							argument.push_back(tok);
-						} while (tok.type() != MICHAELCC_TOKEN_COMMA && tok.type() != MICHAELCC_TOKEN_CLOSE_PAREN);
+							token tok2 = scanner.scan_token();
+							argument.push_back(tok2);
+							tok_type = tok2.type();
+						} while (tok_type != MICHAELCC_TOKEN_COMMA && tok_type != MICHAELCC_TOKEN_CLOSE_PAREN);
 						argument.pop_back();
 						arguments.emplace_back(std::move(argument));
 					} while (tok.type() != MICHAELCC_TOKEN_CLOSE_PAREN);
 				}
 				it->second.expand(scanner, arguments, *this);
+				m_result.push_back(token(scanner.location()));
 				continue;
 			}
 		}

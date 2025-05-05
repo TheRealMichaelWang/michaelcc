@@ -88,17 +88,17 @@ char michaelcc::preprocessor::scanner::scan_char_literal()
 token michaelcc::preprocessor::scanner::peek_token()
 {
 	if (!token_backlog.empty()) {
-		return token_backlog.front();
+		return std::move(token_backlog.front());
 	}
 
 	token_backlog.emplace_back(scan_token());
-	return token_backlog.front();
+	return std::move(token_backlog.front());
 }
 
 token michaelcc::preprocessor::scanner::scan_token()
 {
 	if (!token_backlog.empty()) {
-		token to_return = token_backlog.front();
+		token to_return = std::move(token_backlog.front());
 		token_backlog.pop_front();
 		return to_return;
 	}
@@ -117,10 +117,10 @@ token michaelcc::preprocessor::scanner::scan_token()
 
 		auto it = keywords.find(identifier);
 		if (it != keywords.end()) {
-			return token(it->second, identifier);
+			return token(it->second, identifier, location().col());
 		}
 
-		return token(MICHAELCC_TOKEN_IDENTIFIER, identifier);
+		return token(MICHAELCC_TOKEN_IDENTIFIER, identifier, location().col());
 	}
 	else if (isdigit(peek_char())) { //parse numerical literal
 		std::string str_data;
@@ -143,11 +143,11 @@ token michaelcc::preprocessor::scanner::scan_token()
 			if (str_data.find('.') != std::string::npos) {
 				if (str_data.ends_with('f')) {
 					str_data.pop_back();
-					return token(std::stof(str_data));
+					return token(std::stof(str_data), location().col());
 				}
 				else if (str_data.ends_with('d')) {
 					str_data.pop_back();
-					return token(std::stod(str_data));
+					return token(std::stod(str_data), location().col());
 				}
 			}
 			else if (str_data.starts_with("0x")) { //parse literal
@@ -180,7 +180,7 @@ token michaelcc::preprocessor::scanner::scan_token()
 
 		auto it = preprocessor_keywords.find(identifier);
 		if (it != preprocessor_keywords.end()) {
-			return token(it->second);
+			return token(it->second, location().col());
 		}
 
 		std::stringstream ss;
@@ -194,7 +194,7 @@ token michaelcc::preprocessor::scanner::scan_token()
 			str.push_back(scan_char_literal());
 		}
 
-		return token(MICHAELCC_TOKEN_STRING_LITERAL, str);
+		return token(MICHAELCC_TOKEN_STRING_LITERAL, str, location().col());
 	}
 	else if (scan_char_if_match('\'')) {
 		char c = scan_char_literal();
@@ -207,44 +207,44 @@ token michaelcc::preprocessor::scanner::scan_token()
 		switch (current)
 		{
 		case '[':
-			return token(MICHAELCC_TOKEN_OPEN_BRACKET);
+			return token(MICHAELCC_TOKEN_OPEN_BRACKET, location().col());
 		case ']':
-			return token(MICHAELCC_TOKEN_CLOSE_BRACKET);
+			return token(MICHAELCC_TOKEN_CLOSE_BRACKET, location().col());
 		case '(':
-			return token(MICHAELCC_TOKEN_OPEN_PAREN);
+			return token(MICHAELCC_TOKEN_OPEN_PAREN, location().col());
 		case ')':
-			return token(MICHAELCC_TOKEN_CLOSE_PAREN);
+			return token(MICHAELCC_TOKEN_CLOSE_PAREN, location().col());
 		case '{':
-			return token(MICHAELCC_TOKEN_OPEN_BRACKET);
+			return token(MICHAELCC_TOKEN_OPEN_BRACKET, location().col());
 		case '}':
-			return token(MICHAELCC_TOKEN_CLOSE_BRACKET);
+			return token(MICHAELCC_TOKEN_CLOSE_BRACKET, location().col());
 		case ',':
-			return token(MICHAELCC_TOKEN_COMMA);
+			return token(MICHAELCC_TOKEN_COMMA, location().col());
 		case ':':
-			return token(MICHAELCC_TOKEN_COLON);
+			return token(MICHAELCC_TOKEN_COLON, location().col());
 		case ';':
-			return token(MICHAELCC_TOKEN_SEMICOLON);
+			return token(MICHAELCC_TOKEN_SEMICOLON, location().col());
 		case '=':
-			return token(scan_char_if_match('=') ? MICHAELCC_TOKEN_EQUALS : MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR);
+			return token(scan_char_if_match('=') ? MICHAELCC_TOKEN_EQUALS : MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR, location().col());
 		case '.':
-			return token(MICHAELCC_TOKEN_PERIOD);
+			return token(MICHAELCC_TOKEN_PERIOD, location().col());
 		case '~':
-			return token(MICHAELCC_TOKEN_TILDE);
+			return token(MICHAELCC_TOKEN_TILDE, location().col());
 		case '+':
 			if (scan_char_if_match('=')) {
-				return token(MICHAELCC_TOKEN_INCREMENT_BY);
+				return token(MICHAELCC_TOKEN_INCREMENT_BY, location().col());
 			}
-			return token(scan_char_if_match('+') ? MICHAELCC_TOKEN_INCREMENT : MICHAELCC_TOKEN_PLUS);
+			return token(scan_char_if_match('+') ? MICHAELCC_TOKEN_INCREMENT : MICHAELCC_TOKEN_PLUS, location().col());
 		case '-':
 			if (scan_char_if_match('=')) {
-				return token(MICHAELCC_TOKEN_DECREMENT_BY);
+				return token(MICHAELCC_TOKEN_DECREMENT_BY, location().col());
 			}
-			return token(scan_char_if_match('+') ? MICHAELCC_TOKEN_INCREMENT : MICHAELCC_TOKEN_MINUS);
+			return token(scan_char_if_match('+') ? MICHAELCC_TOKEN_INCREMENT : MICHAELCC_TOKEN_MINUS, location().col());
 		case '/':
 			if (scan_char_if_match('/')) { //single line comment
 				//consume the rest of the line
 				while(scan_char() != '\n') { }
-				return scan_token();
+				return token(location());
 			}
 			else if (scan_char_if_match('*')) { //multi-line comment
 				for (;;) {
@@ -252,25 +252,25 @@ token michaelcc::preprocessor::scanner::scan_token()
 						break;
 					}
 				}
-				return scan_token();
+				return token(location());
 			}
-			return token(MICHAELCC_TOKEN_SLASH);
+			return token(MICHAELCC_TOKEN_SLASH, location().col());
 		case '^':
-			return token(MICHAELCC_TOKEN_CARET);
+			return token(MICHAELCC_TOKEN_CARET, location().col());
 		case '&':
-			return token(scan_char_if_match('&') ? MICHAELCC_TOKEN_DOUBLE_AND : MICHAELCC_TOKEN_AND);
+			return token(scan_char_if_match('&') ? MICHAELCC_TOKEN_DOUBLE_AND : MICHAELCC_TOKEN_AND, location().col());
 		case '|':
-			return token(scan_char_if_match('|') ? MICHAELCC_TOKEN_DOUBLE_OR : MICHAELCC_TOKEN_OR);
+			return token(scan_char_if_match('|') ? MICHAELCC_TOKEN_DOUBLE_OR : MICHAELCC_TOKEN_OR, location().col());
 		case '>':
-			return token(scan_char_if_match('=') ? MICHAELCC_TOKEN_MORE_EQUAL : MICHAELCC_TOKEN_MORE);
+			return token(scan_char_if_match('=') ? MICHAELCC_TOKEN_MORE_EQUAL : MICHAELCC_TOKEN_MORE, location().col());
 		case '<':
-			return token(scan_char_if_match('=') ? MICHAELCC_TOKEN_LESS_EQUAL : MICHAELCC_TOKEN_LESS);
+			return token(scan_char_if_match('=') ? MICHAELCC_TOKEN_LESS_EQUAL : MICHAELCC_TOKEN_LESS, location().col());
 		case '?':
-			return token(MICHAELCC_TOKEN_QUESTION);
+			return token(MICHAELCC_TOKEN_QUESTION, location().col());
 		case '\n':
-			return token(MICHAELCC_TOKEN_NEWLINE);
+			return token(MICHAELCC_TOKEN_NEWLINE, location().col());
 		case '\0':
-			return token(MICHAELCC_TOKEN_END);
+			return token(MICHAELCC_TOKEN_END, location().col());
 		default:
 		{
 			std::stringstream ss;

@@ -13,6 +13,6 @@ compilation_error::compilation_error(const std::string msg, const source_locatio
 const std::string michaelcc::source_location::to_string() const
 {
 	std::stringstream ss;
-	ss << "row " << row << ", col " << col << " in \"" << file_name << "\".";
+	ss << "m_row " << m_row << ", m_col " << m_col << " in \"" << m_file_name << "\".";
 	return ss.str();
 }
