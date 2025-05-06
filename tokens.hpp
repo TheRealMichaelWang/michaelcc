@@ -30,6 +30,7 @@ namespace michaelcc {
 		MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR,
 		MICHAELCC_TOKEN_PERIOD,
 		MICHAELCC_TOKEN_TILDE,
+		MICHAELCC_TOKEN_DEREFERENCE_GET,
 		
 		//keywords
 		MICHAELCC_TOKEN_AUTO,
@@ -102,34 +103,34 @@ namespace michaelcc {
 	private:
 		std::variant<std::monostate, size_t, float, double, std::unique_ptr<std::string>, std::unique_ptr<source_location>> data;
 		token_type m_type;
-		uint32_t column;
+		uint32_t m_column;
 
 	public:
-		token(token_type type, std::string str, uint32_t column) : m_type(type), data(std::make_unique<std::string>(str)), column(column) {
+		explicit token(token_type type, std::string str, size_t column) : m_type(type), data(std::make_unique<std::string>(str)), m_column(static_cast<uint32_t>(column)) {
 
 		}
 
-		token(token_type type, size_t int_literal, uint32_t column) : m_type(type), data(int_literal), column(column) {
+		explicit token(token_type type, size_t int_literal, size_t column) : m_type(type), data(int_literal), m_column(static_cast<uint32_t>(column)) {
 
 		}
 
-		token(float f, uint32_t column) : m_type(MICHAELCC_TOKEN_FLOAT32_LITERAL), data(f), column(column) {
+		explicit token(float f, size_t column) : m_type(MICHAELCC_TOKEN_FLOAT32_LITERAL), data(f), m_column(static_cast<uint32_t>(column)) {
 
 		}
 
-		token(double d, uint32_t column) : m_type(MICHAELCC_TOKEN_FLOAT64_LITERAL), data(d), column(column) {
+		explicit token(double d, size_t column) : m_type(MICHAELCC_TOKEN_FLOAT64_LITERAL), data(d), m_column(static_cast<uint32_t>(column)) {
 
 		}
 
-		token(source_location location) : m_type(MICHAELCC_TOKEN_LINE_DIRECTIVE), data(std::make_unique<source_location>(location)), column(location.col()) {
+		explicit token(source_location location) : m_type(MICHAELCC_TOKEN_LINE_DIRECTIVE), data(std::make_unique<source_location>(location)), m_column(static_cast<uint32_t>(location.col())) {
 
 		}
 
-		token(token_type type, uint32_t column) : m_type(type), data(std::monostate{}), column(column) {
+		explicit token(token_type type, size_t column) : m_type(type), data(std::monostate{}), m_column(static_cast<uint32_t>(column)) {
 
 		}
 
-		token(const token& to_copy) : m_type(to_copy.m_type), data(std::monostate{}) {
+		token(const token& to_copy) : m_type(to_copy.m_type), m_column(to_copy.m_column), data(std::monostate{}) {
 			if (std::holds_alternative<size_t>(to_copy.data)) {
 				data = to_copy.integer();
 			} 
@@ -172,11 +173,15 @@ namespace michaelcc {
 		}
 
 		const uint32_t column() const noexcept {
-			return column;
+			return m_column;
 		}
 
 		const bool is_preprocessor() const noexcept {
 			return m_type >= MICHAELCC_PREPROCESSOR_TOKEN_DEFINE && m_type <= MICHAELCC_PREPROCESSOR_TOKEN_INCLUDE;
+		}
+
+		const bool is_operator() const noexcept {
+			return m_type >= MICHAELCC_TOKEN_PLUS && m_type <= MICHAELCC_TOKEN_EQUALS;
 		}
 
 		const bool is_preprocessor_condition() const noexcept {

@@ -239,6 +239,9 @@ token michaelcc::preprocessor::scanner::scan_token()
 			if (scan_char_if_match('=')) {
 				return token(MICHAELCC_TOKEN_DECREMENT_BY, location().col());
 			}
+			else if (scan_char_if_match('>')) {
+				return token(MICHAELCC_TOKEN_DEREFERENCE_GET, location().col());
+			}
 			return token(scan_char_if_match('+') ? MICHAELCC_TOKEN_INCREMENT : MICHAELCC_TOKEN_MINUS, location().col());
 		case '/':
 			if (scan_char_if_match('/')) { //single line comment

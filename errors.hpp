@@ -15,6 +15,8 @@ namespace michaelcc {
 
 		}
 
+		source_location() : source_location(1, 1, std::filesystem::path()) { }
+
 		const size_t row() const noexcept {
 			return m_row;
 		}
