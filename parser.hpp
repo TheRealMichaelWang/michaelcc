@@ -53,15 +53,20 @@ namespace michaelcc {
 			return tok;
 		}
 
-		std::unique_ptr<ast::set_destination> parse_accessors(std::unique_ptr<ast::set_destination>&& initial_value);
+		uint8_t parse_storage_qualifiers();
+		std::unique_ptr<ast::type> parse_int_type();
+		std::unique_ptr<ast::type> parse_type();
 
-		std::unique_ptr<ast::set_destination> parse_lvalue();
+		std::unique_ptr<ast::set_destination> parse_set_accessors(std::unique_ptr<ast::set_destination>&& initial_value);
+		std::unique_ptr<ast::set_destination> parse_set_destination();
 
 		std::unique_ptr<ast::expression> parse_value();
 		std::unique_ptr<ast::expression> parse_expression(int min_precedence=0);
 
 		std::unique_ptr<ast::statement> parse_statement();
 		ast::context_block parse_block();
+
+		std::unique_ptr<ast::variable_declaration> parse_variable_declaration();
 
 		const compilation_error panic(const std::string msg) const noexcept {
 			return compilation_error(msg, current_loc);

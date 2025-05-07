@@ -37,7 +37,159 @@ void michaelcc::parser::match_token(token_type type) const
 	}
 }
 
-std::unique_ptr<ast::set_destination> michaelcc::parser::parse_accessors(std::unique_ptr<ast::set_destination>&& initial_value)
+uint8_t michaelcc::parser::parse_storage_qualifiers()
+{    
+    // Parse qualifiers (const, volatile, etc.)
+    uint8_t qualifiers = ast::NO_STORAGE_QUALIFIER;
+    for (;;) {
+        switch (current_token().type()) {
+        case MICHAELCC_TOKEN_CONST: qualifiers |= ast::CONST_STORAGE_QUALIFIER; next_token(); continue;
+        case MICHAELCC_TOKEN_VOLATILE: qualifiers |= ast::VOLATILE_STORAGE_QUALIFIER; next_token(); continue;
+        case MICHAELCC_TOKEN_EXTERN: qualifiers |= ast::EXTERN_STORAGE_QUALIFIER; next_token(); continue;
+        case MICHAELCC_TOKEN_STATIC: qualifiers |= ast::STATIC_STORAGE_QUALIFIER; next_token(); continue;
+        case MICHAELCC_TOKEN_REGISTER: qualifiers |= ast::REGISTER_STORAGE_QUALIFIER; next_token(); continue;
+        default:
+            return qualifiers;
+        }
+    }
+}
+
+std::unique_ptr<ast::type> parser::parse_int_type() {
+    uint8_t qualifiers = ast::NO_INT_QUALIFIER;
+    ast::int_class int_cls = ast::INT_INT_CLASS;
+
+    // Accept qualifiers and type specifiers in any order, as in C
+    int long_count = 0;
+    int tokens_saw = 0;
+    for(;;) {
+        switch (current_token().type()) {
+        case MICHAELCC_TOKEN_SIGNED:
+            qualifiers |= ast::SIGNED_INT_QUALIFIER;
+            tokens_saw++;
+            next_token();
+            continue;
+        case MICHAELCC_TOKEN_UNSIGNED:
+            qualifiers |= ast::UNSIGNED_INT_QUALIFIER;
+            tokens_saw++;
+            next_token();
+            continue;
+        case MICHAELCC_TOKEN_SHORT:
+            int_cls = ast::SHORT_INT_CLASS;
+            tokens_saw++;
+            next_token();
+            continue;
+        case MICHAELCC_TOKEN_LONG:
+            long_count++;
+            if (qualifiers & ast::LONG_INT_QUALIFIER) {
+                int_cls = ast::LONG_INT_CLASS;
+            }
+            else {
+                qualifiers |= ast::LONG_INT_QUALIFIER;
+            }
+            tokens_saw++;
+            next_token();
+            continue;
+        case MICHAELCC_TOKEN_CHAR:
+            int_cls = ast::CHAR_INT_CLASS;
+            tokens_saw++;
+            next_token();
+            continue;
+        case MICHAELCC_TOKEN_INT:
+            tokens_saw++;
+            next_token();
+            continue;
+        default:
+            break;
+        }
+        break;
+    }
+
+    // Validate combinations according to C standard
+    if (int_cls & ast::SHORT_INT_CLASS && (int_cls & ast::SHORT_INT_CLASS || long_count > 0)) {
+        throw panic("Invalid combination: 'char' cannot be combined with 'short', 'long', or 'int'");
+    }
+    if (int_cls & ast::SHORT_INT_CLASS && long_count > 0) {
+        throw panic("Invalid combination: 'short' and 'long' cannot be combined");
+    }
+    if (tokens_saw == 0) {
+        throw panic("Unknown type specifier.");
+    }
+
+    return std::make_unique<ast::int_type>(qualifiers, int_cls);
+}
+
+std::unique_ptr<ast::type> michaelcc::parser::parse_type()
+{
+    source_location location = current_loc;
+    std::unique_ptr<ast::type> base_type;
+
+    // Parse float types
+    if (current_token().type() == MICHAELCC_TOKEN_FLOAT ||
+        current_token().type() == MICHAELCC_TOKEN_DOUBLE) {
+        ast::float_class float_cls = (current_token().type() == MICHAELCC_TOKEN_FLOAT)
+            ? ast::FLOAT_FLOAT_CLASS : ast::DOUBLE_FLOAT_CLASS;
+        next_token();
+        base_type = std::make_unique<ast::float_type>(float_cls);
+    }
+    // Parse template types: identifier '<' ... '>'
+    else if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
+        std::string identifier = current_token().string();
+        next_token();
+
+        std::vector<std::unique_ptr<ast::template_argument>> template_args;
+        if (current_token().type() == MICHAELCC_TOKEN_LESS) {
+            next_token();
+            // Parse comma-separated template arguments
+            do {
+                try {
+                    template_args.push_back(parse_type());
+                }
+                catch (const michaelcc::compilation_error& error) {
+                    template_args.push_back(parse_expression());
+                }
+
+                if (current_token().type() == MICHAELCC_TOKEN_COMMA) {
+                    next_token();
+                }
+                else {
+                    break;
+                }
+            } while (true);
+            match_token(MICHAELCC_TOKEN_MORE);
+            next_token();
+        }
+        base_type = std::make_unique<ast::template_type>(
+            std::move(identifier), std::move(template_args), std::move(location)
+        );
+    }
+    else {
+        base_type = parse_int_type();
+    }
+
+    // Parse pointer and array modifiers
+    while (true) {
+        if (current_token().type() == MICHAELCC_TOKEN_ASTERISK) {
+            next_token();
+            base_type = std::make_unique<ast::pointer_type>(std::move(base_type));
+        }
+        else if (current_token().type() == MICHAELCC_TOKEN_OPEN_BRACKET) {
+            next_token();
+            std::optional<std::unique_ptr<ast::expression>> length;
+            if (current_token().type() != MICHAELCC_TOKEN_CLOSE_BRACKET) {
+                length = parse_expression();
+            }
+            match_token(MICHAELCC_TOKEN_CLOSE_BRACKET);
+            next_token();
+            base_type = std::make_unique<ast::array_type>(std::move(base_type), std::move(length));
+        }
+        else {
+            break;
+        }
+    }
+    return base_type;
+}
+
+std::unique_ptr<ast::set_destination> michaelcc::parser::parse_set_accessors(std::unique_ptr<ast::set_destination>&& initial_value)
 {
 	std::unique_ptr<ast::set_destination> value = std::move(initial_value);
 
@@ -71,7 +223,7 @@ std::unique_ptr<ast::set_destination> michaelcc::parser::parse_accessors(std::un
 	return value;
 }
 
-std::unique_ptr<ast::set_destination> michaelcc::parser::parse_lvalue()
+std::unique_ptr<ast::set_destination> michaelcc::parser::parse_set_destination()
 {
 	source_location location = current_loc;
 	std::unique_ptr<ast::set_destination> value;
@@ -89,7 +241,7 @@ std::unique_ptr<ast::set_destination> michaelcc::parser::parse_lvalue()
 	}
 	}
 
-	return parse_accessors(std::move(value));
+	return parse_set_accessors(std::move(value));
 }
 
 std::unique_ptr<ast::expression> michaelcc::parser::parse_value()
@@ -102,9 +254,9 @@ std::unique_ptr<ast::expression> michaelcc::parser::parse_value()
 	case MICHAELCC_TOKEN_FLOAT64_LITERAL:
 		return std::make_unique<ast::double_literal>(scan_token().float64(), std::move(location));
 	case MICHAELCC_TOKEN_INTEGER_LITERAL:
-		return std::make_unique<ast::int_literal>(ast::NO_INT_QUALIFIER, scan_token().integer(), std::move(location));
+		return std::make_unique<ast::int_literal>(ast::NO_INT_QUALIFIER, ast::INT_INT_CLASS, scan_token().integer(), std::move(location));
 	case MICHAELCC_TOKEN_CHAR_LITERAL:
-		return std::make_unique<ast::int_literal>(ast::CHAR_LITERAL_QUALIFIER, scan_token().integer(), std::move(location));
+		return std::make_unique<ast::int_literal>(ast::NO_INT_QUALIFIER, ast::CHAR_INT_CLASS, scan_token().integer(), std::move(location));
 	case MICHAELCC_TOKEN_OPEN_PAREN: {
 		next_token();
 		std::unique_ptr<ast::expression> expression = parse_expression();
@@ -113,7 +265,7 @@ std::unique_ptr<ast::expression> michaelcc::parser::parse_value()
 		return expression;
 	}
     default: {
-        std::unique_ptr<ast::set_destination> destination = parse_lvalue();
+        std::unique_ptr<ast::set_destination> destination = parse_set_destination();
         if (current_token().type() == MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR) {
             next_token();
             return std::make_unique<ast::set_operator>(std::move(destination), parse_expression(), std::move(location));
@@ -274,6 +426,20 @@ std::unique_ptr<ast::statement> parser::parse_statement() {
     }
     case MICHAELCC_TOKEN_OPEN_BRACE:
         return std::make_unique<ast::context_block>(parse_block());
+    case MICHAELCC_TOKEN_CONST:
+    case MICHAELCC_TOKEN_VOLATILE:
+    case MICHAELCC_TOKEN_EXTERN:
+    case MICHAELCC_TOKEN_STATIC:
+    case MICHAELCC_TOKEN_REGISTER:
+    case MICHAELCC_TOKEN_SIGNED:
+    case MICHAELCC_TOKEN_UNSIGNED:
+    case MICHAELCC_TOKEN_SHORT:
+    case MICHAELCC_TOKEN_LONG:
+    case MICHAELCC_TOKEN_CHAR:
+    case MICHAELCC_TOKEN_INT:
+    case MICHAELCC_TOKEN_FLOAT:
+    case MICHAELCC_TOKEN_DOUBLE:
+        return parse_variable_declaration();
     default: {
         // Expression or declaration statement
         std::unique_ptr<ast::expression> expr = parse_expression();
@@ -306,4 +472,37 @@ ast::context_block parser::parse_block() {
     next_token();
 
     return ast::context_block(std::move(statements), std::move(location));
+}
+
+std::unique_ptr<ast::variable_declaration> parser::parse_variable_declaration() {
+    source_location location = current_loc;
+    uint8_t qualifiers = parse_storage_qualifiers();
+    auto var_type = parse_type();
+
+    if (current_token().type() != MICHAELCC_TOKEN_IDENTIFIER)
+        throw panic("Expected identifier in variable declaration.");
+    std::string identifier = current_token().string();
+    next_token();
+
+    std::optional<std::unique_ptr<ast::expression>> array_length;
+    if (current_token().type() == MICHAELCC_TOKEN_OPEN_BRACKET) {
+        next_token();
+        array_length = parse_expression();
+        match_token(MICHAELCC_TOKEN_CLOSE_BRACKET);
+        next_token();
+    }
+
+    std::optional<std::unique_ptr<ast::expression>> initializer;
+    if (current_token().type() == MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR) {
+        next_token();
+        initializer = parse_expression();
+    }
+
+    match_token(MICHAELCC_TOKEN_SEMICOLON);
+    next_token();
+
+    return std::make_unique<ast::variable_declaration>(
+        qualifiers, std::move(var_type), identifier, std::move(location),
+        std::move(initializer), std::move(array_length)
+    );
 }

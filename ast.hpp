@@ -21,10 +21,20 @@ namespace michaelcc {
 		enum {
 			NO_INT_QUALIFIER = 0,
 			LONG_INT_QUALIFIER = 1,
-			SHORT_INT_QUALIFIER = 2,
 			SIGNED_INT_QUALIFIER = 4,
-			UNSIGNED_INT_QUALIFIER = 8,
-			CHAR_LITERAL_QUALIFIER = 16
+			UNSIGNED_INT_QUALIFIER = 8
+		};
+
+		enum int_class {
+			CHAR_INT_CLASS,
+			SHORT_INT_CLASS,
+			INT_INT_CLASS,
+			LONG_INT_CLASS
+		};
+
+		enum float_class {
+			FLOAT_FLOAT_CLASS,
+			DOUBLE_FLOAT_CLASS
 		};
 
 		class ast_element {
@@ -45,6 +55,10 @@ namespace michaelcc {
 			virtual ~ast_element() = default;
 		};
 
+		class template_argument {
+		public:
+		};
+
 		class top_level_element : virtual public ast_element {
 		public:
 		};
@@ -53,7 +67,7 @@ namespace michaelcc {
 		public:
 		};
 
-		class expression : virtual public ast_element {
+		class expression : virtual public ast_element, public template_argument {
 		public:
 		};
 
@@ -61,17 +75,58 @@ namespace michaelcc {
 		public:
 		};
 
-		class type final : public ast_element {
+		class type : public template_argument {
+		public:
+		};
+
+		class int_type : public type {
 		private:
-			std::string m_identifier;
 			uint8_t m_qualifiers;
-			std::vector<std::unique_ptr<ast_element>> m_template_arguments;
+			int_class m_class;
 
 		public:
-			explicit type(std::string&& identifier, uint8_t qualifiers, std::vector<std::unique_ptr<ast_element>>&& template_arguments, source_location&& location) 
+			int_type(uint8_t qualifiers, int_class m_class)
+				: m_qualifiers(qualifiers), m_class(m_class) { }
+		};
+
+		class float_type : public type {
+		private:
+			float_class m_class;
+
+		public:
+			explicit float_type(float_class m_class) : m_class(m_class) { }
+		};
+
+		class pointer_type : public type {
+		private:
+			std::unique_ptr<type> m_pointee_type;
+		public:
+			pointer_type(std::unique_ptr<type>&& pointee_type)
+				: m_pointee_type(std::move(pointee_type)) {}
+			const type* pointee_type() const noexcept { return m_pointee_type.get(); }
+		};
+
+		// Array type, e.g. int[10], float[]
+		class array_type : public type {
+		private:
+			std::unique_ptr<type> m_element_type;
+			std::optional<std::unique_ptr<expression>> m_length;
+		public:
+			array_type(std::unique_ptr<type>&& element_type, std::optional<std::unique_ptr<expression>>&& length)
+				: m_element_type(std::move(element_type)), m_length(std::move(length)) {}
+			const type* element_type() const noexcept { return m_element_type.get(); }
+			const std::optional<std::unique_ptr<expression>>& length() const noexcept { return m_length; }
+		};
+
+		class template_type final : public type, public ast_element {
+		private:
+			std::string m_identifier;
+			std::vector<std::unique_ptr<template_argument>> m_template_arguments;
+
+		public:
+			explicit template_type(std::string&& identifier, std::vector<std::unique_ptr<template_argument>>&& template_arguments, source_location&& location)
 				: ast_element(std::move(location)), 
 				 m_identifier(std::move(identifier)),
-				 m_qualifiers(qualifiers),
 				 m_template_arguments(std::move(template_arguments)) { }
 		};
 
@@ -188,16 +243,22 @@ namespace michaelcc {
 		class int_literal final : public expression {
 		private:
 			uint8_t m_qualifiers;
+			int_class m_class;
 			size_t m_value;
 
 		public:
-			explicit int_literal(uint8_t qualifiers, size_t value, source_location&& location)
+			explicit int_literal(uint8_t qualifiers, int_class i_class, size_t value, source_location&& location)
 				: ast_element(std::move(location)),
 				m_qualifiers(qualifiers), 
+				m_class(i_class),
 				m_value(value) { }
 
 			const uint8_t qualifiers() const noexcept {
 				return m_qualifiers;
+			}
+
+			const int_class storage_class() const noexcept {
+				return m_class;
 			}
 
 			const size_t unsigned_value() const noexcept {
@@ -328,19 +389,21 @@ namespace michaelcc {
 			uint8_t m_qualifiers;
 			std::unique_ptr<type> m_type;
 			std::string m_identifier;
-			std::optional<std::unique_ptr<set_destination>> m_set_value;
-			std::optional<std::unique_ptr<set_destination>> m_array_length_value;
+			std::optional<std::unique_ptr<expression>> m_set_value;
+			std::optional<std::unique_ptr<expression>> m_array_length_value;
 
 		public:
 			variable_declaration(uint8_t qualifiers,
 				std::unique_ptr<type>&& var_type,
 				const std::string& identifier, source_location&& location,
-				std::optional<std::unique_ptr<set_destination>>&& set_value = std::nullopt)
+				std::optional<std::unique_ptr<expression>>&& set_value = std::nullopt,
+				std::optional<std::unique_ptr<expression>>&& array_length_value = std::nullopt)
 				: ast_element(std::move(location)),
 				m_qualifiers(qualifiers),
 				m_type(std::move(var_type)),
 				m_identifier(identifier),
-				m_set_value(set_value ? std::make_optional<std::unique_ptr<set_destination>>(std::move(set_value.value())) : std::nullopt) {}
+				m_set_value(set_value ? std::make_optional<std::unique_ptr<expression>>(std::move(set_value.value())) : std::nullopt),
+				m_array_length_value(array_length_value ? std::make_optional<std::unique_ptr<expression>>(std::move(array_length_value.value())) : std::nullopt) {}
 
 			uint8_t qualifiers() const noexcept { return m_qualifiers; }
 			const type* type() const noexcept { return m_type.get(); }
