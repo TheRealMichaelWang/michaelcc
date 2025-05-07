@@ -187,16 +187,18 @@ void preprocessor::preprocess()
 				if (scanner.scan_token_if_match(MICHAELCC_TOKEN_OPEN_PAREN)) {
 					do {
 						std::vector<token> argument;
-
-						token_type tok_type;
-						do {
-							token tok2 = scanner.scan_token();
-							argument.push_back(tok2);
-							tok_type = tok2.type();
-						} while (tok_type != MICHAELCC_TOKEN_COMMA && tok_type != MICHAELCC_TOKEN_CLOSE_PAREN);
-						argument.pop_back();
+						while (scanner.peek_token().type() != MICHAELCC_TOKEN_COMMA 
+							&& scanner.peek_token().type() != MICHAELCC_TOKEN_CLOSE_PAREN
+							&& scanner.peek_token().type() != MICHAELCC_TOKEN_END)
+						{
+							argument.emplace_back(scanner.scan_token());
+						}
+						if (scanner.peek_token().type() == MICHAELCC_TOKEN_END) {
+							throw panic("Unexpected end of file.");
+						}
+						scanner.scan_token_if_match(MICHAELCC_TOKEN_COMMA);
 						arguments.emplace_back(std::move(argument));
-					} while (tok.type() != MICHAELCC_TOKEN_CLOSE_PAREN);
+					} while (!scanner.scan_token_if_match(MICHAELCC_TOKEN_CLOSE_PAREN));
 				}
 				it->second.expand(scanner, arguments, *this);
 				m_result.push_back(token(scanner.location()));

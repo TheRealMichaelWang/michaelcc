@@ -284,10 +284,10 @@ token michaelcc::preprocessor::scanner::scan_token()
 	}
 }
 
-bool michaelcc::preprocessor::scanner::scan_token_if_match(token_type type)
+bool michaelcc::preprocessor::scanner::scan_token_if_match(token_type type, bool in_while_loop)
 {
 	token token = peek_token();
-	if (token.type() == type) {
+	if (token.type() == type || (in_while_loop && token.type() == MICHAELCC_TOKEN_END)) {
 		scan_token();
 		return true;
 	}

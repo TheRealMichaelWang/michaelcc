@@ -162,6 +162,15 @@ std::unique_ptr<ast::type> michaelcc::parser::parse_type()
             std::move(identifier), std::move(template_args), std::move(location)
         );
     }
+    else if (current_token().type() == MICHAELCC_TOKEN_STRUCT) {
+        return parse_struct_declaration();
+    }
+    else if (current_token().type() == MICHAELCC_TOKEN_UNION) {
+        return parse_union_declaration();
+    }
+    else if (current_token().type() == MICHAELCC_TOKEN_ENUM) {
+        return parse_enum_declaration();
+    }
     else {
         base_type = parse_int_type();
     }
@@ -439,7 +448,7 @@ std::unique_ptr<ast::statement> parser::parse_statement() {
     case MICHAELCC_TOKEN_INT:
     case MICHAELCC_TOKEN_FLOAT:
     case MICHAELCC_TOKEN_DOUBLE:
-        return parse_variable_declaration();
+        return std::make_unique<ast::variable_declaration>(parse_variable_declaration());
     default: {
         // Expression or declaration statement
         std::unique_ptr<ast::expression> expr = parse_expression();
@@ -474,7 +483,7 @@ ast::context_block parser::parse_block() {
     return ast::context_block(std::move(statements), std::move(location));
 }
 
-std::unique_ptr<ast::variable_declaration> parser::parse_variable_declaration() {
+ast::variable_declaration parser::parse_variable_declaration() {
     source_location location = current_loc;
     uint8_t qualifiers = parse_storage_qualifiers();
     auto var_type = parse_type();
@@ -501,8 +510,165 @@ std::unique_ptr<ast::variable_declaration> parser::parse_variable_declaration() 
     match_token(MICHAELCC_TOKEN_SEMICOLON);
     next_token();
 
-    return std::make_unique<ast::variable_declaration>(
+    return ast::variable_declaration(
         qualifiers, std::move(var_type), identifier, std::move(location),
         std::move(initializer), std::move(array_length)
     );
+}
+
+std::unique_ptr<ast::struct_declaration> parser::parse_struct_declaration() {
+    source_location location = current_loc;
+    match_token(MICHAELCC_TOKEN_STRUCT);
+    next_token();
+
+    std::optional<std::string> struct_name;
+    if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
+        struct_name = current_token().string();
+        next_token();
+    }
+
+    if (current_token().type() != MICHAELCC_TOKEN_CLOSE_BRACE) {
+        return std::make_unique<ast::struct_declaration>(std::move(struct_name), std::vector<ast::variable_declaration>(), std::move(location));
+    }
+    next_token();
+
+    std::vector<ast::variable_declaration> members;
+    while (current_token().type() != MICHAELCC_TOKEN_CLOSE_BRACE && !end()) {
+        members.emplace_back(parse_variable_declaration());
+    }
+
+    match_token(MICHAELCC_TOKEN_CLOSE_BRACE);
+    next_token();
+
+    return std::make_unique<ast::struct_declaration>(std::move(struct_name), std::move(members), std::move(location));
+}
+
+std::unique_ptr<ast::union_declaration> parser::parse_union_declaration() {
+    source_location location = current_loc;
+    match_token(MICHAELCC_TOKEN_UNION);
+    next_token();
+
+    std::optional<std::string> union_name;
+    if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
+        union_name = current_token().string();
+        next_token();
+    }
+
+    if (current_token().type() != MICHAELCC_TOKEN_CLOSE_BRACE) {
+        return std::make_unique<ast::union_declaration>(std::move(union_name), std::vector<ast::union_declaration::member>(), std::move(location));
+    }
+    next_token();
+
+    std::vector<ast::union_declaration::member> members;
+    while (current_token().type() != MICHAELCC_TOKEN_CLOSE_BRACE && !end()) {
+        auto type = parse_type();
+        if (current_token().type() != MICHAELCC_TOKEN_IDENTIFIER) {
+            throw panic("Expected identifier in union member.");
+        }
+        std::string member_name = current_token().string();
+        next_token();
+        match_token(MICHAELCC_TOKEN_SEMICOLON);
+        next_token();
+        members.emplace_back(std::move(type), std::move(member_name));
+    }
+
+    match_token(MICHAELCC_TOKEN_CLOSE_BRACE);
+    next_token();
+
+    return std::make_unique<ast::union_declaration>(std::move(union_name), std::move(members), std::move(location));
+}
+
+std::unique_ptr<ast::enum_declaration> parser::parse_enum_declaration() {
+    source_location location = current_loc;
+    match_token(MICHAELCC_TOKEN_ENUM);
+    next_token();
+
+    std::optional<std::string> enum_name;
+    if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
+        enum_name = current_token().string();
+        next_token();
+    }
+
+    if (current_token().type() != MICHAELCC_TOKEN_CLOSE_BRACE) {
+        return std::make_unique<ast::enum_declaration>(std::move(enum_name), std::vector<ast::enum_declaration::enumerator>(), std::move(location));
+    }
+    next_token();
+
+    std::vector<ast::enum_declaration::enumerator> enumerators;
+    while (current_token().type() != MICHAELCC_TOKEN_CLOSE_BRACE && !end()) {
+        if (current_token().type() != MICHAELCC_TOKEN_IDENTIFIER) {
+            throw panic("Expected identifier in enum.");
+        }
+        std::string name = current_token().string();
+        next_token();
+
+        std::optional<int64_t> value;
+        if (current_token().type() == MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR) {
+            next_token();
+            auto ast_value = parse_expression();
+            ast::int_literal* int_value = dynamic_cast<ast::int_literal*>(ast_value.get());
+            if (int_value == nullptr) {
+                throw panic("You must set enumerator to specific integer value.");
+            }
+            value = int_value->signed_value();
+        }
+
+        enumerators.emplace_back(ast::enum_declaration::enumerator(std::move(name)));
+
+        if (current_token().type() == MICHAELCC_TOKEN_COMMA) {
+            next_token();
+        }
+        else {
+            break;
+        }
+    }
+
+    match_token(MICHAELCC_TOKEN_CLOSE_BRACE);
+    next_token();
+
+    return std::make_unique<ast::enum_declaration>(std::move(enum_name), std::move(enumerators), std::move(location));
+}
+
+std::unique_ptr<ast::typedef_declaration> michaelcc::parser::parse_typedef_declaration() {
+    source_location location = current_loc;
+
+    match_token(MICHAELCC_TOKEN_TYPEDEF);
+    next_token();
+    std::unique_ptr<ast::type> type = parse_type();
+    match_token(MICHAELCC_TOKEN_IDENTIFIER);
+    std::string identifier = current_token().string();
+    next_token();
+
+    return std::make_unique<ast::typedef_declaration>(std::move(type), std::move(identifier), std::move(location));
+}
+
+std::vector<std::unique_ptr<ast::top_level_element>> michaelcc::parser::parse_all()
+{
+    std::vector<std::unique_ptr<ast::top_level_element>> top_level_elements;
+
+    while (!end())
+    {
+        switch (current_token().type())
+        {
+        case MICHAELCC_TOKEN_STRUCT:
+            top_level_elements.emplace_back(parse_struct_declaration());
+            break;
+        case MICHAELCC_TOKEN_UNION:
+            top_level_elements.emplace_back(parse_union_declaration());
+            break;
+        case MICHAELCC_TOKEN_ENUM:
+            top_level_elements.emplace_back(parse_enum_declaration());
+            break;
+        case MICHAELCC_TOKEN_TYPEDEF:
+            top_level_elements.emplace_back(parse_typedef_declaration());
+            break;
+        default:
+            break;
+        }
+
+        match_token(MICHAELCC_TOKEN_SEMICOLON);
+        next_token();
+    }
+
+    return top_level_elements;
 }

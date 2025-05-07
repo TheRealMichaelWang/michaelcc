@@ -416,16 +416,16 @@ namespace michaelcc {
 			std::string m_name;
 
 		public:
-			typedef_declaration(std::unique_ptr<type>&& type, std::string name, source_location&& location)
+			typedef_declaration(std::unique_ptr<type>&& type, std::string&& name, source_location&& location)
 				: ast_element(std::move(location)),
-				m_type(std::move(type)), m_name(name) { }
+				m_type(std::move(type)), m_name(std::move(name)) { }
 
 			const type* type() const noexcept { return m_type.get(); }
 			const std::string& name() const noexcept { return m_name; }
 		};
 
 		// Struct representation
-		class struct_declaration final : public top_level_element {
+		class struct_declaration final : public top_level_element, public type {
 		private:
 			std::optional<std::string> m_struct_name;
 			std::vector<variable_declaration> m_members;
@@ -440,13 +440,13 @@ namespace michaelcc {
 		};
 
 		// Enum representation
-		class enum_declaration final : public top_level_element  {
+		class enum_declaration final : public top_level_element, public type  {
 		public:
 			struct enumerator {
 				std::string name;
-				std::optional<int> value;
+				std::optional<int64_t> value;
 
-				enumerator(std::string&& name, std::optional<int> value = std::nullopt)
+				enumerator(std::string&& name, std::optional<int64_t> value = std::nullopt)
 					: name(std::move(name)), value(value) {}
 			};
 
@@ -455,7 +455,7 @@ namespace michaelcc {
 			std::vector<enumerator> m_enumerators;
 
 		public:
-			enum_declaration(std::string&& enum_name, std::vector<enumerator>&& enumerators, source_location&& location)
+			enum_declaration(std::optional<std::string>&& enum_name, std::vector<enumerator>&& enumerators, source_location&& location)
 				: ast_element(std::move(location)),
 				m_enum_name(std::move(enum_name)), m_enumerators(std::move(enumerators)) {}
 
@@ -464,7 +464,7 @@ namespace michaelcc {
 		};
 
 		// Union representation
-		class union_declaration : public top_level_element {
+		class union_declaration : public top_level_element, public type {
 		public:
 			struct member {
 				std::unique_ptr<type> member_type;
@@ -479,7 +479,7 @@ namespace michaelcc {
 			std::vector<member> m_members;
 
 		public:
-			union_declaration(std::string&& union_name, std::vector<member>&& members, source_location&& location)
+			union_declaration(std::optional<std::string>&& union_name, std::vector<member>&& members, source_location&& location)
 				: ast_element(std::move(location)),
 				m_union_name(std::move(union_name)), m_members(std::move(members)) {}
 

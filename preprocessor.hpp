@@ -98,7 +98,7 @@ namespace michaelcc {
 			token peek_token();
 			token scan_token();
 
-			bool scan_token_if_match(token_type type);
+			bool scan_token_if_match(token_type type, bool in_while_loop = false);
 
 			void push_backlog(const token token) {
 				token_backlog.push_back(token);

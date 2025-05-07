@@ -66,7 +66,13 @@ namespace michaelcc {
 		std::unique_ptr<ast::statement> parse_statement();
 		ast::context_block parse_block();
 
-		std::unique_ptr<ast::variable_declaration> parse_variable_declaration();
+		ast::variable_declaration parse_variable_declaration();
+		std::unique_ptr<ast::struct_declaration> parse_struct_declaration();
+		std::unique_ptr<ast::union_declaration> parse_union_declaration();
+		std::unique_ptr<ast::enum_declaration> parse_enum_declaration();
+		std::unique_ptr<ast::typedef_declaration> parse_typedef_declaration();
+
+		std::vector<std::unique_ptr<ast::top_level_element>> parse_all();
 
 		const compilation_error panic(const std::string msg) const noexcept {
 			return compilation_error(msg, current_loc);
