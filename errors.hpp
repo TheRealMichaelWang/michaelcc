@@ -42,7 +42,7 @@ namespace michaelcc {
 
 	class compilation_error : public std::exception {
 	private:
-		std::string m_msg;
+		std::string m_msg, m_display_msg;
 		const source_location m_location;
 
 	public:
@@ -57,7 +57,7 @@ namespace michaelcc {
 		}
 
 		const char* what() const override {
-			return m_msg.c_str();
+			return m_display_msg.c_str();
 		}
 	};
 }

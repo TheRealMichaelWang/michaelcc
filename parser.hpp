@@ -1,6 +1,8 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
+#include <map>
 #include "tokens.hpp"
 #include "ast.hpp"
 #include "errors.hpp"
@@ -8,28 +10,15 @@
 namespace michaelcc {
 	class parser {
 	private:
-		const std::map<token_type, int> operator_precedence = {
-			{MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR, 1},
-			{MICHAELCC_TOKEN_INCREMENT_BY,        1},
-			{MICHAELCC_TOKEN_DECREMENT_BY,        1},
-			{MICHAELCC_TOKEN_PLUS,                2},
-			{MICHAELCC_TOKEN_MINUS,               2},
-			{MICHAELCC_TOKEN_ASTERISK,            3},
-			{MICHAELCC_TOKEN_SLASH,               3},
-			{MICHAELCC_TOKEN_CARET,               4},
-			{MICHAELCC_TOKEN_AND,                 5},
-			{MICHAELCC_TOKEN_OR,                  5},
-			{MICHAELCC_TOKEN_DOUBLE_AND,          6},
-			{MICHAELCC_TOKEN_DOUBLE_OR,           7},
-			{MICHAELCC_TOKEN_MORE,                8},
-			{MICHAELCC_TOKEN_LESS,                8},
-			{MICHAELCC_TOKEN_MORE_EQUAL,          8},
-			{MICHAELCC_TOKEN_LESS_EQUAL,          8},
-			{MICHAELCC_TOKEN_EQUALS,              9}
+		struct declarator {
+			std::unique_ptr<ast::type> type;
+			std::string identifier;
 		};
 
+		std::map<std::string, ast::type*> typedef_declarations;
+
 		std::vector<token> m_tokens;
-		size_t m_token_index;
+		int64_t m_token_index;
 		source_location current_loc;
 
 		const bool end() const noexcept {
@@ -55,7 +44,9 @@ namespace michaelcc {
 
 		uint8_t parse_storage_qualifiers();
 		std::unique_ptr<ast::type> parse_int_type();
-		std::unique_ptr<ast::type> parse_type();
+		std::unique_ptr<ast::type> parse_type(const bool parse_pointer=true);
+
+		declarator parse_declarator();
 
 		std::unique_ptr<ast::set_destination> parse_set_accessors(std::unique_ptr<ast::set_destination>&& initial_value);
 		std::unique_ptr<ast::set_destination> parse_set_destination();
@@ -72,7 +63,9 @@ namespace michaelcc {
 		std::unique_ptr<ast::enum_declaration> parse_enum_declaration();
 		std::unique_ptr<ast::typedef_declaration> parse_typedef_declaration();
 
-		std::vector<std::unique_ptr<ast::top_level_element>> parse_all();
+		std::vector<ast::function_parameter> parse_parameter_list();
+		std::unique_ptr<ast::function_prototype> parse_function_prototype();
+		std::unique_ptr<ast::function_declaration> parse_function_declaration();
 
 		const compilation_error panic(const std::string msg) const noexcept {
 			return compilation_error(msg, current_loc);
@@ -80,7 +73,11 @@ namespace michaelcc {
 	public:
 		parser(std::vector<token>&& tokens) :
 			m_tokens(std::move(tokens)), 
-			m_token_index(0),
-			current_loc(0, 0, "invalid_file") { }
+			m_token_index(-1),
+			current_loc(0, 0, "invalid_file") { 
+			next_token();
+		}
+
+		std::vector<std::unique_ptr<ast::top_level_element>> parse_all();
 	};
 }

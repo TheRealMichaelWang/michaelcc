@@ -151,13 +151,13 @@ token michaelcc::preprocessor::scanner::scan_token()
 				}
 			}
 			else if (str_data.starts_with("0x")) { //parse literal
-				return token(MICHAELCC_TOKEN_INTEGER_LITERAL, std::stoull(str_data.substr(2), nullptr, 16));
+				return token(MICHAELCC_TOKEN_INTEGER_LITERAL, std::stoull(str_data.substr(2), nullptr, 16), location().col());
 			}
 			else if (str_data.starts_with("0b")) {
-				return token(MICHAELCC_TOKEN_INTEGER_LITERAL, std::stoull(str_data.substr(2), nullptr, 2));
+				return token(MICHAELCC_TOKEN_INTEGER_LITERAL, std::stoull(str_data.substr(2), nullptr, 2), location().col());
 			}
 			else {
-				return token(MICHAELCC_TOKEN_INTEGER_LITERAL, std::stoull(str_data));
+				return token(MICHAELCC_TOKEN_INTEGER_LITERAL, std::stoull(str_data), location().col());
 			}
 		}
 		catch (const std::invalid_argument&) {
@@ -215,9 +215,9 @@ token michaelcc::preprocessor::scanner::scan_token()
 		case ')':
 			return token(MICHAELCC_TOKEN_CLOSE_PAREN, location().col());
 		case '{':
-			return token(MICHAELCC_TOKEN_OPEN_BRACKET, location().col());
+			return token(MICHAELCC_TOKEN_OPEN_BRACE, location().col());
 		case '}':
-			return token(MICHAELCC_TOKEN_CLOSE_BRACKET, location().col());
+			return token(MICHAELCC_TOKEN_CLOSE_BRACE, location().col());
 		case ',':
 			return token(MICHAELCC_TOKEN_COMMA, location().col());
 		case ':':
@@ -243,11 +243,13 @@ token michaelcc::preprocessor::scanner::scan_token()
 				return token(MICHAELCC_TOKEN_DEREFERENCE_GET, location().col());
 			}
 			return token(scan_char_if_match('+') ? MICHAELCC_TOKEN_INCREMENT : MICHAELCC_TOKEN_MINUS, location().col());
+		case '*':
+			return token(MICHAELCC_TOKEN_ASTERISK, location().col());
 		case '/':
 			if (scan_char_if_match('/')) { //single line comment
 				//consume the rest of the line
-				while(scan_char() != '\n') { }
-				return token(location());
+				while(peek_char() != '\0' && scan_char() != '\n') {}
+				return token(end_location());
 			}
 			else if (scan_char_if_match('*')) { //multi-line comment
 				for (;;) {
@@ -255,7 +257,7 @@ token michaelcc::preprocessor::scanner::scan_token()
 						break;
 					}
 				}
-				return token(location());
+				return token(end_location());
 			}
 			return token(MICHAELCC_TOKEN_SLASH, location().col());
 		case '^':

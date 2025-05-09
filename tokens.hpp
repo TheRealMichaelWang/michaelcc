@@ -181,7 +181,7 @@ namespace michaelcc {
 		}
 
 		const bool is_operator() const noexcept {
-			return m_type >= MICHAELCC_TOKEN_PLUS && m_type <= MICHAELCC_TOKEN_EQUALS;
+			return m_type >= MICHAELCC_TOKEN_PLUS && m_type <= MICHAELCC_TOKEN_QUESTION;
 		}
 
 		const bool is_preprocessor_condition() const noexcept {

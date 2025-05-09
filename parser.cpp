@@ -5,6 +5,27 @@
 
 using namespace michaelcc;
 
+const std::map<token_type, int> ast::arithmetic_operator::operator_precedence = {
+    {MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR, 1},
+    {MICHAELCC_TOKEN_INCREMENT_BY,        1},
+    {MICHAELCC_TOKEN_DECREMENT_BY,        1},
+    {MICHAELCC_TOKEN_PLUS,                2},
+    {MICHAELCC_TOKEN_MINUS,               2},
+    {MICHAELCC_TOKEN_ASTERISK,            3},
+    {MICHAELCC_TOKEN_SLASH,               3},
+    {MICHAELCC_TOKEN_CARET,               4},
+    {MICHAELCC_TOKEN_AND,                 5},
+    {MICHAELCC_TOKEN_OR,                  5},
+    {MICHAELCC_TOKEN_DOUBLE_AND,          6},
+    {MICHAELCC_TOKEN_DOUBLE_OR,           7},
+    {MICHAELCC_TOKEN_MORE,                8},
+    {MICHAELCC_TOKEN_LESS,                8},
+    {MICHAELCC_TOKEN_MORE_EQUAL,          8},
+    {MICHAELCC_TOKEN_LESS_EQUAL,          8},
+    {MICHAELCC_TOKEN_EQUALS,              9},
+    {MICHAELCC_TOKEN_QUESTION,			  1},
+};
+
 void michaelcc::parser::next_token() noexcept {
 	for (;;) {
 		if (end()) {
@@ -55,6 +76,7 @@ uint8_t michaelcc::parser::parse_storage_qualifiers()
 }
 
 std::unique_ptr<ast::type> parser::parse_int_type() {
+    source_location location = current_loc;
     uint8_t qualifiers = ast::NO_INT_QUALIFIER;
     ast::int_class int_cls = ast::INT_INT_CLASS;
 
@@ -115,10 +137,10 @@ std::unique_ptr<ast::type> parser::parse_int_type() {
         throw panic("Unknown type specifier.");
     }
 
-    return std::make_unique<ast::int_type>(qualifiers, int_cls);
+    return std::make_unique<ast::int_type>(qualifiers, int_cls, std::move(location));
 }
 
-std::unique_ptr<ast::type> michaelcc::parser::parse_type()
+std::unique_ptr<ast::type> michaelcc::parser::parse_type(const bool parse_pointer)
 {
     source_location location = current_loc;
     std::unique_ptr<ast::type> base_type;
@@ -129,67 +151,41 @@ std::unique_ptr<ast::type> michaelcc::parser::parse_type()
         ast::float_class float_cls = (current_token().type() == MICHAELCC_TOKEN_FLOAT)
             ? ast::FLOAT_FLOAT_CLASS : ast::DOUBLE_FLOAT_CLASS;
         next_token();
-        base_type = std::make_unique<ast::float_type>(float_cls);
-    }
-    // Parse template types: identifier '<' ... '>'
-    else if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
-        std::string identifier = current_token().string();
-        next_token();
-
-        std::vector<std::unique_ptr<ast::template_argument>> template_args;
-        if (current_token().type() == MICHAELCC_TOKEN_LESS) {
-            next_token();
-            // Parse comma-separated template arguments
-            do {
-                try {
-                    template_args.push_back(parse_type());
-                }
-                catch (const michaelcc::compilation_error& error) {
-                    template_args.push_back(parse_expression());
-                }
-
-                if (current_token().type() == MICHAELCC_TOKEN_COMMA) {
-                    next_token();
-                }
-                else {
-                    break;
-                }
-            } while (true);
-            match_token(MICHAELCC_TOKEN_MORE);
-            next_token();
-        }
-        base_type = std::make_unique<ast::template_type>(
-            std::move(identifier), std::move(template_args), std::move(location)
-        );
+        base_type = std::make_unique<ast::float_type>(float_cls, source_location(location));
     }
     else if (current_token().type() == MICHAELCC_TOKEN_STRUCT) {
-        return parse_struct_declaration();
+        base_type = parse_struct_declaration();
     }
     else if (current_token().type() == MICHAELCC_TOKEN_UNION) {
-        return parse_union_declaration();
+        base_type = parse_union_declaration();
     }
     else if (current_token().type() == MICHAELCC_TOKEN_ENUM) {
-        return parse_enum_declaration();
+        base_type = parse_enum_declaration();
+    }
+    else if (current_token().type() == MICHAELCC_TOKEN_VOID) {
+        base_type = std::make_unique<ast::void_type>(source_location(location));
+        next_token();
+    }
+    else if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
+        auto it = typedef_declarations.find(current_token().string());
+        if (it == typedef_declarations.end()) {
+            std::stringstream ss;
+            ss << "Type definition " << current_token().string() << " does not exist.";
+            throw panic(ss.str());
+        }
+
+        base_type = it->second->clone();
+        next_token();
     }
     else {
         base_type = parse_int_type();
     }
 
     // Parse pointer and array modifiers
-    while (true) {
+    while (parse_pointer) {
         if (current_token().type() == MICHAELCC_TOKEN_ASTERISK) {
             next_token();
-            base_type = std::make_unique<ast::pointer_type>(std::move(base_type));
-        }
-        else if (current_token().type() == MICHAELCC_TOKEN_OPEN_BRACKET) {
-            next_token();
-            std::optional<std::unique_ptr<ast::expression>> length;
-            if (current_token().type() != MICHAELCC_TOKEN_CLOSE_BRACKET) {
-                length = parse_expression();
-            }
-            match_token(MICHAELCC_TOKEN_CLOSE_BRACKET);
-            next_token();
-            base_type = std::make_unique<ast::array_type>(std::move(base_type), std::move(length));
+            base_type = std::make_unique<ast::pointer_type>(std::move(base_type), source_location(location));
         }
         else {
             break;
@@ -197,6 +193,76 @@ std::unique_ptr<ast::type> michaelcc::parser::parse_type()
     }
     return base_type;
 }
+
+parser::declarator parser::parse_declarator() {
+    source_location location = current_loc;
+    std::unique_ptr<ast::type> current_type = parse_type(false);
+    std::string identifier;
+
+    // Handle pointer declarators (e.g., int *x)
+    while (current_token().type() == MICHAELCC_TOKEN_ASTERISK) {
+        next_token();
+        current_type = std::make_unique<ast::pointer_type>(std::move(current_type), source_location(location));
+    }
+
+    // Handle identifier or nested declarator
+    if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
+        identifier = current_token().string();
+        next_token();
+    }
+    else if (current_token().type() == MICHAELCC_TOKEN_OPEN_PAREN) { //handle function pointer
+        next_token();
+        match_token(MICHAELCC_TOKEN_ASTERISK);
+        next_token();
+        if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
+            identifier = current_token().string();
+            next_token();
+        }
+        match_token(MICHAELCC_TOKEN_CLOSE_PAREN);
+        next_token();
+
+        match_token(MICHAELCC_TOKEN_OPEN_PAREN);
+
+        next_token();
+        std::vector<std::unique_ptr<ast::type>> parameter_types;
+        while (current_token().type() != MICHAELCC_TOKEN_CLOSE_PAREN) {
+            parameter_types.push_back(parse_type());
+            if (current_token().type() == MICHAELCC_TOKEN_COMMA) {
+                next_token();
+            }
+            else {
+                break;
+            }
+        }
+        match_token(MICHAELCC_TOKEN_CLOSE_PAREN);
+        next_token();
+        return { std::make_unique<ast::function_pointer_type>(std::move(current_type), std::move(parameter_types), source_location(location)), identifier };
+    }
+    else {
+        throw panic("Expected identifier or '(' in declarator");
+    }
+
+    // Handle array and function declarators
+    while (true) {
+        if (current_token().type() == MICHAELCC_TOKEN_OPEN_BRACKET) {
+            // Array declarator (e.g., int x[10])
+            next_token();
+            std::optional<std::unique_ptr<ast::expression>> length;
+            if (current_token().type() != MICHAELCC_TOKEN_CLOSE_BRACKET) {
+                length = parse_expression();
+            }
+            match_token(MICHAELCC_TOKEN_CLOSE_BRACKET);
+            next_token();
+            current_type = std::make_unique<ast::array_type>(std::move(current_type), std::move(length), source_location(location));
+        }
+        else {
+            break;
+        }
+    }
+
+    return { std::move(current_type), std::move(identifier) };
+}
+
 
 std::unique_ptr<ast::set_destination> michaelcc::parser::parse_set_accessors(std::unique_ptr<ast::set_destination>&& initial_value)
 {
@@ -225,11 +291,9 @@ std::unique_ptr<ast::set_destination> michaelcc::parser::parse_set_accessors(std
 			next_token();
 			break;
 		default:
-			break;
+            return value;
 		}
 	}
-
-	return value;
 }
 
 std::unique_ptr<ast::set_destination> michaelcc::parser::parse_set_destination()
@@ -256,16 +320,22 @@ std::unique_ptr<ast::set_destination> michaelcc::parser::parse_set_destination()
 std::unique_ptr<ast::expression> michaelcc::parser::parse_value()
 {
 	source_location location = current_loc;
+    std::unique_ptr<ast::expression> value;
+
 	switch (current_token().type())
 	{
 	case MICHAELCC_TOKEN_FLOAT32_LITERAL:
-		return std::make_unique<ast::float_literal>(scan_token().float32(), std::move(location));
+		value = std::make_unique<ast::float_literal>(scan_token().float32(), source_location(location));
+        break;
 	case MICHAELCC_TOKEN_FLOAT64_LITERAL:
-		return std::make_unique<ast::double_literal>(scan_token().float64(), std::move(location));
+		value = std::make_unique<ast::double_literal>(scan_token().float64(), source_location(location));
+        break;
 	case MICHAELCC_TOKEN_INTEGER_LITERAL:
-		return std::make_unique<ast::int_literal>(ast::NO_INT_QUALIFIER, ast::INT_INT_CLASS, scan_token().integer(), std::move(location));
+		value = std::make_unique<ast::int_literal>(ast::NO_INT_QUALIFIER, ast::INT_INT_CLASS, scan_token().integer(), source_location(location));
+        break;
 	case MICHAELCC_TOKEN_CHAR_LITERAL:
-		return std::make_unique<ast::int_literal>(ast::NO_INT_QUALIFIER, ast::CHAR_INT_CLASS, scan_token().integer(), std::move(location));
+		value = std::make_unique<ast::int_literal>(ast::NO_INT_QUALIFIER, ast::CHAR_INT_CLASS, scan_token().integer(), source_location(location));
+        break;
 	case MICHAELCC_TOKEN_OPEN_PAREN: {
 		next_token();
 		std::unique_ptr<ast::expression> expression = parse_expression();
@@ -280,9 +350,36 @@ std::unique_ptr<ast::expression> michaelcc::parser::parse_value()
             return std::make_unique<ast::set_operator>(std::move(destination), parse_expression(), std::move(location));
         }
         
-        return destination;
+        value = std::move(destination);
+        break;
     }
 	}
+
+    for (;;) {
+        switch (current_token().type())
+        {
+        case MICHAELCC_TOKEN_OPEN_PAREN: {
+            next_token();
+            std::vector<std::unique_ptr<ast::expression>> arguments;
+            while (current_token().type() != MICHAELCC_TOKEN_CLOSE_PAREN && !end()) {
+                arguments.push_back(parse_expression());
+                if (current_token().type() == MICHAELCC_TOKEN_COMMA) {
+                    next_token();
+                }
+                else {
+                    break;
+                }
+            }
+            match_token(MICHAELCC_TOKEN_CLOSE_PAREN);
+            next_token();
+            
+            value = std::make_unique<ast::function_call>(std::move(value), std::move(arguments), source_location(location));
+            break;
+        }
+        default:
+            return value;
+        }
+    }
 }
 
 std::unique_ptr<ast::expression> michaelcc::parser::parse_expression(int min_precedence)
@@ -290,26 +387,43 @@ std::unique_ptr<ast::expression> michaelcc::parser::parse_expression(int min_pre
 	// Parse the leftmost value (could be a literal, variable, or parenthesized expression)
 	std::unique_ptr<ast::expression> left = parse_value();
 
-	while (current_token().is_operator()) {
-		auto it = operator_precedence.find(current_token().type());
-		if (it == operator_precedence.end()) break;
+    while (current_token().is_operator()) {
+        auto it = ast::arithmetic_operator::operator_precedence.find(current_token().type());
+        if (it == ast::arithmetic_operator::operator_precedence.end()) break;
 
-		int precedence = it->second;
-		if (precedence < min_precedence) break;
+        int precedence = it->second;
+        if (precedence < min_precedence) break;
 
-		token_type op = current_token().type();
-		source_location op_loc = current_loc;
-		next_token();
+        token_type op = current_token().type();
+        source_location op_loc = current_loc;
+        next_token();
 
-		// For right-associative operators (like assignment), use precedence, not precedence+1
-		int next_min_prec = precedence + 1;
-		// If op is right-associative, use 'precedence' instead
-		// (For most C/C++ binary ops, left-associative, so +1 is correct.)
+        // For right-associative operators (like assignment), use precedence, not precedence+1
+        int next_min_prec = precedence + 1;
+        // If op is right-associative, use 'precedence' instead
+        // (For most C/C++ binary ops, left-associative, so +1 is correct.)
 
-		std::unique_ptr<ast::expression> right = parse_expression(next_min_prec);
+        if (op == MICHAELCC_TOKEN_QUESTION) {
 
-		left = std::make_unique<ast::arithmetic_operator>(op, std::move(left), std::move(right), std::move(op_loc));
-	}
+            // Parse the 'true' branch (middle expression)
+            auto true_expr = parse_expression(precedence); // precedence 0, as if parenthesized
+
+            // Expect and consume ':'
+            match_token(MICHAELCC_TOKEN_COLON);
+            next_token();
+
+            // Parse the 'false' branch (right expression)
+            auto false_expr = parse_expression(precedence); // precedence 0, as if parenthesized
+
+            left = std::make_unique<ast::conditional_expression>(
+                std::move(left), std::move(true_expr), std::move(false_expr), std::move(op_loc));
+            continue;
+        }
+        else {
+            std::unique_ptr<ast::expression> right = parse_expression(next_min_prec);
+            left = std::make_unique<ast::arithmetic_operator>(op, std::move(left), std::move(right), std::move(op_loc));
+        }
+    }
 
 	return left;
 }
@@ -399,8 +513,9 @@ std::unique_ptr<ast::statement> parser::parse_statement() {
     case MICHAELCC_TOKEN_RETURN: {
         next_token();
         std::unique_ptr<ast::expression> value;
-        if (current_token().type() != MICHAELCC_TOKEN_SEMICOLON)
+        if (current_token().type() != MICHAELCC_TOKEN_SEMICOLON) {
             value = parse_expression();
+        }
         match_token(MICHAELCC_TOKEN_SEMICOLON);
         next_token();
         return std::make_unique<ast::return_statement>(std::move(value), std::move(location));
@@ -462,7 +577,7 @@ std::unique_ptr<ast::statement> parser::parse_statement() {
 
         expr.release();
         // Wrap as an expression statement or declaration as appropriate
-        return std::make_unique<ast::statement>(*statement); // If you have a separate expression_statement AST node, wrap it here
+        return std::unique_ptr<ast::statement>(statement); // If you have a separate expression_statement AST node, wrap it here
     }
     }
 }
@@ -486,33 +601,16 @@ ast::context_block parser::parse_block() {
 ast::variable_declaration parser::parse_variable_declaration() {
     source_location location = current_loc;
     uint8_t qualifiers = parse_storage_qualifiers();
-    auto var_type = parse_type();
-
-    if (current_token().type() != MICHAELCC_TOKEN_IDENTIFIER)
-        throw panic("Expected identifier in variable declaration.");
-    std::string identifier = current_token().string();
-    next_token();
-
-    std::optional<std::unique_ptr<ast::expression>> array_length;
-    if (current_token().type() == MICHAELCC_TOKEN_OPEN_BRACKET) {
-        next_token();
-        array_length = parse_expression();
-        match_token(MICHAELCC_TOKEN_CLOSE_BRACKET);
-        next_token();
-    }
-
+    declarator decl = parse_declarator();
     std::optional<std::unique_ptr<ast::expression>> initializer;
     if (current_token().type() == MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR) {
         next_token();
         initializer = parse_expression();
     }
-
     match_token(MICHAELCC_TOKEN_SEMICOLON);
     next_token();
-
     return ast::variable_declaration(
-        qualifiers, std::move(var_type), identifier, std::move(location),
-        std::move(initializer), std::move(array_length)
+        qualifiers, std::move(decl.type), decl.identifier, std::move(location), std::move(initializer)
     );
 }
 
@@ -527,7 +625,7 @@ std::unique_ptr<ast::struct_declaration> parser::parse_struct_declaration() {
         next_token();
     }
 
-    if (current_token().type() != MICHAELCC_TOKEN_CLOSE_BRACE) {
+    if (current_token().type() != MICHAELCC_TOKEN_OPEN_BRACE) {
         return std::make_unique<ast::struct_declaration>(std::move(struct_name), std::vector<ast::variable_declaration>(), std::move(location));
     }
     next_token();
@@ -554,7 +652,7 @@ std::unique_ptr<ast::union_declaration> parser::parse_union_declaration() {
         next_token();
     }
 
-    if (current_token().type() != MICHAELCC_TOKEN_CLOSE_BRACE) {
+    if (current_token().type() != MICHAELCC_TOKEN_OPEN_BRACE) {
         return std::make_unique<ast::union_declaration>(std::move(union_name), std::vector<ast::union_declaration::member>(), std::move(location));
     }
     next_token();
@@ -589,7 +687,7 @@ std::unique_ptr<ast::enum_declaration> parser::parse_enum_declaration() {
         next_token();
     }
 
-    if (current_token().type() != MICHAELCC_TOKEN_CLOSE_BRACE) {
+    if (current_token().type() != MICHAELCC_TOKEN_OPEN_BRACE) {
         return std::make_unique<ast::enum_declaration>(std::move(enum_name), std::vector<ast::enum_declaration::enumerator>(), std::move(location));
     }
     next_token();
@@ -631,15 +729,71 @@ std::unique_ptr<ast::enum_declaration> parser::parse_enum_declaration() {
 
 std::unique_ptr<ast::typedef_declaration> michaelcc::parser::parse_typedef_declaration() {
     source_location location = current_loc;
-
     match_token(MICHAELCC_TOKEN_TYPEDEF);
     next_token();
-    std::unique_ptr<ast::type> type = parse_type();
-    match_token(MICHAELCC_TOKEN_IDENTIFIER);
-    std::string identifier = current_token().string();
+    
+    declarator decl = parse_declarator();
+    auto it = typedef_declarations.find(decl.identifier);
+    if (it != typedef_declarations.end()) {
+        std::stringstream ss;
+        ss << "typedef ";
+        it->second->build_declarator(ss, decl.identifier);
+        ss << " already exists.";
+        throw panic(ss.str());
+    }
+    typedef_declarations.insert({ decl.identifier, decl.type.get() });
+
+    return std::make_unique<ast::typedef_declaration>(std::move(decl.type), std::move(decl.identifier), std::move(location));
+}
+
+std::vector<ast::function_parameter> parser::parse_parameter_list() {
+    std::vector<ast::function_parameter> params;
+    match_token(MICHAELCC_TOKEN_OPEN_PAREN);
+    next_token();
+    while (current_token().type() != MICHAELCC_TOKEN_CLOSE_PAREN) {
+        uint8_t qualifiers = parse_storage_qualifiers();
+        
+        declarator decl = parse_declarator();
+
+        params.emplace_back(std::move(decl.type), std::move(decl.identifier), qualifiers);
+
+        if (current_token().type() != MICHAELCC_TOKEN_CLOSE_PAREN) {
+            match_token(MICHAELCC_TOKEN_COMMA);
+            next_token();
+        }
+    }
+    match_token(MICHAELCC_TOKEN_CLOSE_PAREN);
+    next_token();
+    return params;
+}
+
+std::unique_ptr<ast::function_prototype> parser::parse_function_prototype() {
+    source_location location = current_loc;
+    
+    auto return_type = parse_type();
+    std::string func_name = current_token().string();
+    next_token();
+    auto params = parse_parameter_list();
+    match_token(MICHAELCC_TOKEN_SEMICOLON);
     next_token();
 
-    return std::make_unique<ast::typedef_declaration>(std::move(type), std::move(identifier), std::move(location));
+    return std::make_unique<ast::function_prototype>(
+        std::move(return_type), std::move(func_name), std::move(params), std::move(location)
+    );
+}
+
+std::unique_ptr<ast::function_declaration> parser::parse_function_declaration() {
+    source_location location = current_loc;
+
+    auto return_type = parse_type();
+    std::string func_name = current_token().string();
+    next_token();
+    auto params = parse_parameter_list();
+    auto body = parse_block();
+    
+    return std::make_unique<ast::function_declaration>(
+        std::move(return_type), std::move(func_name), std::move(params), std::move(body), std::move(location)
+    );
 }
 
 std::vector<std::unique_ptr<ast::top_level_element>> michaelcc::parser::parse_all()
@@ -662,6 +816,53 @@ std::vector<std::unique_ptr<ast::top_level_element>> michaelcc::parser::parse_al
         case MICHAELCC_TOKEN_TYPEDEF:
             top_level_elements.emplace_back(parse_typedef_declaration());
             break;
+        case MICHAELCC_TOKEN_CONST:
+        case MICHAELCC_TOKEN_VOLATILE:
+        case MICHAELCC_TOKEN_EXTERN:
+        case MICHAELCC_TOKEN_STATIC:
+        case MICHAELCC_TOKEN_REGISTER:
+        case MICHAELCC_TOKEN_SIGNED:
+        case MICHAELCC_TOKEN_UNSIGNED:
+        case MICHAELCC_TOKEN_SHORT:
+        case MICHAELCC_TOKEN_LONG:
+        case MICHAELCC_TOKEN_CHAR:
+        case MICHAELCC_TOKEN_INT:
+        case MICHAELCC_TOKEN_FLOAT:
+        case MICHAELCC_TOKEN_DOUBLE:
+        case MICHAELCC_TOKEN_IDENTIFIER:
+        case MICHAELCC_TOKEN_VOID: {
+            // Try to parse as function prototype or declaration
+            size_t backup = m_token_index;
+            try {
+                auto return_type = parse_type();
+                if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
+                    std::string func_name = current_token().string();
+                    next_token();
+                    if (current_token().type() == MICHAELCC_TOKEN_OPEN_PAREN) {
+                        // Look ahead to distinguish prototype vs. declaration
+                        size_t param_backup = m_token_index;
+                        parse_parameter_list();
+                        if (current_token().type() == MICHAELCC_TOKEN_SEMICOLON) {
+                            m_token_index = backup;
+                            top_level_elements.emplace_back(parse_function_prototype());
+                            continue;
+                        }
+                        else if (current_token().type() == MICHAELCC_TOKEN_OPEN_BRACE) {
+                            m_token_index = backup;
+                            top_level_elements.emplace_back(parse_function_declaration());
+                            continue;
+                        }
+                    }
+                }
+            }
+            catch (...) {
+                m_token_index = backup; // restore if not a function
+            }
+            // If not a function, treat as variable declaration
+            m_token_index = backup;
+            top_level_elements.emplace_back(std::make_unique<ast::variable_declaration>(parse_variable_declaration()));
+            continue;
+        }
         default:
             break;
         }

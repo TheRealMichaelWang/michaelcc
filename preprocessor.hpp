@@ -91,6 +91,10 @@ namespace michaelcc {
 				return source_location(last_tok_begin.first, last_tok_begin.second, m_file_name);
 			}
 
+			const source_location end_location() const noexcept {
+				return source_location(current_row, current_col, m_file_name);
+			}
+
 			const std::filesystem::path file_name() const noexcept {
 				return m_file_name;
 			}
