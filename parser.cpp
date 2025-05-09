@@ -343,6 +343,23 @@ std::unique_ptr<ast::expression> michaelcc::parser::parse_value()
 		next_token();
 		return expression;
 	}
+    case MICHAELCC_TOKEN_OPEN_BRACE: {
+        next_token();
+        std::vector<std::unique_ptr<ast::expression>> initializers;
+        while (current_token().type() != MICHAELCC_TOKEN_CLOSE_BRACE && !end()) {
+            initializers.push_back(parse_expression());
+            if (current_token().type() == MICHAELCC_TOKEN_COMMA) {
+                next_token();
+            }
+            else {
+                match_token(MICHAELCC_TOKEN_CLOSE_BRACE);
+                break;
+            }
+        }
+        next_token();
+        value = std::make_unique<ast::initializer_list_expression>(std::move(initializers), source_location(location));
+        break;
+    }
     default: {
         std::unique_ptr<ast::set_destination> destination = parse_set_destination();
         if (current_token().type() == MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR) {
@@ -565,6 +582,10 @@ std::unique_ptr<ast::statement> parser::parse_statement() {
     case MICHAELCC_TOKEN_DOUBLE:
         return std::make_unique<ast::variable_declaration>(parse_variable_declaration());
     default: {
+        if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER && typedef_declarations.contains(current_token().string())) {
+            return std::make_unique<ast::variable_declaration>(parse_variable_declaration());
+        }
+
         // Expression or declaration statement
         std::unique_ptr<ast::expression> expr = parse_expression();
         match_token(MICHAELCC_TOKEN_SEMICOLON);

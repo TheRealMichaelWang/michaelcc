@@ -178,7 +178,7 @@ void preprocessor::preprocess()
 
 			m_scanners.pop_back();
 			if (!m_scanners.empty()) {
-				m_result.push_back(token(m_scanners.back().end_location()));
+				m_result.push_back(token(m_scanners.back().location()));
 			}
 			continue;
 		}

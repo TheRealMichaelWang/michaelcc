@@ -25,7 +25,6 @@ const std::string michaelcc::token_to_str(token_type type) {
 		",",
 		":",
 		";",
-		"*",
 		"=",
 		".",
 		"~",
@@ -69,6 +68,7 @@ const std::string michaelcc::token_to_str(token_type type) {
 		//operators
 		"+",
 		"-",
+        "*",
 		"++",
 		"--",
 		"+=",
@@ -370,6 +370,15 @@ void function_call::build_c_string_prec(std::stringstream& ss, int parent_preced
     }
     ss << ")";
     if (current_precedence < parent_precedence) ss << ")";
+}
+
+void initializer_list_expression::build_c_string_prec(std::stringstream& ss, int indent) const {
+    ss << "{";
+    for (size_t i = 0; i < m_initializers.size(); ++i) {
+        if (i > 0) ss << ", ";
+        m_initializers[i]->build_c_string_prec(ss, 0);
+    }
+    ss << "}";
 }
 
 void variable_declaration::build_c_string_indent(std::stringstream& ss, int indent) const {

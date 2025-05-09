@@ -616,6 +616,28 @@ namespace michaelcc {
 				return std::make_unique<function_call>(m_callee->clone(), std::move(cloned_arguments), source_location(location()));
 			}
 		};
+		
+		// New initializer_list_expression class
+		class initializer_list_expression : public expression {
+		private:
+			std::vector<std::unique_ptr<expression>> m_initializers;
+		public:
+			explicit initializer_list_expression(std::vector<std::unique_ptr<expression>>&& initializers, source_location&& location)
+				: ast_element(std::move(location)), m_initializers(std::move(initializers)) {}
+
+			const std::vector<std::unique_ptr<expression>>& initializers() const noexcept { return m_initializers; }
+
+			void build_c_string_prec(std::stringstream& ss, int indent) const override;
+
+			std::unique_ptr<expression> clone() const override {
+				std::vector<std::unique_ptr<expression>> cloned_initializers;
+				cloned_initializers.reserve(m_initializers.size());
+				for (const auto& init : m_initializers) {
+					cloned_initializers.push_back(init->clone());
+				}
+				return std::make_unique<initializer_list_expression>(std::move(cloned_initializers), source_location(location()));
+			}
+		};
 
 		class variable_declaration final : public statement, public top_level_element {
 		private:
