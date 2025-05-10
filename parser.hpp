@@ -15,7 +15,10 @@ namespace michaelcc {
 			std::string identifier;
 		};
 
-		std::map<std::string, ast::type*> typedef_declarations;
+		std::map<std::string, ast::typedef_declaration*> typedef_declarations;
+		std::map<std::string, ast::struct_declaration*> named_struct_declarations;
+		std::map<std::string, ast::enum_declaration*> named_enum_declarations;
+		std::map<std::string, ast::union_declaration*> named_union_declarations;
 
 		std::vector<token> m_tokens;
 		int64_t m_token_index;

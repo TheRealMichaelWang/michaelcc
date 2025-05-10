@@ -404,7 +404,13 @@ void typedef_declaration::build_c_string(std::stringstream& out) const {
 
 void struct_declaration::build_c_string(std::stringstream& out) const {
     out << "struct";
-    if (m_struct_name) out << " " << m_struct_name.value();
+    if (m_struct_name) {
+        out << " " << m_struct_name.value();
+    }
+
+    if (m_members.empty()) {
+        return;
+    }
     out << " {\n";
     for (const auto& member : m_members) {
         member.build_c_string(out);
@@ -416,6 +422,9 @@ void struct_declaration::build_c_string(std::stringstream& out) const {
 void enum_declaration::build_c_string(std::stringstream& out) const {
     out << "enum";
     if (m_enum_name) out << " " << m_enum_name.value();
+    if (m_enumerators.empty()) {
+        return;
+    }
     out << " {\n";
     for (size_t i = 0; i < m_enumerators.size(); ++i) {
         out << "  " << m_enumerators[i].name;
@@ -431,6 +440,9 @@ void enum_declaration::build_c_string(std::stringstream& out) const {
 void union_declaration::build_c_string(std::stringstream& out) const {
     out << "union";
     if (m_union_name) out << " " << m_union_name.value();
+    if (m_members.empty()) {
+        return;
+    }
     out << " {\n";
     for (const auto& member : m_members) {
         out << "  ";

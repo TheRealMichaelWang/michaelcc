@@ -44,8 +44,8 @@ namespace michaelcc {
 			source_location m_location;
 
 		public:
-			explicit ast_element(source_location&& location) : m_location(std::move(location)) { 
-			
+			explicit ast_element(source_location&& location) : m_location(std::move(location)) {
+
 			}
 
 			ast_element() : m_location() { }
@@ -145,7 +145,7 @@ namespace michaelcc {
 			void build_c_string(std::stringstream&) const override;
 
 		public:
-			explicit float_type(float_class m_class, source_location&& location) 
+			explicit float_type(float_class m_class, source_location&& location)
 				: ast_element(std::move(location)),
 				m_class(m_class) { }
 
@@ -179,12 +179,12 @@ namespace michaelcc {
 		private:
 			std::unique_ptr<type> m_element_type;
 			std::optional<std::unique_ptr<expression>> m_length;
-		
+
 		public:
 			array_type(std::unique_ptr<type>&& element_type, std::optional<std::unique_ptr<expression>>&& length, source_location&& location)
 				: ast_element(std::move(location)),
 				m_element_type(std::move(element_type)), m_length(std::move(length)) {}
-			
+
 			const type* element_type() const noexcept { return m_element_type.get(); }
 			const std::optional<std::unique_ptr<expression>>& length() const noexcept { return m_length; }
 
@@ -195,8 +195,8 @@ namespace michaelcc {
 			std::unique_ptr<type> clone() const override {
 				return std::make_unique<array_type>(m_element_type->clone(), m_length.has_value() ? std::make_optional(m_length.value()->clone()) : std::nullopt, source_location(location()));
 			}
-		}; 
-		
+		};
+
 		class function_pointer_type : public type {
 		private:
 			std::unique_ptr<type> m_return_type;
@@ -206,7 +206,7 @@ namespace michaelcc {
 				: ast_element(std::move(location)), m_return_type(std::move(return_type)), m_parameter_types(std::move(parameter_types)) {}
 			const type* return_type() const noexcept { return m_return_type.get(); }
 			const std::vector<std::unique_ptr<type>>& parameter_types() const noexcept { return m_parameter_types; }
-			
+
 			void build_c_string(std::stringstream& ss) const override;
 
 			void build_declarator(std::stringstream& ss, const std::string& identifier) const override;
@@ -331,7 +331,7 @@ namespace michaelcc {
 			int loop_depth;
 
 		public:
-			explicit break_statement(int depth, source_location&& location) 
+			explicit break_statement(int depth, source_location&& location)
 				: ast_element(std::move(location)),
 				loop_depth(depth) { }
 
@@ -616,7 +616,7 @@ namespace michaelcc {
 				return std::make_unique<function_call>(m_callee->clone(), std::move(cloned_arguments), source_location(location()));
 			}
 		};
-		
+
 		// New initializer_list_expression class
 		class initializer_list_expression : public expression {
 		private:
@@ -663,7 +663,7 @@ namespace michaelcc {
 			const expression* set_value() const noexcept { return m_set_value.has_value() ? m_set_value.value().get() : nullptr; }
 
 			void build_c_string_indent(std::stringstream&, int) const override;
-			
+
 			void build_c_string(std::stringstream& ss) const override {
 				build_c_string_indent(ss, 0);
 			}
@@ -701,6 +701,10 @@ namespace michaelcc {
 			void build_c_string(std::stringstream&) const override;
 
 			std::unique_ptr<type> clone() const override {
+				if (m_struct_name.has_value()) {
+					return std::make_unique<struct_declaration>(std::optional<std::string>(m_struct_name), std::vector<variable_declaration>(), source_location(location()));
+				}
+
 				std::vector<variable_declaration> cloned_members;
 				cloned_members.reserve(m_members.size());
 				for (const variable_declaration& member : m_members) {
@@ -735,6 +739,10 @@ namespace michaelcc {
 			void build_c_string(std::stringstream&) const override;
 
 			std::unique_ptr<type> clone() const override {
+				if (m_enum_name.has_value()) {
+					return std::make_unique<enum_declaration>(std::optional<std::string>(m_enum_name), std::vector<enumerator>(), source_location(location()));
+				}
+
 				std::vector<enumerator> cloned_enumerators;
 				cloned_enumerators.reserve(m_enumerators.size());
 				for (const auto& e : m_enumerators) {
@@ -769,6 +777,10 @@ namespace michaelcc {
 			void build_c_string(std::stringstream&) const override;
 
 			std::unique_ptr<type> clone() const override {
+				if (m_union_name.has_value()) {
+					return std::make_unique<union_declaration>(std::optional<std::string>(m_union_name), std::vector<member>(), source_location(location()));
+				}
+
 				std::vector<member> cloned_members;
 				cloned_members.reserve(m_members.size());
 				for (const auto& m : m_members) {

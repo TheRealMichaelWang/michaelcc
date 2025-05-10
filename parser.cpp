@@ -174,7 +174,7 @@ std::unique_ptr<ast::type> michaelcc::parser::parse_type(const bool parse_pointe
             throw panic(ss.str());
         }
 
-        base_type = it->second->clone();
+        base_type = it->second->type()->clone();
         next_token();
     }
     else {
@@ -659,6 +659,19 @@ std::unique_ptr<ast::struct_declaration> parser::parse_struct_declaration() {
     match_token(MICHAELCC_TOKEN_CLOSE_BRACE);
     next_token();
 
+    if (struct_name.has_value() && !members.empty()) {
+        auto it = named_struct_declarations.find(struct_name.value());
+        if (it != named_struct_declarations.end()) {
+            std::stringstream ss;
+            ss << "Struct " << struct_name.value() << " already defined at " << it->second->location().to_string() << '.';
+            throw compilation_error(ss.str(), location);
+        }
+        
+        auto to_ret = std::make_unique<ast::struct_declaration>(std::move(struct_name), std::move(members), std::move(location));
+        named_struct_declarations.insert({ to_ret->struct_name().value(), to_ret.get() });
+        return to_ret;
+    }
+
     return std::make_unique<ast::struct_declaration>(std::move(struct_name), std::move(members), std::move(location));
 }
 
@@ -693,6 +706,19 @@ std::unique_ptr<ast::union_declaration> parser::parse_union_declaration() {
 
     match_token(MICHAELCC_TOKEN_CLOSE_BRACE);
     next_token();
+
+    if (union_name.has_value() && !members.empty()) {
+        auto it = named_union_declarations.find(union_name.value());
+        if (it != named_union_declarations.end()) {
+            std::stringstream ss;
+            ss << "Struct " << union_name.value() << " already defined at " << it->second->location().to_string() << '.';
+            throw compilation_error(ss.str(), location);
+        }
+
+        auto to_ret = std::make_unique<ast::union_declaration>(std::move(union_name), std::move(members), std::move(location));
+        named_union_declarations.insert({ to_ret->union_name().value(), to_ret.get() });
+        return to_ret;
+    }
 
     return std::make_unique<ast::union_declaration>(std::move(union_name), std::move(members), std::move(location));
 }
@@ -745,6 +771,18 @@ std::unique_ptr<ast::enum_declaration> parser::parse_enum_declaration() {
     match_token(MICHAELCC_TOKEN_CLOSE_BRACE);
     next_token();
 
+    if (enum_name.has_value() && !enumerators.empty()) {
+        auto it = named_enum_declarations.find(enum_name.value());
+        if (it != named_enum_declarations.end()) {
+            std::stringstream ss;
+            ss << "Struct " << enum_name.value() << " already defined at " << it->second->location().to_string() << '.';
+            throw compilation_error(ss.str(), location);
+        }
+
+        auto to_ret = std::make_unique<ast::enum_declaration>(std::move(enum_name), std::move(enumerators), std::move(location));
+        named_enum_declarations.insert({ to_ret->enum_name().value(), to_ret.get()});
+        return to_ret;
+    }
     return std::make_unique<ast::enum_declaration>(std::move(enum_name), std::move(enumerators), std::move(location));
 }
 
@@ -757,14 +795,13 @@ std::unique_ptr<ast::typedef_declaration> michaelcc::parser::parse_typedef_decla
     auto it = typedef_declarations.find(decl.identifier);
     if (it != typedef_declarations.end()) {
         std::stringstream ss;
-        ss << "typedef ";
-        it->second->build_declarator(ss, decl.identifier);
-        ss << " already exists.";
+        ss << "Type " << decl.identifier << " already defined at " << it->second->location().to_string() << '.';
         throw panic(ss.str());
     }
-    typedef_declarations.insert({ decl.identifier, decl.type.get() });
 
-    return std::make_unique<ast::typedef_declaration>(std::move(decl.type), std::move(decl.identifier), std::move(location));
+    auto to_return = std::make_unique<ast::typedef_declaration>(std::move(decl.type), std::move(decl.identifier), std::move(location));
+    typedef_declarations.insert({ to_return->name(), to_return.get()});
+    return to_return;
 }
 
 std::vector<ast::function_parameter> parser::parse_parameter_list() {

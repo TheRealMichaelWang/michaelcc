@@ -1,12 +1,12 @@
 #include "math_ops.h"
 
-typedef enum {
+typedef enum color {
     RED,
     GREEN,
     BLUE
 } Color;
 
-typedef struct {
+typedef struct item {
     int id;
     Color color;
     int value;
