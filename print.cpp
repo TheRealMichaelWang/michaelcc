@@ -1,5 +1,7 @@
 #include "tokens.hpp"
 #include "ast.hpp"
+#include <cctype>    // For std::isprint
+#include <iomanip>   // For std::hex, std::setw, std::setfill
 
 using namespace michaelcc;
 using namespace michaelcc::ast;
@@ -286,6 +288,37 @@ void float_literal::build_c_string_prec(std::stringstream& ss, int parent_preced
 
 void double_literal::build_c_string_prec(std::stringstream& ss, int parent_precedence) const {
     ss << m_value;
+}
+
+void escape_char(char c, std::ostream& out) {
+    switch (c) {
+    case '\\': out << "\\\\"; break;  // Backslash
+    case '"':  out << "\\\""; break;  // Double quote
+    case '\n': out << "\\n";  break;  // Newline
+    case '\r': out << "\\r";  break;  // Carriage return
+    case '\t': out << "\\t";  break;  // Tab
+    case '\a': out << "\\a";  break;  // Bell
+    case '\b': out << "\\b";  break;  // Backspace
+    case '\f': out << "\\f";  break;  // Form feed
+    case '\v': out << "\\v";  break;  // Vertical tab
+    default:
+        if (std::isprint(static_cast<unsigned char>(c))) {
+            out << c;  // Printable characters as-is
+        }
+        else {
+            out << "\\x" << std::hex << std::setw(2) << std::setfill('0')
+                << static_cast<int>(static_cast<unsigned char>(c));
+        }
+        break;
+    }
+}
+
+void string_literal::build_c_string_prec(std::stringstream & ss, int parent_precedence) const {
+    ss << "\"";
+    for (char c : m_value) {
+        escape_char(c, ss);
+    }
+    ss << "\"";
 }
 
 void variable_reference::build_c_string_prec(std::stringstream& ss, int parent_precedence) const {

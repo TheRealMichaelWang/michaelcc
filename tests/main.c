@@ -16,7 +16,8 @@ int feature_function(int x) {
 #endif
 
 int main() {
-    int a = 10, b = 20;
+    int a = 10;
+    int b = 20;
     int result = MAX(a, b);
     DEBUG_PRINT(result);
 

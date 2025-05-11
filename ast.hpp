@@ -425,6 +425,22 @@ namespace michaelcc {
 			}
 		};
 
+		class string_literal final : public expression {
+		private:
+			std::string m_value;
+		public:
+			explicit string_literal(std::string value, source_location&& location)
+				: ast_element(std::move(location)), m_value(std::move(value)) {}
+
+			const std::string& value() const noexcept { return m_value; }
+
+			void build_c_string_prec(std::stringstream& ss, int parent_precedence) const override;
+
+			std::unique_ptr<expression> clone() const override {
+				return std::make_unique<string_literal>(m_value, source_location(location()));
+			}
+		};
+
 		class variable_reference final : public set_destination {
 		private:
 			std::string m_identifier;

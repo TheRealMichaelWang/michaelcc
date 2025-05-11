@@ -336,6 +336,9 @@ std::unique_ptr<ast::expression> michaelcc::parser::parse_value()
 	case MICHAELCC_TOKEN_CHAR_LITERAL:
 		value = std::make_unique<ast::int_literal>(ast::NO_INT_QUALIFIER, ast::CHAR_INT_CLASS, scan_token().integer(), source_location(location));
         break;
+    case MICHAELCC_TOKEN_STRING_LITERAL:
+        value = std::make_unique<ast::string_literal>(scan_token().string(), source_location(location));
+        break;
 	case MICHAELCC_TOKEN_OPEN_PAREN: {
 		next_token();
 		std::unique_ptr<ast::expression> expression = parse_expression();
