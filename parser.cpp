@@ -891,31 +891,26 @@ std::vector<std::unique_ptr<ast::top_level_element>> michaelcc::parser::parse_al
         case MICHAELCC_TOKEN_VOID: {
             // Try to parse as function prototype or declaration
             size_t backup = m_token_index;
-            try {
-                auto return_type = parse_type();
-                if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
-                    std::string func_name = current_token().string();
-                    next_token();
-                    if (current_token().type() == MICHAELCC_TOKEN_OPEN_PAREN) {
-                        // Look ahead to distinguish prototype vs. declaration
-                        size_t param_backup = m_token_index;
-                        parse_parameter_list();
-                        if (current_token().type() == MICHAELCC_TOKEN_SEMICOLON) {
-                            m_token_index = backup;
-                            top_level_elements.emplace_back(parse_function_prototype());
-                            continue;
-                        }
-                        else if (current_token().type() == MICHAELCC_TOKEN_OPEN_BRACE) {
-                            m_token_index = backup;
-                            top_level_elements.emplace_back(parse_function_declaration());
-                            continue;
-                        }
+
+            auto return_type = parse_type();
+            if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
+                std::string func_name = current_token().string();
+                next_token();
+                if (current_token().type() == MICHAELCC_TOKEN_OPEN_PAREN) {
+                    parse_parameter_list();
+                    if (current_token().type() == MICHAELCC_TOKEN_SEMICOLON) {
+                        m_token_index = backup;
+                        top_level_elements.emplace_back(parse_function_prototype());
+                        continue;
+                    }
+                    else if (current_token().type() == MICHAELCC_TOKEN_OPEN_BRACE) {
+                        m_token_index = backup;
+                        top_level_elements.emplace_back(parse_function_declaration());
+                        continue;
                     }
                 }
             }
-            catch (...) {
-                m_token_index = backup; // restore if not a function
-            }
+
             // If not a function, treat as variable declaration
             m_token_index = backup;
             top_level_elements.emplace_back(std::make_unique<ast::variable_declaration>(parse_variable_declaration()));

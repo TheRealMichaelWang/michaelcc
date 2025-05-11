@@ -14,6 +14,7 @@ const std::string michaelcc::token_to_str(token_type type) {
 		"#endif",
 		"#include",
 		"#line",
+        "STRINGIFY_IDENTIFIER",
 
 		//punctuators
 		"[",
@@ -100,6 +101,21 @@ const std::string michaelcc::token_to_str(token_type type) {
 	return tok_names[type];
 }
 
+const std::string michaelcc::token_to_str(const token tok)
+{
+    switch (tok.type())
+    {
+    case MICHAELCC_TOKEN_IDENTIFIER:
+        return tok.string();
+    case MICHAELCC_PREPROCESSOR_STRINGIFY_IDENTIFIER:
+        return std::format("#{}", tok.string());
+    case MICHAELCC_TOKEN_STRING_LITERAL:
+        return std::format("\"{}\"", tok.string());
+    default:
+        return token_to_str(tok.type());
+    }
+}
+
 // Helper for indentation
 static std::string indent_str(int indent) {
     return std::string(indent * 2, ' ');
@@ -165,7 +181,7 @@ void michaelcc::ast::array_type::build_declarator(std::stringstream& ss, const s
 
 void ast::function_pointer_type::build_c_string(std::stringstream& ss) const {
     m_return_type->build_c_string(ss);
-    ss << " (*)(";
+    ss << "(*)(";
     for (size_t i = 0; i < m_parameter_types.size(); ++i) {
         if (i > 0) ss << ", ";
         m_parameter_types[i]->build_c_string(ss);

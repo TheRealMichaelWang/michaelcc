@@ -27,6 +27,23 @@ void preprocessor::definition::expand(scanner& output, std::vector<std::vector<t
 				continue;
 			}
 		}
+		else if (token.type() == MICHAELCC_PREPROCESSOR_STRINGIFY_IDENTIFIER) {
+			auto it = param_offsets.find(token.string());
+			if (it != param_offsets.end()) {
+				std::stringstream ss;
+				auto& arg = arguments.at(it->second);
+				for (auto& token : arg) {
+					ss << token_to_str(token);
+				}
+				output.push_backlog(michaelcc::token(MICHAELCC_TOKEN_STRING_LITERAL, ss.str(), arg.front().column()));
+				continue;
+			}
+			else {
+				std::stringstream ss;
+				ss << "Macro parameter " << token.string() << " does not exist.";
+				throw preprocessor.panic(ss.str());
+			}
+		}
 		output.push_backlog(token);
 	}
 }
@@ -60,11 +77,11 @@ void preprocessor::preprocess()
 			else if (tok.type() == MICHAELCC_PREPROCESSOR_TOKEN_ELSE && !preprocessor_scopes.back().override_skip) {
 				preprocessor_scopes.pop_back();
 				preprocessor_scopes.push_back(preprocessor_scope(tok.type(), location, false, false));
-				m_result.push_back(token(location));
+				m_result.push_back(token(scanner.end_location()));
 			}
 			else if (tok.type() == MICHAELCC_PREPROCESSOR_TOKEN_ENDIF) {
 				preprocessor_scopes.pop_back();
-				m_result.push_back(token(location));
+				m_result.push_back(token(scanner.end_location()));
 			}
 			continue;
 		}
@@ -121,8 +138,8 @@ void preprocessor::preprocess()
 			}
 
 			std::vector<token> tokens;
-			while (!scanner.scan_token_if_match(MICHAELCC_TOKEN_NEWLINE)) {
-				token tok = scanner.scan_token();
+			while (!scanner.scan_token_if_match(MICHAELCC_TOKEN_NEWLINE, false, true)) {
+				token tok = scanner.scan_token(true);
 				if (tok.is_preprocessor()) {
 					std::stringstream ss;
 					ss << "Unexpected preprocessor token " << token_to_str(tok.type()) << '.';
@@ -178,7 +195,7 @@ void preprocessor::preprocess()
 
 			m_scanners.pop_back();
 			if (!m_scanners.empty()) {
-				m_result.push_back(token(m_scanners.back().location()));
+				m_result.push_back(token(m_scanners.back().end_location()));
 			}
 			continue;
 		}

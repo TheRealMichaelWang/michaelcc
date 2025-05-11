@@ -92,17 +92,17 @@ namespace michaelcc {
 			}
 
 			const source_location end_location() const noexcept {
-				return source_location(current_row, current_col, m_file_name);
+				return source_location(current_row, current_col + 1, m_file_name);
 			}
 
 			const std::filesystem::path file_name() const noexcept {
 				return m_file_name;
 			}
 
-			token peek_token();
-			token scan_token();
+			token peek_token(bool in_macro_definition = false);
+			token scan_token(bool in_macro_definition =false);
 
-			bool scan_token_if_match(token_type type, bool in_while_loop = false);
+			bool scan_token_if_match(token_type type, bool in_while_loop = false, bool in_macro_definition = false);
 
 			void push_backlog(const token token) {
 				token_backlog.push_back(token);

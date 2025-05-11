@@ -85,17 +85,17 @@ char michaelcc::preprocessor::scanner::scan_char_literal()
 	}
 }
 
-token michaelcc::preprocessor::scanner::peek_token()
+token michaelcc::preprocessor::scanner::peek_token(bool in_macro_definition)
 {
 	if (!token_backlog.empty()) {
 		return std::move(token_backlog.front());
 	}
 
-	token_backlog.emplace_back(scan_token());
+	token_backlog.emplace_back(scan_token(in_macro_definition));
 	return std::move(token_backlog.front());
 }
 
-token michaelcc::preprocessor::scanner::scan_token()
+token michaelcc::preprocessor::scanner::scan_token(bool in_macro_definition)
 {
 	if (!token_backlog.empty()) {
 		token to_return = std::move(token_backlog.front());
@@ -183,9 +183,14 @@ token michaelcc::preprocessor::scanner::scan_token()
 			return token(it->second, location().col());
 		}
 
-		std::stringstream ss;
-		ss << "Invalid preprocessor directive #" << identifier << '.';
-		throw panic(ss.str());
+		if (in_macro_definition) {
+			return token(MICHAELCC_PREPROCESSOR_STRINGIFY_IDENTIFIER, identifier, location().col());
+		}
+		else {
+			std::stringstream ss;
+			ss << "Invalid preprocessor directive #" << identifier << '.';
+			throw panic(ss.str());
+		}
 	}
 	else if (scan_char_if_match('\"')) {
 		std::string str;
@@ -286,11 +291,11 @@ token michaelcc::preprocessor::scanner::scan_token()
 	}
 }
 
-bool michaelcc::preprocessor::scanner::scan_token_if_match(token_type type, bool in_while_loop)
+bool michaelcc::preprocessor::scanner::scan_token_if_match(token_type type, bool in_while_loop, bool in_macro_definition)
 {
-	token token = peek_token();
+	token token = peek_token(in_macro_definition);
 	if (token.type() == type || (in_while_loop && token.type() == MICHAELCC_TOKEN_END)) {
-		scan_token();
+		scan_token(in_macro_definition);
 		return true;
 	}
 	return false;

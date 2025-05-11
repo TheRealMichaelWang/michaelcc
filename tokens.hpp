@@ -15,6 +15,7 @@ namespace michaelcc {
 		MICHAELCC_PREPROCESSOR_TOKEN_ENDIF,
 		MICHAELCC_PREPROCESSOR_TOKEN_INCLUDE,
 		MICHAELCC_TOKEN_LINE_DIRECTIVE,
+		MICHAELCC_PREPROCESSOR_STRINGIFY_IDENTIFIER,
 
 		//punctuators
 		MICHAELCC_TOKEN_OPEN_BRACKET,
@@ -190,4 +191,5 @@ namespace michaelcc {
 	};
 
 	const std::string token_to_str(token_type type);
+	const std::string token_to_str(const token tok);
 }

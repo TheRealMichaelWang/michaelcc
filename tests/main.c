@@ -1,6 +1,6 @@
 #include "config.h"
 #include "math_ops.h"
-#include <stdio.h>
+//#include <stdio.h>
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define DEBUG_PRINT(x) printf("DEBUG: %s = %d\n", #x, x)

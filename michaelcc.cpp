@@ -10,16 +10,16 @@ using namespace std;
 
 int main()
 {
-	ifstream infile("tests/data_structures.c");
+	ifstream infile("tests/main.c");
 	std::stringstream ss;
 	ss << infile.rdbuf();
 
-	michaelcc::preprocessor preprocessor(ss.str(), "tests/data_structures.c");
-	preprocessor.preprocess();
-	vector<michaelcc::token> tokens = preprocessor.result();
-
-	michaelcc::parser parser(std::move(tokens));
 	try {
+		michaelcc::preprocessor preprocessor(ss.str(), "tests/main.c");
+		preprocessor.preprocess();
+		vector<michaelcc::token> tokens = preprocessor.result();
+
+		michaelcc::parser parser(std::move(tokens));
 		auto result = parser.parse_all();
 		for (auto& element : result) {
 			cout << element->to_string() << endl;
