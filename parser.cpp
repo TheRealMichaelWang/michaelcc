@@ -309,7 +309,7 @@ std::unique_ptr<ast::set_destination> michaelcc::parser::parse_set_destination()
 		return std::make_unique<ast::dereference_operator>(parse_value(), std::move(location));
 	default: {
 		std::stringstream ss;
-		ss << "Unexpected token " << token_to_str(current_token().type()) << '.';
+		ss << "Unexpected token " << token_to_str(current_token().type());
 		throw panic(ss.str());
 	}
 	}

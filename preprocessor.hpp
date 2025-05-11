@@ -108,6 +108,14 @@ namespace michaelcc {
 				token_backlog.push_back(token);
 			}
 
+			void push_backlog_macro(std::vector<token>&& macro_expansion) {
+				while (!macro_expansion.empty())
+				{
+					token_backlog.emplace_front(std::move(macro_expansion.back()));
+					macro_expansion.pop_back();
+				}
+			}
+
 			void expect_char(char expected);
 
 			std::optional<std::filesystem::path> resolve_file_path(std::filesystem::path file_path);

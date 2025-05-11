@@ -5,6 +5,8 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define DEBUG_PRINT(x) printf("DEBUG: %s = %d\n", #x, x)
 
+#define FEATURE_ENABLED
+
 #ifdef FEATURE_ENABLED
 int feature_function(int x) {
     return x * FACTOR;

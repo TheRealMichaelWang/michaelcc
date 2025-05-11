@@ -16,13 +16,14 @@ void preprocessor::definition::expand(scanner& output, std::vector<std::vector<t
 		param_offsets.insert({ m_params.at(i), i });
 	}
 
+	std::vector<token> expansion;
 	for (const token& token : m_tokens) {
 		if (token.type() == MICHAELCC_TOKEN_IDENTIFIER) {
 			auto it = param_offsets.find(token.string());
 			if (it != param_offsets.end()) {
 				auto& arg = arguments.at(it->second);
 				for (auto& token : arg) {
-					output.push_backlog(token);
+					expansion.push_back(token);
 				}
 				continue;
 			}
@@ -35,7 +36,7 @@ void preprocessor::definition::expand(scanner& output, std::vector<std::vector<t
 				for (auto& token : arg) {
 					ss << token_to_str(token);
 				}
-				output.push_backlog(michaelcc::token(MICHAELCC_TOKEN_STRING_LITERAL, ss.str(), arg.front().column()));
+				expansion.emplace_back(michaelcc::token(MICHAELCC_TOKEN_STRING_LITERAL, ss.str(), arg.front().column()));
 				continue;
 			}
 			else {
@@ -44,8 +45,10 @@ void preprocessor::definition::expand(scanner& output, std::vector<std::vector<t
 				throw preprocessor.panic(ss.str());
 			}
 		}
-		output.push_backlog(token);
+		expansion.push_back(token);
 	}
+	
+	output.push_backlog_macro(std::move(expansion));
 }
 
 token michaelcc::preprocessor::expect_token(token_type type)
