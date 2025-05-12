@@ -174,7 +174,7 @@ std::unique_ptr<ast::type> michaelcc::parser::parse_type(const bool parse_pointe
             throw panic(ss.str());
         }
 
-        base_type = it->second->type()->clone();
+        base_type = it->second->type()->clone_type();
         next_token();
     }
     else {
