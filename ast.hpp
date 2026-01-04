@@ -166,8 +166,6 @@ namespace michaelcc {
                 build_c_string_indent(ss, 0);
             }
             
-            virtual std::unique_ptr<statement> clone() const = 0;
-            
             void visit(std::unique_ptr<visitor>& visitor) const override = 0;
         };
 
@@ -1168,49 +1166,5 @@ namespace michaelcc {
                 m_function_body.visit(visitor);
             }
         };
-
-		class replacer_visitor {// Types
-			virtual void visit(const int_type& node) { }
-			virtual void visit(const float_type& node) { }
-			virtual void visit(const pointer_type& node) { }
-			virtual void visit(const array_type& node) { }
-			virtual void visit(const function_pointer_type& node) { }
-
-			// Statements
-			virtual void visit(const context_block& node) { }
-			virtual void visit(const for_loop& node) { }
-			virtual void visit(const do_block& node) { }
-			virtual void visit(const while_block& node) { }
-			virtual void visit(const if_block& node) { }
-			virtual void visit(const if_else_block& node) { }
-			virtual void visit(const return_statement& node) { }
-			virtual void visit(const break_statement& node) { }
-			virtual void visit(const continue_statement& node) { }
-
-			// Expressions
-			virtual void visit(const int_literal& node) { }
-			virtual void visit(const float_literal& node) { }
-			virtual void visit(const double_literal& node) { }
-			virtual void visit(const string_literal& node) { }
-			virtual void visit(const variable_reference& node) { }
-			virtual void visit(const get_index& node) { }
-			virtual void visit(const get_property& node) { }
-			virtual void visit(const set_operator& node) { }
-			virtual void visit(const dereference_operator& node) { }
-			virtual void visit(const get_reference& node) { }
-			virtual void visit(const arithmetic_operator& node) { }
-			virtual void visit(const conditional_expression& node) { }
-			virtual void visit(const function_call& node) { }
-			virtual void visit(const initializer_list_expression& node) { }
-
-			// Top-level elements
-			virtual void visit(const variable_declaration& node) { }
-			virtual void visit(const typedef_declaration& node) { }
-			virtual void visit(const struct_declaration& node) { }
-			virtual void visit(const enum_declaration& node) { }
-			virtual void visit(const union_declaration& node) { }
-			virtual void visit(const function_prototype& node) { }
-			virtual void visit(const function_declaration& node) { }
-		};
 	}
 }
