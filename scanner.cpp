@@ -83,6 +83,8 @@ char michaelcc::preprocessor::scanner::scan_char_literal()
 		}
 		}
 	}
+
+    return c;
 }
 
 token michaelcc::preprocessor::scanner::peek_token(bool in_macro_definition)
@@ -108,7 +110,7 @@ token michaelcc::preprocessor::scanner::scan_token(bool in_macro_definition)
 	}
 
 	last_tok_begin = std::make_pair(current_row, current_col);
-	if (isalpha(peek_char())) { //parse keyword/identifier
+	if (isalpha(peek_char()) || peek_char() == '_') { //parse keyword/identifier
 		std::string identifier;
 
 		do {
@@ -149,6 +151,7 @@ token michaelcc::preprocessor::scanner::scan_token(bool in_macro_definition)
 					str_data.pop_back();
 					return token(std::stod(str_data), location().col());
 				}
+                return token(std::stod(str_data), location().col());
 			}
 			else if (str_data.starts_with("0x")) { //parse literal
 				return token(MICHAELCC_TOKEN_INTEGER_LITERAL, std::stoull(str_data.substr(2), nullptr, 16), location().col());
@@ -247,7 +250,7 @@ token michaelcc::preprocessor::scanner::scan_token(bool in_macro_definition)
 			else if (scan_char_if_match('>')) {
 				return token(MICHAELCC_TOKEN_DEREFERENCE_GET, location().col());
 			}
-			return token(scan_char_if_match('+') ? MICHAELCC_TOKEN_INCREMENT : MICHAELCC_TOKEN_MINUS, location().col());
+			return token(scan_char_if_match('-') ? MICHAELCC_TOKEN_DECREMENT : MICHAELCC_TOKEN_MINUS, location().col());
 		case '*':
 			return token(MICHAELCC_TOKEN_ASTERISK, location().col());
 		case '/':
@@ -257,13 +260,18 @@ token michaelcc::preprocessor::scanner::scan_token(bool in_macro_definition)
 				return token(end_location());
 			}
 			else if (scan_char_if_match('*')) { //multi-line comment
-				for (;;) {
-					if (scan_char() == '*' && scan_char() == '/') {
-						break;
-					}
-				}
-				return token(end_location());
-			}
+                for (;;) {
+                    char c = scan_char();
+                    if (c == '\0') {
+                        throw panic("Unterminated multi-line comment");
+                    }
+                    if (c == '*' && peek_char() == '/') {
+                        scan_char(); // consume the '/'
+                        break;
+                    }
+                }
+                return token(end_location());
+            }
 			return token(MICHAELCC_TOKEN_SLASH, location().col());
 		case '^':
 			return token(MICHAELCC_TOKEN_CARET, location().col());

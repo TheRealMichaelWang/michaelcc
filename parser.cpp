@@ -127,7 +127,7 @@ std::unique_ptr<ast::type> parser::parse_int_type() {
     }
 
     // Validate combinations according to C standard
-    if (int_cls & ast::SHORT_INT_CLASS && (int_cls & ast::SHORT_INT_CLASS || long_count > 0)) {
+    if (int_cls & ast::CHAR_INT_CLASS && (int_cls & ast::SHORT_INT_CLASS || long_count > 0)) {
         throw panic("Invalid combination: 'char' cannot be combined with 'short', 'long', or 'int'");
     }
     if (int_cls & ast::SHORT_INT_CLASS && long_count > 0) {
@@ -571,7 +571,7 @@ std::unique_ptr<ast::statement> parser::parse_statement() {
         }
         match_token(MICHAELCC_TOKEN_SEMICOLON);
         next_token();
-        return std::make_unique<ast::continue_statement>(0, std::move(location)); // loop depth can be set as needed
+        return std::make_unique<ast::continue_statement>(continue_depth, std::move(location)); // loop depth can be set as needed
     }
     case MICHAELCC_TOKEN_OPEN_BRACE:
         return std::make_unique<ast::context_block>(parse_block());
@@ -766,7 +766,7 @@ std::unique_ptr<ast::enum_declaration> parser::parse_enum_declaration() {
             value = int_value->signed_value();
         }
 
-        enumerators.emplace_back(ast::enum_declaration::enumerator(std::move(name)));
+        enumerators.emplace_back(ast::enum_declaration::enumerator(std::move(name), value));
 
         if (current_token().type() == MICHAELCC_TOKEN_COMMA) {
             next_token();

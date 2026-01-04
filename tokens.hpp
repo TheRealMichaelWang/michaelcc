@@ -162,7 +162,7 @@ namespace michaelcc {
 		}
 
 		const double float64() const {
-			return std::get<float>(data);
+			return std::get<double>(data);
 		}
 
 		const size_t integer() const {

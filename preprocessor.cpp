@@ -129,15 +129,13 @@ void preprocessor::preprocess()
 
 			std::vector<std::string> params;
 			if (scanner.scan_token_if_match(MICHAELCC_TOKEN_OPEN_PAREN)) {
-				if (scanner.scan_token_if_match(MICHAELCC_TOKEN_CLOSE_PAREN)) {
-					return;
+				if (!scanner.scan_token_if_match(MICHAELCC_TOKEN_CLOSE_PAREN)) {
+                    do {
+                        params.push_back(expect_token(MICHAELCC_TOKEN_IDENTIFIER).string());
+                    } while (scanner.scan_token_if_match(MICHAELCC_TOKEN_COMMA));
+    
+                    expect_token(MICHAELCC_TOKEN_CLOSE_PAREN);
 				}
-
-				do {
-					params.push_back(expect_token(MICHAELCC_TOKEN_IDENTIFIER).string());
-				} while (scanner.scan_token_if_match(MICHAELCC_TOKEN_COMMA));
-
-				expect_token(MICHAELCC_TOKEN_CLOSE_PAREN);
 			}
 
 			std::vector<token> tokens;
