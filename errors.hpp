@@ -1,6 +1,6 @@
-#pragma once
+#ifndef MICHAELCC_ERRORS_HPP
+#define MICHAELCC_ERRORS_HPP
 
-#include <stdexcept>
 #include <filesystem>
 
 namespace michaelcc {
@@ -56,8 +56,10 @@ namespace michaelcc {
 			return m_msg;
 		}
 
-		const char* what() const override {
+		const char* what() const noexcept override {
 			return m_display_msg.c_str();
 		}
 	};
 }
+
+#endif

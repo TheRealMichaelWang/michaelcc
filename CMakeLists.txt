@@ -1,18 +1,19 @@
-﻿# CMakeList.txt : CMake project for michaelcc, include source and define
-# project specific logic here.
-#
-cmake_minimum_required (VERSION 3.12)
+﻿cmake_minimum_required(VERSION 3.16)
+project(michaelcc LANGUAGES CXX)
 
-# Enable Hot Reload for MSVC compilers if supported.
-if (POLICY CMP0141)
-  cmake_policy(SET CMP0141 NEW)
-  set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
-endif()
+# C++20 required
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-project ("michaelcc")
+# Generate compile_commands.json for IDE/editor support
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Add source to this project's executable
-add_executable (michaelcc "michaelcc.cpp" "ast.hpp" "scanner.cpp" "errors.cpp" "preprocessor.cpp" "print.cpp" "parser.cpp")
-set_property(TARGET michaelcc PROPERTY CXX_STANDARD 20)
-
-# TODO: Add tests and install targets if needed.
+# Source files
+add_executable(michaelcc
+    michaelcc.cpp
+    scanner.cpp
+    errors.cpp
+    preprocessor.cpp
+    print.cpp
+    parser.cpp
+)

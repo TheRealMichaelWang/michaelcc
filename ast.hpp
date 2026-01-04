@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MICHAELCC_AST_HPP
+#define MICHAELCC_AST_HPP
 
 #include <map>
 #include <memory>
@@ -7,6 +8,8 @@
 #include <cstdint>
 #include <string>
 #include <sstream>
+
+#include "errors.hpp"
 
 namespace michaelcc {
 	namespace ast {
@@ -1168,3 +1171,5 @@ namespace michaelcc {
         };
 	}
 }
+
+#endif

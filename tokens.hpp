@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MICHAELCC_TOKENS_HPP
+#define MICHAELCC_TOKENS_HPP
 
 #include "errors.hpp"
 #include <variant>
@@ -193,3 +194,5 @@ namespace michaelcc {
 	const std::string token_to_str(token_type type);
 	const std::string token_to_str(const token tok);
 }
+
+#endif

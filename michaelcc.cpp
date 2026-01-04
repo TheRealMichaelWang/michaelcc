@@ -1,5 +1,5 @@
 ﻿// michaelcc.cpp : Defines the entry point for the application.
-//
+
 #include "preprocessor.hpp"
 #include "ast.hpp"
 #include "parser.hpp"
@@ -10,7 +10,9 @@ using namespace std;
 
 int main()
 {
-	ifstream infile("tests/main.c");
+    cout << "Michael C Compiler" << endl;
+	ifstream infile("./tests/main.c");
+
 	std::stringstream ss;
 	ss << infile.rdbuf();
 

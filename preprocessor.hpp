@@ -1,6 +1,6 @@
-#pragma once
+#ifndef MICHAELCC_PREPROCESSOR_HPP
+#define MICHAELCC_PREPROCESSOR_HPP
 
-#include <sstream>
 #include <string>
 #include <vector>
 #include <utility>
@@ -172,3 +172,5 @@ namespace michaelcc {
 		}
 	};
 }
+
+#endif

@@ -1,6 +1,6 @@
-#pragma once
+#ifndef MICHAELCC_PARSER_HPP
+#define MICHAELCC_PARSER_HPP
 
-#include <array>
 #include <cstdint>
 #include <map>
 #include "tokens.hpp"
@@ -84,3 +84,5 @@ namespace michaelcc {
 		std::vector<std::unique_ptr<ast::top_level_element>> parse_all();
 	};
 }
+
+#endif
