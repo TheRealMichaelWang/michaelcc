@@ -440,6 +440,11 @@ std::unique_ptr<ast::expression> michaelcc::parser::parse_expression(int min_pre
             continue;
         }
         else {
+            //right associate check
+            if (op == MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR) {
+                next_min_prec = precedence;
+            }
+
             std::unique_ptr<ast::expression> right = parse_expression(next_min_prec);
             left = std::make_unique<ast::arithmetic_operator>(op, std::move(left), std::move(right), std::move(op_loc));
         }
