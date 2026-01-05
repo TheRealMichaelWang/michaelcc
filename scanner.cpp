@@ -69,6 +69,10 @@ char michaelcc::preprocessor::scanner::scan_char_literal()
 			return (char)0x9;
 		case 'v':
 			return (char)0xB;
+        case '0':
+            return (char)0x0;
+        case '?':
+            [[fallthrough]];
 		case '\\':
 			[[fallthrough]];
 		case '\'':
@@ -90,11 +94,11 @@ char michaelcc::preprocessor::scanner::scan_char_literal()
 token michaelcc::preprocessor::scanner::peek_token(bool in_macro_definition)
 {
 	if (!token_backlog.empty()) {
-		return std::move(token_backlog.front());
+		return token_backlog.front();
 	}
 
 	token_backlog.emplace_back(scan_token(in_macro_definition));
-	return std::move(token_backlog.front());
+	return token_backlog.front();
 }
 
 token michaelcc::preprocessor::scanner::scan_token(bool in_macro_definition)
@@ -292,7 +296,7 @@ token michaelcc::preprocessor::scanner::scan_token(bool in_macro_definition)
 		default:
 		{
 			std::stringstream ss;
-			ss << "Unrecognized character \'" << current << '\'.';
+			ss << "Unrecognized character '" << current << "'.";
 			throw panic(ss.str());
 		}
 		}

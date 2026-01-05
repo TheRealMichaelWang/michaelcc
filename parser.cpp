@@ -305,6 +305,7 @@ std::unique_ptr<ast::ast_element> michaelcc::parser::parse_set_destination()
 		value = std::make_unique<ast::variable_reference>(scan_token().string(), std::move(location));
 		break;
 	case MICHAELCC_TOKEN_ASTERISK:
+        next_token();
 		return std::make_unique<ast::dereference_operator>(parse_value(), std::move(location));
 	default: {
 		std::stringstream ss;
@@ -847,6 +848,7 @@ std::vector<std::unique_ptr<ast::ast_element>> michaelcc::parser::parse_all()
         case MICHAELCC_TOKEN_VOID: {
             // Try to parse as function prototype or declaration
             size_t backup = m_token_index;
+            auto backup_loc = current_loc;
 
             auto return_type = parse_type();
             if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
@@ -856,11 +858,13 @@ std::vector<std::unique_ptr<ast::ast_element>> michaelcc::parser::parse_all()
                     parse_parameter_list();
                     if (current_token().type() == MICHAELCC_TOKEN_SEMICOLON) {
                         m_token_index = backup;
+                        current_loc = backup_loc;
                         m_result.push_back(parse_function_prototype());
                         continue;
                     }
                     else if (current_token().type() == MICHAELCC_TOKEN_OPEN_BRACE) {
                         m_token_index = backup;
+                        current_loc = backup_loc;
                         m_result.push_back(parse_function_declaration());
                         continue;
                     }
@@ -869,6 +873,7 @@ std::vector<std::unique_ptr<ast::ast_element>> michaelcc::parser::parse_all()
 
             // If not a function, treat as variable declaration
             m_token_index = backup;
+            current_loc = backup_loc;
             m_result.push_back(std::make_unique<ast::variable_declaration>(parse_variable_declaration()));
             continue;
         }

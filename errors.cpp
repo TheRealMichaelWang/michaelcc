@@ -3,7 +3,8 @@
 
 using namespace michaelcc;
 
-compilation_error::compilation_error(const std::string msg, const source_location location) : m_location(location)
+compilation_error::compilation_error(const std::string msg, const source_location location) : m_location(location), 
+    m_msg(msg)
 {
 	std::stringstream ss;
 	ss << msg << " @ " << m_location.to_string();
