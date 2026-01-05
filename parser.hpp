@@ -13,7 +13,7 @@ namespace michaelcc {
 	// All pointers in the lookup maps are valid for the lifetime of this object.
 	class syntax_tree {
 	private:
-		std::vector<std::unique_ptr<ast::top_level_element>> m_elements;
+		std::vector<std::unique_ptr<ast::ast_element>> m_elements;
 		std::unordered_map<std::string, ast::typedef_declaration*> m_typedefs;
 		std::unordered_map<std::string, ast::struct_declaration*> m_structs;
 		std::unordered_map<std::string, ast::enum_declaration*> m_enums;
@@ -31,7 +31,7 @@ namespace michaelcc {
 		syntax_tree& operator=(const syntax_tree&) = delete;
 
 		// Access to top-level elements
-		const std::vector<std::unique_ptr<ast::top_level_element>>& elements() const noexcept { 
+		const std::vector<std::unique_ptr<ast::ast_element>>& elements() const noexcept { 
 			return m_elements; 
 		}
 
@@ -72,7 +72,7 @@ namespace michaelcc {
 	class parser {
 	private:
 		struct declarator {
-			std::unique_ptr<ast::type> type;
+			std::unique_ptr<ast::ast_element> type;
 			std::string identifier;
 		};
 
@@ -105,18 +105,18 @@ namespace michaelcc {
 		}
 
 		uint8_t parse_storage_qualifiers();
-		std::unique_ptr<ast::type> parse_int_type();
-		std::unique_ptr<ast::type> parse_type(const bool parse_pointer=true);
+		std::unique_ptr<ast::ast_element> parse_int_type();
+		std::unique_ptr<ast::ast_element> parse_type(const bool parse_pointer=true);
 
 		declarator parse_declarator();
 
-		std::unique_ptr<ast::set_destination> parse_set_accessors(std::unique_ptr<ast::set_destination>&& initial_value);
-		std::unique_ptr<ast::set_destination> parse_set_destination();
+		std::unique_ptr<ast::ast_element> parse_set_accessors(std::unique_ptr<ast::ast_element>&& initial_value);
+		std::unique_ptr<ast::ast_element> parse_set_destination();
 
-		std::unique_ptr<ast::expression> parse_value();
-		std::unique_ptr<ast::expression> parse_expression(int min_precedence=0);
+		std::unique_ptr<ast::ast_element> parse_value();
+		std::unique_ptr<ast::ast_element> parse_expression(int min_precedence=0);
 
-		std::unique_ptr<ast::statement> parse_statement();
+		std::unique_ptr<ast::ast_element> parse_statement();
 		ast::context_block parse_block();
 
 		ast::variable_declaration parse_variable_declaration();
@@ -137,7 +137,7 @@ namespace michaelcc {
 		void add_struct(std::unique_ptr<ast::struct_declaration> decl);
 		void add_enum(std::unique_ptr<ast::enum_declaration> decl);
 		void add_union(std::unique_ptr<ast::union_declaration> decl);
-		void add_element(std::unique_ptr<ast::top_level_element> elem);
+		void add_element(std::unique_ptr<ast::ast_element> elem);
 
 	public:
 		parser(std::vector<token>&& tokens) :

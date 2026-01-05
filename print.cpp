@@ -130,7 +130,7 @@ static void print_int_qualifiers(std::stringstream& out, uint8_t q) {
     if (q & LONG_INT_QUALIFIER) out << "long ";
 }
 
-void int_type::build_c_string(std::stringstream& out) const {
+void int_type::build_c_string(std::stringstream& out, int indent) const {
     print_int_qualifiers(out, m_qualifiers);
     switch (m_class) {
     case CHAR_INT_CLASS: out << "char"; break;
@@ -140,14 +140,14 @@ void int_type::build_c_string(std::stringstream& out) const {
     }
 }
 
-void float_type::build_c_string(std::stringstream& out) const {
+void float_type::build_c_string(std::stringstream& out, int indent) const {
     switch (m_class) {
     case FLOAT_FLOAT_CLASS: out << "float"; break;
     case DOUBLE_FLOAT_CLASS: out << "double"; break;
     }
 }
 
-void pointer_type::build_c_string(std::stringstream& out) const {
+void pointer_type::build_c_string(std::stringstream& out, int indent) const {
     m_pointee_type->build_c_string(out);
     out << "*";
 }
@@ -155,14 +155,20 @@ void pointer_type::build_c_string(std::stringstream& out) const {
 void michaelcc::ast::pointer_type::build_declarator(std::stringstream& ss, const std::string& identifier) const {
     if (dynamic_cast<const array_type*>(m_pointee_type.get()) ||
         dynamic_cast<const function_pointer_type*>(m_pointee_type.get())) {
-        m_pointee_type->build_declarator(ss, "(*" + identifier + ")");
+        // For array_type and function_pointer_type, call build_declarator
+        if (auto* arr = dynamic_cast<const array_type*>(m_pointee_type.get())) {
+            arr->build_declarator(ss, "(*" + identifier + ")");
+        } else if (auto* fptr = dynamic_cast<const function_pointer_type*>(m_pointee_type.get())) {
+            fptr->build_declarator(ss, "(*" + identifier + ")");
+        }
     }
     else {
-        ast::type::build_declarator(ss, identifier);
+        build_c_string(ss);
+        ss << ' ' << identifier;
     }
 }
 
-void array_type::build_c_string(std::stringstream& out) const {
+void array_type::build_c_string(std::stringstream& out, int indent) const {
     m_element_type->build_c_string(out);
     out << "[";
     if (m_length && m_length.value()) {
@@ -178,10 +184,20 @@ void michaelcc::ast::array_type::build_declarator(std::stringstream& ss, const s
         m_length.value()->build_c_string(length_ss);
         length_str = length_ss.str();
     }
-    m_element_type->build_declarator(ss, identifier + "[" + length_str + "]");
+    // For array_type element, call build_declarator if available
+    if (auto* arr = dynamic_cast<const array_type*>(m_element_type.get())) {
+        arr->build_declarator(ss, identifier + "[" + length_str + "]");
+    } else if (auto* ptr = dynamic_cast<const pointer_type*>(m_element_type.get())) {
+        ptr->build_declarator(ss, identifier + "[" + length_str + "]");
+    } else if (auto* fptr = dynamic_cast<const function_pointer_type*>(m_element_type.get())) {
+        fptr->build_declarator(ss, identifier + "[" + length_str + "]");
+    } else {
+        m_element_type->build_c_string(ss);
+        ss << ' ' << identifier << "[" << length_str << "]";
+    }
 }
 
-void ast::function_pointer_type::build_c_string(std::stringstream& ss) const {
+void ast::function_pointer_type::build_c_string(std::stringstream& ss, int indent) const {
     m_return_type->build_c_string(ss);
     ss << "(*)(";
     for (size_t i = 0; i < m_parameter_types.size(); ++i) {
@@ -199,70 +215,80 @@ void michaelcc::ast::function_pointer_type::build_declarator(std::stringstream& 
         m_parameter_types[i]->build_c_string(params_ss);
     }
     params_str = params_ss.str();
-    m_return_type->build_declarator(ss, "(*" + identifier + ")(" + params_str + ")");
+    // For return type, call build_declarator if available
+    if (auto* arr = dynamic_cast<const array_type*>(m_return_type.get())) {
+        arr->build_declarator(ss, "(*" + identifier + ")(" + params_str + ")");
+    } else if (auto* ptr = dynamic_cast<const pointer_type*>(m_return_type.get())) {
+        ptr->build_declarator(ss, "(*" + identifier + ")(" + params_str + ")");
+    } else if (auto* fptr = dynamic_cast<const function_pointer_type*>(m_return_type.get())) {
+        fptr->build_declarator(ss, "(*" + identifier + ")(" + params_str + ")");
+    } else {
+        m_return_type->build_c_string(ss);
+        ss << " (*" << identifier << ")(" << params_str << ")";
+    }
 }
 
-void context_block::build_c_string_indent(std::stringstream& ss, int indent) const {
+void context_block::build_c_string(std::stringstream& ss, int indent) const {
     ss << "{\n";
     for (const auto& stmt : m_statements) {
-        stmt->build_c_string_indent(ss, indent + 1);
+        stmt->build_c_string(ss, indent + 1);
         ss << '\n';
     }
     ss << indent_str(indent) << "}";
 }
 
-void for_loop::build_c_string_indent(std::stringstream& ss, int indent) const {
+void for_loop::build_c_string(std::stringstream& ss, int indent) const {
     ss << indent_str(indent) << "for (";
-    if (m_initial_statement) m_initial_statement->build_c_string(ss);
+    if (m_initial_statement) m_initial_statement->build_c_string(ss, 0);
     ss << "; ";
-    if (m_condition) m_condition->build_c_string(ss);
+    if (m_condition) m_condition->build_c_string(ss, 0);
     ss << "; ";
-    if (m_increment_statement) m_increment_statement->build_c_string(ss);
+    if (m_increment_statement) m_increment_statement->build_c_string(ss, 0);
     ss << ") ";
-    m_to_execute.build_c_string_indent(ss, indent);
+    m_to_execute.build_c_string(ss, indent);
 }
 
-void do_block::build_c_string_indent(std::stringstream& ss, int indent) const {
+void do_block::build_c_string(std::stringstream& ss, int indent) const {
     ss << indent_str(indent) << "do ";
-    m_to_execute.build_c_string_indent(ss, indent);
+    m_to_execute.build_c_string(ss, indent);
     ss << " while (";
-    if (m_condition) m_condition->build_c_string(ss);
+    if (m_condition) m_condition->build_c_string(ss, 0);
     ss << ");";
 }
 
-void while_block::build_c_string_indent(std::stringstream& ss, int indent) const {
+void while_block::build_c_string(std::stringstream& ss, int indent) const {
     ss << indent_str(indent) << "while (";
-    if (m_condition) m_condition->build_c_string(ss);
+    if (m_condition) m_condition->build_c_string(ss, 0);
     ss << ") ";
-    m_to_execute.build_c_string_indent(ss, indent);
+    m_to_execute.build_c_string(ss, indent);
 }
 
-void if_block::build_c_string_indent(std::stringstream& ss, int indent) const {
+void if_block::build_c_string(std::stringstream& ss, int indent) const {
     ss << indent_str(indent) << "if (";
-    if (m_condition) m_condition->build_c_string(ss);
+    if (m_condition) m_condition->build_c_string(ss, 0);
     ss << ") ";
-    m_execute_if_true.build_c_string_indent(ss, indent);
+    m_execute_if_true.build_c_string(ss, indent);
 }
 
-void if_else_block::build_c_string_indent(std::stringstream& ss, int indent) const {
+void if_else_block::build_c_string(std::stringstream& ss, int indent) const {
     ss << indent_str(indent) << "if (";
-    if (m_condition) m_condition->build_c_string(ss);
+    if (m_condition) m_condition->build_c_string(ss, 0);
     ss << ") ";
-    m_execute_if_true.build_c_string_indent(ss, indent);
+    m_execute_if_true.build_c_string(ss, indent);
     ss << " else ";
-    m_execute_if_false.build_c_string_indent(ss, indent);
+    m_execute_if_false.build_c_string(ss, indent);
 }
 
-void return_statement::build_c_string_indent(std::stringstream& ss, int indent) const {
+void return_statement::build_c_string(std::stringstream& ss, int indent) const {
     ss << indent_str(indent) << "return";
     if (value) {
         ss << " ";
-        value->build_c_string(ss);
+        value->build_c_string(ss, 0);
     }
     ss << ";";
 }
 
-void break_statement::build_c_string_indent(std::stringstream& ss, int indent) const {
+void break_statement::build_c_string(std::stringstream& ss, int indent) const {
     ss << indent_str(indent) << "break";
     if (loop_depth > 1) {
         ss << " " << loop_depth;
@@ -270,7 +296,7 @@ void break_statement::build_c_string_indent(std::stringstream& ss, int indent) c
     ss << ";";
 }
 
-void continue_statement::build_c_string_indent(std::stringstream& ss, int indent) const {
+void continue_statement::build_c_string(std::stringstream& ss, int indent) const {
     ss << indent_str(indent) << "continue";
     if (loop_depth > 1) {
         ss << " " << loop_depth;
@@ -278,15 +304,15 @@ void continue_statement::build_c_string_indent(std::stringstream& ss, int indent
     ss << ";";
 }
 
-void int_literal::build_c_string_prec(std::stringstream& ss, int parent_precedence) const {
+void int_literal::build_c_string(std::stringstream& ss, int indent) const {
     ss << m_value;
 }
 
-void float_literal::build_c_string_prec(std::stringstream& ss, int parent_precedence) const {
+void float_literal::build_c_string(std::stringstream& ss, int indent) const {
     ss << m_value << "f";
 }
 
-void double_literal::build_c_string_prec(std::stringstream& ss, int parent_precedence) const {
+void double_literal::build_c_string(std::stringstream& ss, int indent) const {
     ss << m_value;
 }
 
@@ -313,7 +339,7 @@ void escape_char(char c, std::ostream& out) {
     }
 }
 
-void string_literal::build_c_string_prec(std::stringstream & ss, int parent_precedence) const {
+void string_literal::build_c_string(std::stringstream & ss, int indent) const {
     ss << "\"";
     for (char c : m_value) {
         escape_char(c, ss);
@@ -321,137 +347,127 @@ void string_literal::build_c_string_prec(std::stringstream & ss, int parent_prec
     ss << "\"";
 }
 
-void variable_reference::build_c_string_prec(std::stringstream& ss, int parent_precedence) const {
+void variable_reference::build_c_string(std::stringstream& ss, int indent) const {
     ss << m_identifier;
 }
 
-void get_index::build_c_string_prec(std::stringstream& ss, int parent_precedence) const {
-    int current_precedence = 15; // Postfix operator precedence
-    if (current_precedence < parent_precedence) ss << "(";
-    m_ptr->build_c_string_prec(ss, current_precedence);
+void get_index::build_c_string(std::stringstream& ss, int indent) const {
+    m_ptr->build_c_string(ss, 0);
     ss << "[";
-    m_index->build_c_string_prec(ss, 0);
+    m_index->build_c_string(ss, 0);
     ss << "]";
-    if (current_precedence < parent_precedence) ss << ")";
 }
 
-void get_property::build_c_string_prec(std::stringstream& ss, int parent_precedence) const {
-    int current_precedence = 15; // Postfix operator precedence
-    if (current_precedence < parent_precedence) ss << "(";
-    m_struct->build_c_string_prec(ss, current_precedence);
+void get_property::build_c_string(std::stringstream& ss, int indent) const {
+    m_struct->build_c_string(ss, 0);
     ss << (m_is_pointer_dereference ? "->" : ".");
     ss << m_property_name;
-    if (current_precedence < parent_precedence) ss << ")";
 }
 
-void set_operator::build_c_string_indent(std::stringstream& ss, int indent) const {
+void set_operator::build_c_string(std::stringstream& ss, int indent) const {
     ss << indent_str(indent);
-    m_set_dest->build_c_string(ss);
+    m_set_dest->build_c_string(ss, 0);
     ss << " = ";
-    m_set_value->build_c_string(ss);
+    m_set_value->build_c_string(ss, 0);
     ss << ";";
 }
 
-void set_operator::build_c_string_prec(std::stringstream& ss, int parent_precedence) const {
-    int current_precedence = 1; // Assignment operator precedence
-    if (current_precedence < parent_precedence) ss << "(";
-    m_set_dest->build_c_string_prec(ss, current_precedence);
-    ss << " = ";
-    m_set_value->build_c_string_prec(ss, current_precedence);
-    if (current_precedence < parent_precedence) ss << ")";
-}
-
-void dereference_operator::build_c_string_prec(std::stringstream& ss, int parent_precedence) const {
-    int current_precedence = 14; // Unary operator precedence
-    if (current_precedence < parent_precedence) ss << "(";
+void dereference_operator::build_c_string(std::stringstream& ss, int indent) const {
     ss << "*";
-    m_pointer->build_c_string_prec(ss, current_precedence);
-    if (current_precedence < parent_precedence) ss << ")";
+    m_pointer->build_c_string(ss, 0);
 }
 
-void get_reference::build_c_string_prec(std::stringstream& ss, int parent_precedence) const {
-    int current_precedence = 14; // Unary operator precedence
-    if (current_precedence < parent_precedence) ss << "(";
+void get_reference::build_c_string(std::stringstream& ss, int indent) const {
     ss << "&";
-    m_item->build_c_string_prec(ss, current_precedence);
-    if (current_precedence < parent_precedence) ss << ")";
+    m_item->build_c_string(ss, 0);
 }
 
-void arithmetic_operator::build_c_string_prec(std::stringstream& ss, int parent_precedence) const {
-    int current_precedence = operator_precedence.at(m_operation);
-    if (current_precedence < parent_precedence) ss << "(";
-    m_left->build_c_string_prec(ss, current_precedence);
+void arithmetic_operator::build_c_string(std::stringstream& ss, int indent) const {
+    ss << "(";
+    m_left->build_c_string(ss, 0);
     ss << " " << token_to_str(m_operation) << " ";
-    m_right->build_c_string_prec(ss, current_precedence + 1); // +1 for left-associative operators
-    if (current_precedence < parent_precedence) ss << ")";
+    m_right->build_c_string(ss, 0);
+    ss << ")";
 }
 
-void conditional_expression::build_c_string_prec(std::stringstream& ss, int parent_precedence) const {
-    int current_precedence = 2; // Ternary operator precedence
-    if (current_precedence < parent_precedence) ss << "(";
-    m_condition->build_c_string_prec(ss, current_precedence + 1);
+void conditional_expression::build_c_string(std::stringstream& ss, int indent) const {
+    ss << "(";
+    m_condition->build_c_string(ss, 0);
     ss << " ? ";
-    m_true_expr->build_c_string_prec(ss, current_precedence + 1);
+    m_true_expr->build_c_string(ss, 0);
     ss << " : ";
-    m_false_expr->build_c_string_prec(ss, current_precedence); // Right-associative
-    if (current_precedence < parent_precedence) ss << ")";
+    m_false_expr->build_c_string(ss, 0);
+    ss << ")";
 }
 
-void function_call::build_c_string_indent(std::stringstream& ss, int indent) const {
+void function_call::build_c_string(std::stringstream& ss, int indent) const {
     ss << indent_str(indent);
-    m_callee->build_c_string(ss);
+    m_callee->build_c_string(ss, 0);
     ss << "(";
     for (size_t i = 0; i < m_arguments.size(); ++i) {
         if (i > 0) ss << ", ";
-        m_arguments[i]->build_c_string(ss);
+        m_arguments[i]->build_c_string(ss, 0);
     }
     ss << ");";
 }
 
-void function_call::build_c_string_prec(std::stringstream& ss, int parent_precedence) const {
-    int current_precedence = 15; // Postfix operator precedence
-    if (current_precedence < parent_precedence) ss << "(";
-    m_callee->build_c_string_prec(ss, current_precedence);
-    ss << "(";
-    for (size_t i = 0; i < m_arguments.size(); ++i) {
-        if (i > 0) ss << ", ";
-        m_arguments[i]->build_c_string(ss);
-    }
-    ss << ")";
-    if (current_precedence < parent_precedence) ss << ")";
-}
-
-void initializer_list_expression::build_c_string_prec(std::stringstream& ss, int indent) const {
+void initializer_list_expression::build_c_string(std::stringstream& ss, int indent) const {
     ss << "{";
     for (size_t i = 0; i < m_initializers.size(); ++i) {
         if (i > 0) ss << ", ";
-        m_initializers[i]->build_c_string_prec(ss, 0);
+        m_initializers[i]->build_c_string(ss, 0);
     }
     ss << "}";
 }
 
-void variable_declaration::build_c_string_indent(std::stringstream& ss, int indent) const {
+// Helper function to call build_declarator on type elements
+static void call_build_declarator(const ast_element* type, std::stringstream& ss, const std::string& identifier) {
+    if (auto* int_t = dynamic_cast<const int_type*>(type)) {
+        int_t->build_declarator(ss, identifier);
+    } else if (auto* float_t = dynamic_cast<const float_type*>(type)) {
+        float_t->build_declarator(ss, identifier);
+    } else if (auto* void_t = dynamic_cast<const void_type*>(type)) {
+        void_t->build_declarator(ss, identifier);
+    } else if (auto* ptr = dynamic_cast<const pointer_type*>(type)) {
+        ptr->build_declarator(ss, identifier);
+    } else if (auto* arr = dynamic_cast<const array_type*>(type)) {
+        arr->build_declarator(ss, identifier);
+    } else if (auto* fptr = dynamic_cast<const function_pointer_type*>(type)) {
+        fptr->build_declarator(ss, identifier);
+    } else if (auto* strct = dynamic_cast<const struct_declaration*>(type)) {
+        strct->build_declarator(ss, identifier);
+    } else if (auto* enm = dynamic_cast<const enum_declaration*>(type)) {
+        enm->build_declarator(ss, identifier);
+    } else if (auto* un = dynamic_cast<const union_declaration*>(type)) {
+        un->build_declarator(ss, identifier);
+    } else {
+        type->build_c_string(ss);
+        ss << ' ' << identifier;
+    }
+}
+
+void variable_declaration::build_c_string(std::stringstream& ss, int indent) const {
     ss << indent_str(indent);
     if (m_qualifiers & CONST_STORAGE_QUALIFIER) ss << "const ";
     if (m_qualifiers & VOLATILE_STORAGE_QUALIFIER) ss << "volatile ";
     if (m_qualifiers & EXTERN_STORAGE_QUALIFIER) ss << "extern ";
     if (m_qualifiers & STATIC_STORAGE_QUALIFIER) ss << "static ";
     if (m_qualifiers & REGISTER_STORAGE_QUALIFIER) ss << "register ";
-    m_type->build_declarator(ss, m_identifier);
+    call_build_declarator(m_type.get(), ss, m_identifier);
     if (m_set_value.has_value()) {
         ss << " = ";
-        m_set_value.value()->build_c_string(ss);
+        m_set_value.value()->build_c_string(ss, 0);
     }
     ss << ";";
 }
 
-void typedef_declaration::build_c_string(std::stringstream& out) const {
+void typedef_declaration::build_c_string(std::stringstream& out, int indent) const {
     out << "typedef ";
-    m_type->build_declarator(out, m_name);
+    call_build_declarator(m_type.get(), out, m_name);
     out << ";";
 }
 
-void struct_declaration::build_c_string(std::stringstream& out) const {
+void struct_declaration::build_c_string(std::stringstream& out, int indent) const {
     out << "struct";
     if (m_struct_name) {
         out << " " << m_struct_name.value();
@@ -462,13 +478,13 @@ void struct_declaration::build_c_string(std::stringstream& out) const {
     }
     out << " {\n";
     for (const auto& member : m_members) {
-        member.build_c_string(out);
+        member.build_c_string(out, indent + 1);
         out << "\n";
     }
     out << "}";
 }
 
-void enum_declaration::build_c_string(std::stringstream& out) const {
+void enum_declaration::build_c_string(std::stringstream& out, int indent) const {
     out << "enum";
     if (m_enum_name) out << " " << m_enum_name.value();
     if (m_enumerators.empty()) {
@@ -486,7 +502,7 @@ void enum_declaration::build_c_string(std::stringstream& out) const {
     out << "}";
 }
 
-void union_declaration::build_c_string(std::stringstream& out) const {
+void union_declaration::build_c_string(std::stringstream& out, int indent) const {
     out << "union";
     if (m_union_name) out << " " << m_union_name.value();
     if (m_members.empty()) {
@@ -495,31 +511,31 @@ void union_declaration::build_c_string(std::stringstream& out) const {
     out << " {\n";
     for (const auto& member : m_members) {
         out << "  ";
-        member.member_type->build_c_string(out);
+        member.member_type->build_c_string(out, 0);
         out << " " << member.member_name << ";\n";
     }
     out << "}";
 }
 
-void function_prototype::build_c_string(std::stringstream& out) const {
-    m_return_type->build_c_string(out);
+void function_prototype::build_c_string(std::stringstream& out, int indent) const {
+    m_return_type->build_c_string(out, 0);
     out << " " << m_function_name << "(";
     for (size_t i = 0; i < m_parameters.size(); ++i) {
-        m_parameters[i].param_type->build_c_string(out);
+        m_parameters[i].param_type->build_c_string(out, 0);
         out << " " << m_parameters[i].param_name;
         if (i + 1 < m_parameters.size()) out << ", ";
     }
     out << ");";
 }
 
-void function_declaration::build_c_string(std::stringstream& out) const {
-    m_return_type->build_c_string(out);
+void function_declaration::build_c_string(std::stringstream& out, int indent) const {
+    m_return_type->build_c_string(out, 0);
     out << " " << m_function_name << "(";
     for (size_t i = 0; i < m_parameters.size(); ++i) {
-        m_parameters[i].param_type->build_c_string(out);
+        m_parameters[i].param_type->build_c_string(out, 0);
         out << " " << m_parameters[i].param_name;
         if (i + 1 < m_parameters.size()) out << ", ";
     }
     out << ')';
-    m_function_body.build_c_string(out);
+    m_function_body.build_c_string(out, indent);
 }

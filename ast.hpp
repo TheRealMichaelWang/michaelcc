@@ -145,83 +145,41 @@ namespace michaelcc {
 
 			virtual ~ast_element() = default;
 
-			virtual void visit(std::unique_ptr<visitor>& visitor) const = 0;
+			virtual void accept(visitor& v) const = 0;
 
-			virtual void build_c_string(std::stringstream&) const = 0;
+			virtual void build_c_string(std::stringstream&, int indent = 0) const = 0;
 
 			const std::string to_string() const {
 				std::stringstream ss;
-				build_c_string(ss);
+				build_c_string(ss, 0);
 				return ss.str();
 			}
+
+			virtual std::unique_ptr<ast_element> clone() const = 0;
 		};
 
-		class top_level_element : virtual public ast_element {
-		public:
-			void build_c_string(std::stringstream& ss) const override = 0;
-			void visit(std::unique_ptr<visitor>& visitor) const override = 0;
-		};
-
-        class statement : virtual public ast_element {
-        public:
-            virtual void build_c_string_indent(std::stringstream& ss, int parent_precedence) const = 0;
-
-            void build_c_string(std::stringstream& ss) const override {
-                build_c_string_indent(ss, 0);
-            }
-            
-            void visit(std::unique_ptr<visitor>& visitor) const override = 0;
-        };
-
-		class expression : virtual public ast_element {
-		public:
-			virtual void build_c_string_prec(std::stringstream& ss, int indent) const = 0;
-
-			void build_c_string(std::stringstream& ss) const override {
-				build_c_string_prec(ss, 0);
-			}
-
-			virtual std::unique_ptr<expression> clone() const = 0;
-
-			void visit(std::unique_ptr<visitor>& visitor) const override = 0;
-		};
-
-		class set_destination : public expression {
-		public:
-			void build_c_string_prec(std::stringstream& ss, int indent) const override = 0;
-
-			std::unique_ptr<expression> clone() const override = 0;
-		};
-
-		class type : virtual public ast_element {
-		public:
-			virtual void build_declarator(std::stringstream& ss, const std::string& identifier) const {
-				build_c_string(ss);
-				ss << ' ' << identifier;
-			}
-
-			virtual std::unique_ptr<type> clone() const = 0;
-
-			void visit(std::unique_ptr<visitor>& visitor) const override = 0;
-		};
-
-		class void_type : public type {
+		class void_type : public ast_element {
 		public:
 			void_type(source_location&& location)
 				: ast_element(std::move(location)) { }
 
-			void build_c_string(std::stringstream& ss) const override {
+			void build_c_string(std::stringstream& ss, int indent = 0) const override {
 				ss << "void";
 			}
 
-			std::unique_ptr<type> clone() const override {
+			void build_declarator(std::stringstream& ss, const std::string& identifier) const {
+				build_c_string(ss);
+				ss << ' ' << identifier;
+			}
+
+			std::unique_ptr<ast_element> clone() const override {
 				return std::make_unique<void_type>(source_location(location()));
 			}
 
-			void visit(std::unique_ptr<visitor>& visitor) const override { }
+			void accept(visitor& v) const override { }
 		};
 
-		class int_type : public type {
+		class int_type : public ast_element {
 		private:
 			uint8_t m_qualifiers;
 			int_class m_class;
@@ -230,110 +188,119 @@ namespace michaelcc {
 				: ast_element(std::move(location)),
 				m_qualifiers(qualifiers), m_class(m_class) { }
 
-			void build_c_string(std::stringstream&) const override;
+			void build_c_string(std::stringstream&, int indent = 0) const override;
 
-			std::unique_ptr<type> clone() const override {
+			void build_declarator(std::stringstream& ss, const std::string& identifier) const {
+				build_c_string(ss);
+				ss << ' ' << identifier;
+			}
+
+			std::unique_ptr<ast_element> clone() const override {
 				return std::make_unique<int_type>(m_qualifiers, m_class, source_location(location()));
 			}
 
-			void visit(std::unique_ptr<visitor>& visitor) const override {
-				visitor->visit(*this);
+			void accept(visitor& v) const override {
+				v.visit(*this);
 			}
 		};
 
-		class float_type : public type {
+		class float_type : public ast_element {
 		private:
 			float_class m_class;
-
-		protected:
-			void build_c_string(std::stringstream&) const override;
 
 		public:
 			explicit float_type(float_class m_class, source_location&& location)
 				: ast_element(std::move(location)),
 				m_class(m_class) { }
 
-			std::unique_ptr<type> clone() const override {
+			void build_c_string(std::stringstream&, int indent = 0) const override;
+
+			void build_declarator(std::stringstream& ss, const std::string& identifier) const {
+				build_c_string(ss);
+				ss << ' ' << identifier;
+			}
+
+			std::unique_ptr<ast_element> clone() const override {
 				return std::make_unique<float_type>(m_class, source_location(location()));
 			}
 
-			void visit(std::unique_ptr<visitor>& visitor) const override {
-				visitor->visit(*this);
+			void accept(visitor& v) const override {
+				v.visit(*this);
 			}
 		};
 
-		class pointer_type : public type {
+		class pointer_type : public ast_element {
 		private:
-			std::unique_ptr<type> m_pointee_type;
+			std::unique_ptr<ast_element> m_pointee_type;
 
 		public:
-			pointer_type(std::unique_ptr<type>&& pointee_type, source_location&& location)
+			pointer_type(std::unique_ptr<ast_element>&& pointee_type, source_location&& location)
 				: ast_element(std::move(location)),
 				m_pointee_type(std::move(pointee_type)) { }
 
-			const type* pointee_type() const noexcept { return m_pointee_type.get(); }
+			const ast_element* pointee_type() const noexcept { return m_pointee_type.get(); }
 
-			void build_c_string(std::stringstream&) const override;
+			void build_c_string(std::stringstream&, int indent = 0) const override;
 
-			void build_declarator(std::stringstream& ss, const std::string& identifier) const override;
+			void build_declarator(std::stringstream& ss, const std::string& identifier) const;
 
-			std::unique_ptr<type> clone() const override {
+			std::unique_ptr<ast_element> clone() const override {
 				return std::make_unique<pointer_type>(m_pointee_type->clone(), source_location(location()));
 			}
 
-			void visit(std::unique_ptr<visitor>& visitor) const override {
-				visitor->visit(*this);
-				m_pointee_type->visit(visitor);
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_pointee_type->accept(v);
 			}
 		};
 
 		// Array type, e.g. int[10], float[]
-		class array_type : public type {
+		class array_type : public ast_element {
 		private:
-			std::unique_ptr<type> m_element_type;
-			std::optional<std::unique_ptr<expression>> m_length;
+			std::unique_ptr<ast_element> m_element_type;
+			std::optional<std::unique_ptr<ast_element>> m_length;
 
 		public:
-			array_type(std::unique_ptr<type>&& element_type, std::optional<std::unique_ptr<expression>>&& length, source_location&& location)
+			array_type(std::unique_ptr<ast_element>&& element_type, std::optional<std::unique_ptr<ast_element>>&& length, source_location&& location)
 				: ast_element(std::move(location)),
 				m_element_type(std::move(element_type)), m_length(std::move(length)) {}
 
-			const type* element_type() const noexcept { return m_element_type.get(); }
-			const std::optional<std::unique_ptr<expression>>& length() const noexcept { return m_length; }
+			const ast_element* element_type() const noexcept { return m_element_type.get(); }
+			const std::optional<std::unique_ptr<ast_element>>& length() const noexcept { return m_length; }
 
-			void build_c_string(std::stringstream&) const override;
+			void build_c_string(std::stringstream&, int indent = 0) const override;
 
-			void build_declarator(std::stringstream& ss, const std::string& identifier) const override;
+			void build_declarator(std::stringstream& ss, const std::string& identifier) const;
 
-			std::unique_ptr<type> clone() const override {
+			std::unique_ptr<ast_element> clone() const override {
 				return std::make_unique<array_type>(m_element_type->clone(), m_length.has_value() ? std::make_optional(m_length.value()->clone()) : std::nullopt, source_location(location()));
 			}
 
-			void visit(std::unique_ptr<visitor>& visitor) const override {
-				visitor->visit(*this);
-				m_element_type->visit(visitor);
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_element_type->accept(v);
 				if (m_length.has_value()) {
-					m_length.value()->visit(visitor);
+					m_length.value()->accept(v);
 				}
 			}
 		};
 
-		class function_pointer_type : public type {
+		class function_pointer_type : public ast_element {
 		private:
-			std::unique_ptr<type> m_return_type;
-			std::vector<std::unique_ptr<type>> m_parameter_types;
+			std::unique_ptr<ast_element> m_return_type;
+			std::vector<std::unique_ptr<ast_element>> m_parameter_types;
 		public:
-			function_pointer_type(std::unique_ptr<type>&& return_type, std::vector<std::unique_ptr<type>>&& parameter_types, source_location&& location)
+			function_pointer_type(std::unique_ptr<ast_element>&& return_type, std::vector<std::unique_ptr<ast_element>>&& parameter_types, source_location&& location)
 				: ast_element(std::move(location)), m_return_type(std::move(return_type)), m_parameter_types(std::move(parameter_types)) {}
-			const type* return_type() const noexcept { return m_return_type.get(); }
-			const std::vector<std::unique_ptr<type>>& parameter_types() const noexcept { return m_parameter_types; }
+			const ast_element* return_type() const noexcept { return m_return_type.get(); }
+			const std::vector<std::unique_ptr<ast_element>>& parameter_types() const noexcept { return m_parameter_types; }
 
-			void build_c_string(std::stringstream& ss) const override;
+			void build_c_string(std::stringstream& ss, int indent = 0) const override;
 
-			void build_declarator(std::stringstream& ss, const std::string& identifier) const override;
+			void build_declarator(std::stringstream& ss, const std::string& identifier) const;
 
-			std::unique_ptr<type> clone() const override {
-				std::vector<std::unique_ptr<ast::type>> parameter_types;
+			std::unique_ptr<ast_element> clone() const override {
+				std::vector<std::unique_ptr<ast_element>> parameter_types;
 				parameter_types.reserve(m_parameter_types.size());
 				for (const auto& parameter : m_parameter_types) {
 					parameter_types.push_back(parameter->clone());
@@ -341,44 +308,69 @@ namespace michaelcc {
 				return std::make_unique<function_pointer_type>(m_return_type->clone(), std::move(parameter_types), source_location(location()));
 			}
 
-			void visit(std::unique_ptr<visitor>& visitor) const override {
-				visitor->visit(*this);
-				m_return_type->visit(visitor);
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_return_type->accept(v);
 				for (const auto& paramater : m_parameter_types) {
-					paramater->visit(visitor);
+					paramater->accept(v);
 				}
 			}
 		};
 
-		class context_block : public statement {
+		class context_block : public ast_element {
 		private:
-			std::vector<std::unique_ptr<statement>> m_statements;
+			std::vector<std::unique_ptr<ast_element>> m_statements;
 
 		public:
-			explicit context_block(std::vector<std::unique_ptr<statement>>&& statements, source_location&& location)
+			explicit context_block(std::vector<std::unique_ptr<ast_element>>&& statements, source_location&& location)
 				: ast_element(std::move(location)), m_statements(std::move(statements)) { }
 
-			void build_c_string_indent(std::stringstream&, int) const override;
+			// Move constructor
+			context_block(context_block&& other) noexcept
+				: ast_element(source_location(other.location())), m_statements(std::move(other.m_statements)) { }
 
-			void visit(std::unique_ptr<visitor>& visitor) const override {
-				visitor->visit(*this);
+			// Move assignment
+			context_block& operator=(context_block&& other) noexcept {
+				if (this != &other) {
+					m_statements = std::move(other.m_statements);
+				}
+				return *this;
+			}
+
+			// Delete copy operations
+			context_block(const context_block&) = delete;
+			context_block& operator=(const context_block&) = delete;
+
+			void build_c_string(std::stringstream&, int indent = 0) const override;
+
+			std::unique_ptr<ast_element> clone() const override {
+				std::vector<std::unique_ptr<ast_element>> cloned;
+				cloned.reserve(m_statements.size());
+				for (const auto& stmt : m_statements) {
+					cloned.push_back(stmt->clone());
+				}
+				return std::make_unique<context_block>(std::move(cloned), source_location(location()));
+			}
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
 				for (const auto& statement : m_statements) {
-					statement->visit(visitor);
+					statement->accept(v);
 				}
 			}
 		};
 
-		class for_loop final : public statement {
+		class for_loop final : public ast_element {
 		private:
-			std::unique_ptr<statement> m_initial_statement;
-			std::unique_ptr<expression> m_condition;
-			std::unique_ptr<statement> m_increment_statement;
+			std::unique_ptr<ast_element> m_initial_statement;
+			std::unique_ptr<ast_element> m_condition;
+			std::unique_ptr<ast_element> m_increment_statement;
 			context_block m_to_execute;
 
 		public:
-			for_loop(std::unique_ptr<statement>&& initial_statement,
-				std::unique_ptr<expression>&& condition,
-				std::unique_ptr<statement>&& increment_statement,
+			for_loop(std::unique_ptr<ast_element>&& initial_statement,
+				std::unique_ptr<ast_element>&& condition,
+				std::unique_ptr<ast_element>&& increment_statement,
 				context_block&& to_execute, source_location&& location)
 				: ast_element(std::move(location)),
 				m_initial_statement(std::move(initial_statement)),
@@ -386,85 +378,123 @@ namespace michaelcc {
 				m_increment_statement(std::move(increment_statement)),
 				m_to_execute(std::move(to_execute)) { }
 
-			void build_c_string_indent(std::stringstream&, int) const override;
+			void build_c_string(std::stringstream&, int indent = 0) const override;
 
-			void visit(std::unique_ptr<visitor>& visitor) const override {
-				visitor->visit(*this);
-				m_initial_statement->visit(visitor);
-				m_condition->visit(visitor);
-				m_increment_statement->visit(visitor);
-				m_to_execute.visit(visitor);
+			std::unique_ptr<ast_element> clone() const override {
+				auto cloned_body = m_to_execute.clone();
+				return std::make_unique<for_loop>(
+					m_initial_statement->clone(),
+					m_condition->clone(),
+					m_increment_statement->clone(),
+					std::move(*static_cast<context_block*>(cloned_body.release())),
+					source_location(location())
+				);
+			}
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_initial_statement->accept(v);
+				m_condition->accept(v);
+				m_increment_statement->accept(v);
+				m_to_execute.accept(v);
 			}
 		};
 
-        class do_block final : public statement {
+        class do_block final : public ast_element {
         private:
-            std::unique_ptr<expression> m_condition;
+            std::unique_ptr<ast_element> m_condition;
             context_block m_to_execute;
 
         public:
-            do_block(std::unique_ptr<expression>&& condition, context_block&& to_execute, source_location&& location)
+            do_block(std::unique_ptr<ast_element>&& condition, context_block&& to_execute, source_location&& location)
                 : ast_element(std::move(location)),
                 m_condition(std::move(condition)),
                 m_to_execute(std::move(to_execute)) {}
 
-            void build_c_string_indent(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
-                m_condition->visit(visitor);
-                m_to_execute.visit(visitor);
+            std::unique_ptr<ast_element> clone() const override {
+                auto cloned_body = m_to_execute.clone();
+                return std::make_unique<do_block>(
+                    m_condition->clone(),
+                    std::move(*static_cast<context_block*>(cloned_body.release())),
+                    source_location(location())
+                );
+            }
+
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_condition->accept(v);
+                m_to_execute.accept(v);
             }
         };
 
-        class while_block final : public statement {
+        class while_block final : public ast_element {
         private:
-            std::unique_ptr<expression> m_condition;
+            std::unique_ptr<ast_element> m_condition;
             context_block m_to_execute;
 
         public:
-            while_block(std::unique_ptr<expression>&& condition, context_block&& to_execute, source_location&& location)
+            while_block(std::unique_ptr<ast_element>&& condition, context_block&& to_execute, source_location&& location)
                 : ast_element(std::move(location)),
                 m_condition(std::move(condition)),
                 m_to_execute(std::move(to_execute)) {}
 
-            void build_c_string_indent(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
-                m_condition->visit(visitor);
-                m_to_execute.visit(visitor);
+            std::unique_ptr<ast_element> clone() const override {
+                auto cloned_body = m_to_execute.clone();
+                return std::make_unique<while_block>(
+                    m_condition->clone(),
+                    std::move(*static_cast<context_block*>(cloned_body.release())),
+                    source_location(location())
+                );
+            }
+
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_condition->accept(v);
+                m_to_execute.accept(v);
             }
         };
 
-        class if_block final : public statement {
+        class if_block final : public ast_element {
         private:
-            std::unique_ptr<expression> m_condition;
+            std::unique_ptr<ast_element> m_condition;
             context_block m_execute_if_true;
 
         public:
-            if_block(std::unique_ptr<expression>&& condition, context_block&& execute_if_true, source_location&& location)
+            if_block(std::unique_ptr<ast_element>&& condition, context_block&& execute_if_true, source_location&& location)
                 : ast_element(std::move(location)),
                 m_condition(std::move(condition)),
                 m_execute_if_true(std::move(execute_if_true)) {}
 
-            void build_c_string_indent(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
-                m_condition->visit(visitor);
-                m_execute_if_true.visit(visitor);
+            std::unique_ptr<ast_element> clone() const override {
+                auto cloned_body = m_execute_if_true.clone();
+                return std::make_unique<if_block>(
+                    m_condition->clone(),
+                    std::move(*static_cast<context_block*>(cloned_body.release())),
+                    source_location(location())
+                );
+            }
+
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_condition->accept(v);
+                m_execute_if_true.accept(v);
             }
         };
 
-        class if_else_block final : public statement {
+        class if_else_block final : public ast_element {
         private:
-            std::unique_ptr<expression> m_condition;
+            std::unique_ptr<ast_element> m_condition;
             context_block m_execute_if_true;
             context_block m_execute_if_false;
 
         public:
-            if_else_block(std::unique_ptr<expression>&& condition,
+            if_else_block(std::unique_ptr<ast_element>&& condition,
                 context_block&& execute_if_true,
                 context_block&& execute_if_false,
                 source_location&& location)
@@ -473,36 +503,54 @@ namespace michaelcc {
                 m_execute_if_true(std::move(execute_if_true)),
                 m_execute_if_false(std::move(execute_if_false)) {}
 
-            void build_c_string_indent(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
-                m_condition->visit(visitor);
-                m_execute_if_true.visit(visitor);
-                m_execute_if_false.visit(visitor);
+            std::unique_ptr<ast_element> clone() const override {
+                auto cloned_true = m_execute_if_true.clone();
+                auto cloned_false = m_execute_if_false.clone();
+                return std::make_unique<if_else_block>(
+                    m_condition->clone(),
+                    std::move(*static_cast<context_block*>(cloned_true.release())),
+                    std::move(*static_cast<context_block*>(cloned_false.release())),
+                    source_location(location())
+                );
+            }
+
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_condition->accept(v);
+                m_execute_if_true.accept(v);
+                m_execute_if_false.accept(v);
             }
         };
 
-        class return_statement final : public statement {
+        class return_statement final : public ast_element {
         private:
-            std::unique_ptr<expression> value;
+            std::unique_ptr<ast_element> value;
 
         public:
-            explicit return_statement(std::unique_ptr<expression>&& return_value, source_location&& location)
+            explicit return_statement(std::unique_ptr<ast_element>&& return_value, source_location&& location)
                 : ast_element(std::move(location)),
                 value(std::move(return_value)) {}
 
-            void build_c_string_indent(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
+            std::unique_ptr<ast_element> clone() const override {
+                return std::make_unique<return_statement>(
+                    value ? value->clone() : nullptr,
+                    source_location(location())
+                );
+            }
+
+            void accept(visitor& v) const override {
+                v.visit(*this);
                 if (value) {
-                    value->visit(visitor);
+                    value->accept(v);
                 }
             }
         };
 
-        class break_statement final : public statement {
+        class break_statement final : public ast_element {
         private:
             int loop_depth;
 
@@ -511,14 +559,18 @@ namespace michaelcc {
                 : ast_element(std::move(location)),
                 loop_depth(depth) {}
 
-            void build_c_string_indent(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
+            std::unique_ptr<ast_element> clone() const override {
+                return std::make_unique<break_statement>(loop_depth, source_location(location()));
+            }
+
+            void accept(visitor& v) const override {
+                v.visit(*this);
             }
         };
 
-        class continue_statement final : public statement {
+        class continue_statement final : public ast_element {
         private:
             int loop_depth;
 
@@ -526,14 +578,18 @@ namespace michaelcc {
             explicit continue_statement(int depth, source_location&& location)
                 : ast_element(std::move(location)), loop_depth(depth) {}
 
-            void build_c_string_indent(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
+            std::unique_ptr<ast_element> clone() const override {
+                return std::make_unique<continue_statement>(loop_depth, source_location(location()));
+            }
+
+            void accept(visitor& v) const override {
+                v.visit(*this);
             }
         };
 
-        class int_literal final : public expression {
+        class int_literal final : public ast_element {
         private:
             uint8_t m_qualifiers;
             int_class m_class;
@@ -562,18 +618,18 @@ namespace michaelcc {
                 return static_cast<int64_t>(m_value);
             }
 
-            void build_c_string_prec(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            std::unique_ptr<expression> clone() const override {
+            std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<int_literal>(m_qualifiers, m_class, m_value, source_location(location()));
             }
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
+            void accept(visitor& v) const override {
+                v.visit(*this);
             }
         };
 
-        class float_literal final : public expression {
+        class float_literal final : public ast_element {
         private:
             float m_value;
 
@@ -586,18 +642,18 @@ namespace michaelcc {
                 return m_value;
             }
 
-            void build_c_string_prec(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            std::unique_ptr<expression> clone() const override {
+            std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<float_literal>(m_value, source_location(location()));
             }
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
+            void accept(visitor& v) const override {
+                v.visit(*this);
             }
         };
 
-        class double_literal final : public expression {
+        class double_literal final : public ast_element {
         private:
             double m_value;
 
@@ -610,18 +666,18 @@ namespace michaelcc {
                 return m_value;
             }
 
-            void build_c_string_prec(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            std::unique_ptr<expression> clone() const override {
+            std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<double_literal>(m_value, source_location(location()));
             }
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
+            void accept(visitor& v) const override {
+                v.visit(*this);
             }
         };
 
-        class string_literal final : public expression {
+        class string_literal final : public ast_element {
         private:
             std::string m_value;
         public:
@@ -630,18 +686,18 @@ namespace michaelcc {
 
             const std::string& value() const noexcept { return m_value; }
 
-            void build_c_string_prec(std::stringstream& ss, int parent_precedence) const override;
+            void build_c_string(std::stringstream& ss, int indent = 0) const override;
 
-            std::unique_ptr<expression> clone() const override {
+            std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<string_literal>(m_value, source_location(location()));
             }
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
+            void accept(visitor& v) const override {
+                v.visit(*this);
             }
         };
 
-        class variable_reference final : public set_destination {
+        class variable_reference final : public ast_element {
         private:
             std::string m_identifier;
 
@@ -652,147 +708,142 @@ namespace michaelcc {
 
             const std::string& identifier() const noexcept { return m_identifier; }
 
-            void build_c_string_prec(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            std::unique_ptr<expression> clone() const override {
+            std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<variable_reference>(m_identifier, source_location(location()));
             }
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
+            void accept(visitor& v) const override {
+                v.visit(*this);
             }
         };
 
-        class get_index final : public set_destination {
+        class get_index final : public ast_element {
         private:
-            std::unique_ptr<set_destination> m_ptr;
-            std::unique_ptr<expression> m_index;
+            std::unique_ptr<ast_element> m_ptr;
+            std::unique_ptr<ast_element> m_index;
 
         public:
-            get_index(std::unique_ptr<set_destination>&& ptr, std::unique_ptr<expression>&& index, source_location&& location)
+            get_index(std::unique_ptr<ast_element>&& ptr, std::unique_ptr<ast_element>&& index, source_location&& location)
                 : ast_element(std::move(location)),
                 m_ptr(std::move(ptr)),
                 m_index(std::move(index)) {}
 
-            void build_c_string_prec(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            std::unique_ptr<expression> clone() const override {
-                return std::make_unique<get_index>(std::unique_ptr<set_destination>(dynamic_cast<set_destination*>(m_ptr->clone().release())), m_index->clone(), source_location(location()));
+            std::unique_ptr<ast_element> clone() const override {
+                return std::make_unique<get_index>(m_ptr->clone(), m_index->clone(), source_location(location()));
             }
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
-                m_ptr->visit(visitor);
-                m_index->visit(visitor);
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_ptr->accept(v);
+                m_index->accept(v);
             }
         };
 
-        class get_property final : public set_destination {
+        class get_property final : public ast_element {
         private:
-            std::unique_ptr<set_destination> m_struct;
+            std::unique_ptr<ast_element> m_struct;
             std::string m_property_name;
             bool m_is_pointer_dereference;
 
         public:
-            get_property(std::unique_ptr<set_destination>&& m_struct, std::string&& property_name, bool is_pointer_dereference, source_location&& location)
+            get_property(std::unique_ptr<ast_element>&& m_struct, std::string&& property_name, bool is_pointer_dereference, source_location&& location)
                 : ast_element(std::move(location)),
                 m_struct(std::move(m_struct)),
                 m_property_name(std::move(property_name)),
                 m_is_pointer_dereference(is_pointer_dereference) {}
 
-            void build_c_string_prec(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            std::unique_ptr<expression> clone() const override {
-                return std::make_unique<get_property>(std::unique_ptr<set_destination>(dynamic_cast<set_destination*>(m_struct->clone().release())), std::string(m_property_name), m_is_pointer_dereference, source_location(location()));
+            std::unique_ptr<ast_element> clone() const override {
+                return std::make_unique<get_property>(m_struct->clone(), std::string(m_property_name), m_is_pointer_dereference, source_location(location()));
             }
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
-                m_struct->visit(visitor);
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_struct->accept(v);
             }
         };
 
-        class set_operator final : public statement, public expression {
+        class set_operator final : public ast_element {
         private:
-            std::unique_ptr<set_destination> m_set_dest;
-            std::unique_ptr<expression> m_set_value;
+            std::unique_ptr<ast_element> m_set_dest;
+            std::unique_ptr<ast_element> m_set_value;
 
         public:
-            set_operator(std::unique_ptr<set_destination>&& set_dest, std::unique_ptr<expression>&& set_value, source_location&& location)
+            set_operator(std::unique_ptr<ast_element>&& set_dest, std::unique_ptr<ast_element>&& set_value, source_location&& location)
                 : ast_element(std::move(location)),
                 m_set_dest(std::move(set_dest)),
                 m_set_value(std::move(set_value)) {}
 
-            void build_c_string_prec(std::stringstream&, int) const override;
-            void build_c_string_indent(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            void build_c_string(std::stringstream& ss) const override {
-                build_c_string_indent(ss, 0);
+            std::unique_ptr<ast_element> clone() const override {
+                return std::make_unique<set_operator>(m_set_dest->clone(), m_set_value->clone(), source_location(location()));
             }
 
-            std::unique_ptr<expression> clone() const override {
-                return std::make_unique<set_operator>(std::unique_ptr<set_destination>(dynamic_cast<set_destination*>(m_set_dest->clone().release())), m_set_value->clone(), source_location(location()));
-            }
-
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
-                m_set_dest->visit(visitor);
-                m_set_value->visit(visitor);
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_set_dest->accept(v);
+                m_set_value->accept(v);
             }
         };
 
-        class dereference_operator final : public set_destination {
+        class dereference_operator final : public ast_element {
         private:
-            std::unique_ptr<expression> m_pointer;
+            std::unique_ptr<ast_element> m_pointer;
 
         public:
-            explicit dereference_operator(std::unique_ptr<expression>&& pointer, source_location&& location)
+            explicit dereference_operator(std::unique_ptr<ast_element>&& pointer, source_location&& location)
                 : ast_element(std::move(location)),
                 m_pointer(std::move(pointer)) {}
 
-            void build_c_string_prec(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            std::unique_ptr<expression> clone() const override {
+            std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<dereference_operator>(m_pointer->clone(), source_location(location()));
             }
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
-                m_pointer->visit(visitor);
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_pointer->accept(v);
             }
         };
 
-        class get_reference final : public expression {
+        class get_reference final : public ast_element {
         private:
-            std::unique_ptr<expression> m_item;
+            std::unique_ptr<ast_element> m_item;
 
         public:
-            explicit get_reference(std::unique_ptr<expression>&& item, source_location&& location)
+            explicit get_reference(std::unique_ptr<ast_element>&& item, source_location&& location)
                 : ast_element(std::move(location)),
                 m_item(std::move(item)) {}
 
-            void build_c_string_prec(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            std::unique_ptr<expression> clone() const override {
+            std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<get_reference>(m_item->clone(), source_location(location()));
             }
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
-                m_item->visit(visitor);
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_item->accept(v);
             }
         };
 
-        class arithmetic_operator final : public expression {
+        class arithmetic_operator final : public ast_element {
         private:
-            std::unique_ptr<expression> m_right;
-            std::unique_ptr<expression> m_left;
+            std::unique_ptr<ast_element> m_right;
+            std::unique_ptr<ast_element> m_left;
             token_type m_operation;
 
         public:
             const static std::map<token_type, int> operator_precedence;
 
-            arithmetic_operator(token_type operation, std::unique_ptr<expression>&& left, std::unique_ptr<expression>&& right, source_location&& location)
+            arithmetic_operator(token_type operation, std::unique_ptr<ast_element>&& left, std::unique_ptr<ast_element>&& right, source_location&& location)
                 : ast_element(std::move(location)),
                 m_right(std::move(right)),
                 m_left(std::move(left)),
@@ -800,75 +851,70 @@ namespace michaelcc {
 
             token_type operation() const noexcept { return m_operation; }
 
-            void build_c_string_prec(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            std::unique_ptr<expression> clone() const override {
+            std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<arithmetic_operator>(m_operation, m_left->clone(), m_right->clone(), source_location(location()));
             }
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
-                m_left->visit(visitor);
-                m_right->visit(visitor);
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_left->accept(v);
+                m_right->accept(v);
             }
         };
 
-        class conditional_expression final : public expression {
+        class conditional_expression final : public ast_element {
         private:
-            std::unique_ptr<expression> m_condition;
-            std::unique_ptr<expression> m_true_expr;
-            std::unique_ptr<expression> m_false_expr;
+            std::unique_ptr<ast_element> m_condition;
+            std::unique_ptr<ast_element> m_true_expr;
+            std::unique_ptr<ast_element> m_false_expr;
 
         public:
-            conditional_expression(std::unique_ptr<expression>&& condition,
-                std::unique_ptr<expression>&& true_expr,
-                std::unique_ptr<expression>&& false_expr,
+            conditional_expression(std::unique_ptr<ast_element>&& condition,
+                std::unique_ptr<ast_element>&& true_expr,
+                std::unique_ptr<ast_element>&& false_expr,
                 source_location&& location)
                 : ast_element(std::move(location)),
                 m_condition(std::move(condition)),
                 m_true_expr(std::move(true_expr)),
                 m_false_expr(std::move(false_expr)) {}
 
-            const expression* condition() const noexcept { return m_condition.get(); }
-            const expression* true_expr() const noexcept { return m_true_expr.get(); }
-            const expression* false_expr() const noexcept { return m_false_expr.get(); }
+            const ast_element* condition() const noexcept { return m_condition.get(); }
+            const ast_element* true_expr() const noexcept { return m_true_expr.get(); }
+            const ast_element* false_expr() const noexcept { return m_false_expr.get(); }
 
-            void build_c_string_prec(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            std::unique_ptr<expression> clone() const override {
+            std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<conditional_expression>(m_condition->clone(), m_true_expr->clone(), m_false_expr->clone(), source_location(location()));
             }
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
-                m_condition->visit(visitor);
-                m_true_expr->visit(visitor);
-                m_false_expr->visit(visitor);
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_condition->accept(v);
+                m_true_expr->accept(v);
+                m_false_expr->accept(v);
             }
         };
 
-        class function_call : public expression, public statement {
+        class function_call : public ast_element {
         private:
-            std::unique_ptr<expression> m_callee;
-            std::vector<std::unique_ptr<expression>> m_arguments;
+            std::unique_ptr<ast_element> m_callee;
+            std::vector<std::unique_ptr<ast_element>> m_arguments;
 
         public:
-            function_call(std::unique_ptr<expression> callee,
-                std::vector<std::unique_ptr<expression>> arguments,
+            function_call(std::unique_ptr<ast_element> callee,
+                std::vector<std::unique_ptr<ast_element>> arguments,
                 source_location location)
                 : ast_element(std::move(location)),
                 m_callee(std::move(callee)),
                 m_arguments(std::move(arguments)) {}
 
-            void build_c_string_prec(std::stringstream&, int) const override;
-            void build_c_string_indent(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            void build_c_string(std::stringstream& ss) const override {
-                build_c_string_indent(ss, 0);
-            }
-
-            std::unique_ptr<expression> clone() const override {
-                std::vector<std::unique_ptr<expression>> cloned_arguments;
+            std::unique_ptr<ast_element> clone() const override {
+                std::vector<std::unique_ptr<ast_element>> cloned_arguments;
                 cloned_arguments.reserve(m_arguments.size());
                 for (const auto& arg : m_arguments) {
                     cloned_arguments.push_back(arg->clone());
@@ -876,28 +922,28 @@ namespace michaelcc {
                 return std::make_unique<function_call>(m_callee->clone(), std::move(cloned_arguments), source_location(location()));
             }
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
-                m_callee->visit(visitor);
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_callee->accept(v);
                 for (const auto& arg : m_arguments) {
-                    arg->visit(visitor);
+                    arg->accept(v);
                 }
             }
         };
 
-        class initializer_list_expression : public expression {
+        class initializer_list_expression : public ast_element {
         private:
-            std::vector<std::unique_ptr<expression>> m_initializers;
+            std::vector<std::unique_ptr<ast_element>> m_initializers;
         public:
-            explicit initializer_list_expression(std::vector<std::unique_ptr<expression>>&& initializers, source_location&& location)
+            explicit initializer_list_expression(std::vector<std::unique_ptr<ast_element>>&& initializers, source_location&& location)
                 : ast_element(std::move(location)), m_initializers(std::move(initializers)) {}
 
-            const std::vector<std::unique_ptr<expression>>& initializers() const noexcept { return m_initializers; }
+            const std::vector<std::unique_ptr<ast_element>>& initializers() const noexcept { return m_initializers; }
 
-            void build_c_string_prec(std::stringstream& ss, int indent) const override;
+            void build_c_string(std::stringstream& ss, int indent = 0) const override;
 
-            std::unique_ptr<expression> clone() const override {
-                std::vector<std::unique_ptr<expression>> cloned_initializers;
+            std::unique_ptr<ast_element> clone() const override {
+                std::vector<std::unique_ptr<ast_element>> cloned_initializers;
                 cloned_initializers.reserve(m_initializers.size());
                 for (const auto& init : m_initializers) {
                     cloned_initializers.push_back(init->clone());
@@ -905,74 +951,84 @@ namespace michaelcc {
                 return std::make_unique<initializer_list_expression>(std::move(cloned_initializers), source_location(location()));
             }
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
+            void accept(visitor& v) const override {
+                v.visit(*this);
                 for (const auto& init : m_initializers) {
-                    init->visit(visitor);
+                    init->accept(v);
                 }
             }
         };
 
-        class variable_declaration final : public statement, public top_level_element {
+        class variable_declaration final : public ast_element {
         private:
             uint8_t m_qualifiers;
-            std::unique_ptr<type> m_type;
+            std::unique_ptr<ast_element> m_type;
             std::string m_identifier;
-            std::optional<std::unique_ptr<expression>> m_set_value;
+            std::optional<std::unique_ptr<ast_element>> m_set_value;
 
         public:
             variable_declaration(uint8_t qualifiers,
-                std::unique_ptr<type>&& var_type,
+                std::unique_ptr<ast_element>&& var_type,
                 const std::string& identifier, source_location&& location,
-                std::optional<std::unique_ptr<expression>>&& set_value = std::nullopt)
+                std::optional<std::unique_ptr<ast_element>>&& set_value = std::nullopt)
                 : ast_element(std::move(location)),
                 m_qualifiers(qualifiers),
                 m_type(std::move(var_type)),
                 m_identifier(identifier),
-                m_set_value(set_value ? std::make_optional<std::unique_ptr<expression>>(std::move(set_value.value())) : std::nullopt) {}
+                m_set_value(set_value ? std::make_optional<std::unique_ptr<ast_element>>(std::move(set_value.value())) : std::nullopt) {}
 
             uint8_t qualifiers() const noexcept { return m_qualifiers; }
-            const type* type() const noexcept { return m_type.get(); }
+            const ast_element* type() const noexcept { return m_type.get(); }
             const std::string& identifier() const noexcept { return m_identifier; }
-            const expression* set_value() const noexcept { return m_set_value.has_value() ? m_set_value.value().get() : nullptr; }
+            const ast_element* set_value() const noexcept { return m_set_value.has_value() ? m_set_value.value().get() : nullptr; }
 
-            void build_c_string_indent(std::stringstream&, int) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            void build_c_string(std::stringstream& ss) const override {
-                build_c_string_indent(ss, 0);
+            std::unique_ptr<ast_element> clone() const override {
+                return std::make_unique<variable_declaration>(
+                    m_qualifiers,
+                    m_type->clone(),
+                    m_identifier,
+                    source_location(location()),
+                    m_set_value.has_value() ? std::make_optional(m_set_value.value()->clone()) : std::nullopt
+                );
             }
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
-                m_type->visit(visitor);
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_type->accept(v);
                 if (m_set_value.has_value()) {
-                    m_set_value.value()->visit(visitor);
+                    m_set_value.value()->accept(v);
                 }
             }
         };
 
-        class typedef_declaration final : public top_level_element {
+        class typedef_declaration final : public ast_element {
         private:
-            std::unique_ptr<type> m_type;
+            std::unique_ptr<ast_element> m_type;
             std::string m_name;
 
         public:
-            typedef_declaration(std::unique_ptr<type>&& type, std::string&& name, source_location&& location)
+            typedef_declaration(std::unique_ptr<ast_element>&& type, std::string&& name, source_location&& location)
                 : ast_element(std::move(location)),
                 m_type(std::move(type)), m_name(std::move(name)) {}
 
-            const type* type() const noexcept { return m_type.get(); }
+            const ast_element* type() const noexcept { return m_type.get(); }
             const std::string& name() const noexcept { return m_name; }
 
-            void build_c_string(std::stringstream&) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
-                m_type->visit(visitor);
+            std::unique_ptr<ast_element> clone() const override {
+                return std::make_unique<typedef_declaration>(m_type->clone(), std::string(m_name), source_location(location()));
+            }
+
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_type->accept(v);
             }
         };
 
-        class struct_declaration final : public top_level_element, public type {
+        class struct_declaration final : public ast_element {
         private:
             std::optional<std::string> m_struct_name;
             std::vector<variable_declaration> m_members;
@@ -985,9 +1041,14 @@ namespace michaelcc {
             const std::optional<std::string> struct_name() const noexcept { return m_struct_name; }
             const std::vector<variable_declaration>& members() const noexcept { return m_members; }
 
-            void build_c_string(std::stringstream&) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            std::unique_ptr<type> clone() const override {
+            void build_declarator(std::stringstream& ss, const std::string& identifier) const {
+                build_c_string(ss);
+                ss << ' ' << identifier;
+            }
+
+            std::unique_ptr<ast_element> clone() const override {
                 if (m_struct_name.has_value()) {
                     return std::make_unique<struct_declaration>(std::optional<std::string>(m_struct_name), std::vector<variable_declaration>(), source_location(location()));
                 }
@@ -995,20 +1056,26 @@ namespace michaelcc {
                 std::vector<variable_declaration> cloned_members;
                 cloned_members.reserve(m_members.size());
                 for (const variable_declaration& member : m_members) {
-                    cloned_members.emplace_back(variable_declaration(member.qualifiers(), member.type()->clone(), std::string(member.identifier()), source_location(member.location()), member.set_value() != nullptr ? std::make_optional(member.set_value()->clone()) : std::nullopt));
+                    cloned_members.emplace_back(variable_declaration(
+                        member.qualifiers(),
+                        member.type()->clone(),
+                        std::string(member.identifier()),
+                        source_location(member.location()),
+                        member.set_value() != nullptr ? std::make_optional(member.set_value()->clone()) : std::nullopt
+                    ));
                 }
                 return std::make_unique<struct_declaration>(std::optional<std::string>(m_struct_name), std::move(cloned_members), source_location(location()));
             }
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
+            void accept(visitor& v) const override {
+                v.visit(*this);
                 for (const auto& member : m_members) {
-                    member.visit(visitor);
+                    member.accept(v);
                 }
             }
         };
 
-        class enum_declaration final : public top_level_element, public type {
+        class enum_declaration final : public ast_element {
         public:
             struct enumerator {
                 std::string name;
@@ -1030,9 +1097,14 @@ namespace michaelcc {
             const std::optional<std::string> enum_name() const noexcept { return m_enum_name; }
             const std::vector<enumerator>& enumerators() const noexcept { return m_enumerators; }
 
-            void build_c_string(std::stringstream&) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            std::unique_ptr<type> clone() const override {
+            void build_declarator(std::stringstream& ss, const std::string& identifier) const {
+                build_c_string(ss);
+                ss << ' ' << identifier;
+            }
+
+            std::unique_ptr<ast_element> clone() const override {
                 if (m_enum_name.has_value()) {
                     return std::make_unique<enum_declaration>(std::optional<std::string>(m_enum_name), std::vector<enumerator>(), source_location(location()));
                 }
@@ -1045,18 +1117,18 @@ namespace michaelcc {
                 return std::make_unique<enum_declaration>(std::optional<std::string>(m_enum_name), std::move(cloned_enumerators), source_location(location()));
             }
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
+            void accept(visitor& v) const override {
+                v.visit(*this);
             }
         };
 
-        class union_declaration : public top_level_element, public type {
+        class union_declaration : public ast_element {
         public:
             struct member {
-                std::unique_ptr<type> member_type;
+                std::unique_ptr<ast_element> member_type;
                 std::string member_name;
 
-                member(std::unique_ptr<type>&& member_type, std::string&& member_name)
+                member(std::unique_ptr<ast_element>&& member_type, std::string&& member_name)
                     : member_type(std::move(member_type)), member_name(std::move(member_name)) {}
             };
 
@@ -1072,9 +1144,14 @@ namespace michaelcc {
             const std::optional<std::string> union_name() const noexcept { return m_union_name; }
             const std::vector<member>& members() const noexcept { return m_members; }
 
-            void build_c_string(std::stringstream&) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            std::unique_ptr<type> clone() const override {
+            void build_declarator(std::stringstream& ss, const std::string& identifier) const {
+                build_c_string(ss);
+                ss << ' ' << identifier;
+            }
+
+            std::unique_ptr<ast_element> clone() const override {
                 if (m_union_name.has_value()) {
                     return std::make_unique<union_declaration>(std::optional<std::string>(m_union_name), std::vector<member>(), source_location(location()));
                 }
@@ -1087,31 +1164,31 @@ namespace michaelcc {
                 return std::make_unique<union_declaration>(std::optional<std::string>(m_union_name), std::move(cloned_members), source_location(location()));
             }
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
+            void accept(visitor& v) const override {
+                v.visit(*this);
                 for (const auto& member : m_members) {
-                    member.member_type->visit(visitor);
+                    member.member_type->accept(v);
                 }
             }
         };
 
         struct function_parameter {
             uint8_t qualifiers;
-            std::unique_ptr<type> param_type;
+            std::unique_ptr<ast_element> param_type;
             std::string param_name;
 
-            function_parameter(std::unique_ptr<type>&& param_type, std::string&& param_name, uint8_t qualifiers)
+            function_parameter(std::unique_ptr<ast_element>&& param_type, std::string&& param_name, uint8_t qualifiers)
                 : param_type(std::move(param_type)), param_name(std::move(param_name)), qualifiers(qualifiers) {}
         };
 
-        class function_prototype : public top_level_element {
+        class function_prototype : public ast_element {
         private:
-            std::unique_ptr<type> m_return_type;
+            std::unique_ptr<ast_element> m_return_type;
             std::string m_function_name;
             std::vector<function_parameter> m_parameters;
 
         public:
-            function_prototype(std::unique_ptr<type>&& return_type,
+            function_prototype(std::unique_ptr<ast_element>&& return_type,
                 std::string&& function_name,
                 std::vector<function_parameter>&& parameters,
                 source_location&& location)
@@ -1120,30 +1197,39 @@ namespace michaelcc {
                 m_function_name(std::move(function_name)),
                 m_parameters(std::move(parameters)) {}
 
-            const type* return_type() const noexcept { return m_return_type.get(); }
+            const ast_element* return_type() const noexcept { return m_return_type.get(); }
             const std::string& function_name() const noexcept { return m_function_name; }
             const std::vector<function_parameter>& parameters() const noexcept { return m_parameters; }
 
-            void build_c_string(std::stringstream&) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
-                m_return_type->visit(visitor);
+            std::unique_ptr<ast_element> clone() const override {
+                std::vector<function_parameter> cloned_params;
+                cloned_params.reserve(m_parameters.size());
+                for (const auto& p : m_parameters) {
+                    cloned_params.emplace_back(p.param_type->clone(), std::string(p.param_name), p.qualifiers);
+                }
+                return std::make_unique<function_prototype>(m_return_type->clone(), std::string(m_function_name), std::move(cloned_params), source_location(location()));
+            }
+
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_return_type->accept(v);
                 for (const auto& param : m_parameters) {
-                    param.param_type->visit(visitor);
+                    param.param_type->accept(v);
                 }
             }
         };
 
-        class function_declaration : public top_level_element {
+        class function_declaration : public ast_element {
         private:
-            std::unique_ptr<type> m_return_type;
+            std::unique_ptr<ast_element> m_return_type;
             std::string m_function_name;
             std::vector<function_parameter> m_parameters;
             context_block m_function_body;
 
         public:
-            function_declaration(std::unique_ptr<type>&& return_type,
+            function_declaration(std::unique_ptr<ast_element>&& return_type,
                 std::string&& function_name,
                 std::vector<function_parameter>&& parameters,
                 context_block&& function_body,
@@ -1154,20 +1240,36 @@ namespace michaelcc {
                 m_parameters(std::move(parameters)),
                 m_function_body(std::move(function_body)) {}
 
-            const type* return_type() const noexcept { return m_return_type.get(); }
+            const ast_element* return_type() const noexcept { return m_return_type.get(); }
             const std::string& function_name() const noexcept { return m_function_name; }
             const std::vector<function_parameter>& parameters() const noexcept { return m_parameters; }
             const context_block& function_body() const noexcept { return m_function_body; }
 
-            void build_c_string(std::stringstream&) const override;
+            void build_c_string(std::stringstream&, int indent = 0) const override;
 
-            void visit(std::unique_ptr<visitor>& visitor) const override {
-                visitor->visit(*this);
-                m_return_type->visit(visitor);
-                for (const auto& param : m_parameters) {
-                    param.param_type->visit(visitor);
+            std::unique_ptr<ast_element> clone() const override {
+                std::vector<function_parameter> cloned_params;
+                cloned_params.reserve(m_parameters.size());
+                for (const auto& p : m_parameters) {
+                    cloned_params.emplace_back(p.param_type->clone(), std::string(p.param_name), p.qualifiers);
                 }
-                m_function_body.visit(visitor);
+                auto cloned_body = m_function_body.clone();
+                return std::make_unique<function_declaration>(
+                    m_return_type->clone(),
+                    std::string(m_function_name),
+                    std::move(cloned_params),
+                    std::move(*static_cast<context_block*>(cloned_body.release())),
+                    source_location(location())
+                );
+            }
+
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_return_type->accept(v);
+                for (const auto& param : m_parameters) {
+                    param.param_type->accept(v);
+                }
+                m_function_body.accept(v);
             }
         };
 	}
