@@ -7,7 +7,6 @@
 #include <optional>
 #include <cstdint>
 #include <string>
-#include <sstream>
 
 #include "tokens.hpp"
 #include "errors.hpp"
@@ -85,6 +84,7 @@ namespace michaelcc {
             virtual ~visitor() = default;
 
             // Types
+            virtual void visit(const void_type& node) { }
             virtual void visit(const int_type& node) { }
             virtual void visit(const float_type& node) { }
             virtual void visit(const pointer_type& node) { }
@@ -147,14 +147,6 @@ namespace michaelcc {
 
 			virtual void accept(visitor& v) const = 0;
 
-			virtual void build_c_string(std::stringstream&, int indent = 0) const = 0;
-
-			const std::string to_string() const {
-				std::stringstream ss;
-				build_c_string(ss, 0);
-				return ss.str();
-			}
-
 			virtual std::unique_ptr<ast_element> clone() const = 0;
 		};
 
@@ -163,20 +155,13 @@ namespace michaelcc {
 			void_type(source_location&& location)
 				: ast_element(std::move(location)) { }
 
-			void build_c_string(std::stringstream& ss, int indent = 0) const override {
-				ss << "void";
-			}
-
-			void build_declarator(std::stringstream& ss, const std::string& identifier) const {
-				build_c_string(ss);
-				ss << ' ' << identifier;
-			}
-
 			std::unique_ptr<ast_element> clone() const override {
 				return std::make_unique<void_type>(source_location(location()));
 			}
 
-			void accept(visitor& v) const override { }
+			void accept(visitor& v) const override {
+				v.visit(*this);
+			}
 		};
 
 		class int_type : public ast_element {
@@ -188,12 +173,8 @@ namespace michaelcc {
 				: ast_element(std::move(location)),
 				m_qualifiers(qualifiers), m_class(m_class) { }
 
-			void build_c_string(std::stringstream&, int indent = 0) const override;
-
-			void build_declarator(std::stringstream& ss, const std::string& identifier) const {
-				build_c_string(ss);
-				ss << ' ' << identifier;
-			}
+			uint8_t qualifiers() const noexcept { return m_qualifiers; }
+			int_class type_class() const noexcept { return m_class; }
 
 			std::unique_ptr<ast_element> clone() const override {
 				return std::make_unique<int_type>(m_qualifiers, m_class, source_location(location()));
@@ -213,12 +194,7 @@ namespace michaelcc {
 				: ast_element(std::move(location)),
 				m_class(m_class) { }
 
-			void build_c_string(std::stringstream&, int indent = 0) const override;
-
-			void build_declarator(std::stringstream& ss, const std::string& identifier) const {
-				build_c_string(ss);
-				ss << ' ' << identifier;
-			}
+			float_class type_class() const noexcept { return m_class; }
 
 			std::unique_ptr<ast_element> clone() const override {
 				return std::make_unique<float_type>(m_class, source_location(location()));
@@ -239,10 +215,6 @@ namespace michaelcc {
 				m_pointee_type(std::move(pointee_type)) { }
 
 			const ast_element* pointee_type() const noexcept { return m_pointee_type.get(); }
-
-			void build_c_string(std::stringstream&, int indent = 0) const override;
-
-			void build_declarator(std::stringstream& ss, const std::string& identifier) const;
 
 			std::unique_ptr<ast_element> clone() const override {
 				return std::make_unique<pointer_type>(m_pointee_type->clone(), source_location(location()));
@@ -268,10 +240,6 @@ namespace michaelcc {
 			const ast_element* element_type() const noexcept { return m_element_type.get(); }
 			const std::optional<std::unique_ptr<ast_element>>& length() const noexcept { return m_length; }
 
-			void build_c_string(std::stringstream&, int indent = 0) const override;
-
-			void build_declarator(std::stringstream& ss, const std::string& identifier) const;
-
 			std::unique_ptr<ast_element> clone() const override {
 				return std::make_unique<array_type>(m_element_type->clone(), m_length.has_value() ? std::make_optional(m_length.value()->clone()) : std::nullopt, source_location(location()));
 			}
@@ -294,10 +262,6 @@ namespace michaelcc {
 				: ast_element(std::move(location)), m_return_type(std::move(return_type)), m_parameter_types(std::move(parameter_types)) {}
 			const ast_element* return_type() const noexcept { return m_return_type.get(); }
 			const std::vector<std::unique_ptr<ast_element>>& parameter_types() const noexcept { return m_parameter_types; }
-
-			void build_c_string(std::stringstream& ss, int indent = 0) const override;
-
-			void build_declarator(std::stringstream& ss, const std::string& identifier) const;
 
 			std::unique_ptr<ast_element> clone() const override {
 				std::vector<std::unique_ptr<ast_element>> parameter_types;
@@ -341,7 +305,7 @@ namespace michaelcc {
 			context_block(const context_block&) = delete;
 			context_block& operator=(const context_block&) = delete;
 
-			void build_c_string(std::stringstream&, int indent = 0) const override;
+			const std::vector<std::unique_ptr<ast_element>>& statements() const noexcept { return m_statements; }
 
 			std::unique_ptr<ast_element> clone() const override {
 				std::vector<std::unique_ptr<ast_element>> cloned;
@@ -378,7 +342,10 @@ namespace michaelcc {
 				m_increment_statement(std::move(increment_statement)),
 				m_to_execute(std::move(to_execute)) { }
 
-			void build_c_string(std::stringstream&, int indent = 0) const override;
+			const ast_element* initial_statement() const noexcept { return m_initial_statement.get(); }
+			const ast_element* condition() const noexcept { return m_condition.get(); }
+			const ast_element* increment_statement() const noexcept { return m_increment_statement.get(); }
+			const context_block& body() const noexcept { return m_to_execute; }
 
 			std::unique_ptr<ast_element> clone() const override {
 				auto cloned_body = m_to_execute.clone();
@@ -411,7 +378,8 @@ namespace michaelcc {
                 m_condition(std::move(condition)),
                 m_to_execute(std::move(to_execute)) {}
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
+            const ast_element* condition() const noexcept { return m_condition.get(); }
+            const context_block& body() const noexcept { return m_to_execute; }
 
             std::unique_ptr<ast_element> clone() const override {
                 auto cloned_body = m_to_execute.clone();
@@ -440,7 +408,8 @@ namespace michaelcc {
                 m_condition(std::move(condition)),
                 m_to_execute(std::move(to_execute)) {}
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
+            const ast_element* condition() const noexcept { return m_condition.get(); }
+            const context_block& body() const noexcept { return m_to_execute; }
 
             std::unique_ptr<ast_element> clone() const override {
                 auto cloned_body = m_to_execute.clone();
@@ -469,7 +438,8 @@ namespace michaelcc {
                 m_condition(std::move(condition)),
                 m_execute_if_true(std::move(execute_if_true)) {}
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
+            const ast_element* condition() const noexcept { return m_condition.get(); }
+            const context_block& body() const noexcept { return m_execute_if_true; }
 
             std::unique_ptr<ast_element> clone() const override {
                 auto cloned_body = m_execute_if_true.clone();
@@ -503,7 +473,9 @@ namespace michaelcc {
                 m_execute_if_true(std::move(execute_if_true)),
                 m_execute_if_false(std::move(execute_if_false)) {}
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
+            const ast_element* condition() const noexcept { return m_condition.get(); }
+            const context_block& true_body() const noexcept { return m_execute_if_true; }
+            const context_block& false_body() const noexcept { return m_execute_if_false; }
 
             std::unique_ptr<ast_element> clone() const override {
                 auto cloned_true = m_execute_if_true.clone();
@@ -526,43 +498,43 @@ namespace michaelcc {
 
         class return_statement final : public ast_element {
         private:
-            std::unique_ptr<ast_element> value;
+            std::unique_ptr<ast_element> m_value;
 
         public:
             explicit return_statement(std::unique_ptr<ast_element>&& return_value, source_location&& location)
                 : ast_element(std::move(location)),
-                value(std::move(return_value)) {}
+                m_value(std::move(return_value)) {}
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
+            const ast_element* value() const noexcept { return m_value.get(); }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<return_statement>(
-                    value ? value->clone() : nullptr,
+                    m_value ? m_value->clone() : nullptr,
                     source_location(location())
                 );
             }
 
             void accept(visitor& v) const override {
                 v.visit(*this);
-                if (value) {
-                    value->accept(v);
+                if (m_value) {
+                    m_value->accept(v);
                 }
             }
         };
 
         class break_statement final : public ast_element {
         private:
-            int loop_depth;
+            int m_loop_depth;
 
         public:
             explicit break_statement(int depth, source_location&& location)
                 : ast_element(std::move(location)),
-                loop_depth(depth) {}
+                m_loop_depth(depth) {}
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
+            int depth() const noexcept { return m_loop_depth; }
 
             std::unique_ptr<ast_element> clone() const override {
-                return std::make_unique<break_statement>(loop_depth, source_location(location()));
+                return std::make_unique<break_statement>(m_loop_depth, source_location(location()));
             }
 
             void accept(visitor& v) const override {
@@ -572,16 +544,16 @@ namespace michaelcc {
 
         class continue_statement final : public ast_element {
         private:
-            int loop_depth;
+            int m_loop_depth;
 
         public:
             explicit continue_statement(int depth, source_location&& location)
-                : ast_element(std::move(location)), loop_depth(depth) {}
+                : ast_element(std::move(location)), m_loop_depth(depth) {}
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
+            int depth() const noexcept { return m_loop_depth; }
 
             std::unique_ptr<ast_element> clone() const override {
-                return std::make_unique<continue_statement>(loop_depth, source_location(location()));
+                return std::make_unique<continue_statement>(m_loop_depth, source_location(location()));
             }
 
             void accept(visitor& v) const override {
@@ -602,23 +574,10 @@ namespace michaelcc {
                 m_class(i_class),
                 m_value(value) {}
 
-            const uint8_t qualifiers() const noexcept {
-                return m_qualifiers;
-            }
-
-            const int_class storage_class() const noexcept {
-                return m_class;
-            }
-
-            const size_t unsigned_value() const noexcept {
-                return m_value;
-            }
-
-            const int64_t signed_value() const noexcept {
-                return static_cast<int64_t>(m_value);
-            }
-
-            void build_c_string(std::stringstream&, int indent = 0) const override;
+            uint8_t qualifiers() const noexcept { return m_qualifiers; }
+            int_class storage_class() const noexcept { return m_class; }
+            size_t unsigned_value() const noexcept { return m_value; }
+            int64_t signed_value() const noexcept { return static_cast<int64_t>(m_value); }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<int_literal>(m_qualifiers, m_class, m_value, source_location(location()));
@@ -638,11 +597,7 @@ namespace michaelcc {
                 : ast_element(std::move(location)),
                 m_value(value) {}
 
-            const float value() const noexcept {
-                return m_value;
-            }
-
-            void build_c_string(std::stringstream&, int indent = 0) const override;
+            float value() const noexcept { return m_value; }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<float_literal>(m_value, source_location(location()));
@@ -662,11 +617,7 @@ namespace michaelcc {
                 : ast_element(std::move(location)),
                 m_value(value) {}
 
-            const double value() const noexcept {
-                return m_value;
-            }
-
-            void build_c_string(std::stringstream&, int indent = 0) const override;
+            double value() const noexcept { return m_value; }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<double_literal>(m_value, source_location(location()));
@@ -685,8 +636,6 @@ namespace michaelcc {
                 : ast_element(std::move(location)), m_value(std::move(value)) {}
 
             const std::string& value() const noexcept { return m_value; }
-
-            void build_c_string(std::stringstream& ss, int indent = 0) const override;
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<string_literal>(m_value, source_location(location()));
@@ -708,8 +657,6 @@ namespace michaelcc {
 
             const std::string& identifier() const noexcept { return m_identifier; }
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
-
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<variable_reference>(m_identifier, source_location(location()));
             }
@@ -730,7 +677,8 @@ namespace michaelcc {
                 m_ptr(std::move(ptr)),
                 m_index(std::move(index)) {}
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
+            const ast_element* pointer() const noexcept { return m_ptr.get(); }
+            const ast_element* index() const noexcept { return m_index.get(); }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<get_index>(m_ptr->clone(), m_index->clone(), source_location(location()));
@@ -756,7 +704,9 @@ namespace michaelcc {
                 m_property_name(std::move(property_name)),
                 m_is_pointer_dereference(is_pointer_dereference) {}
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
+            const ast_element* struct_expr() const noexcept { return m_struct.get(); }
+            const std::string& property_name() const noexcept { return m_property_name; }
+            bool is_pointer_dereference() const noexcept { return m_is_pointer_dereference; }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<get_property>(m_struct->clone(), std::string(m_property_name), m_is_pointer_dereference, source_location(location()));
@@ -779,7 +729,8 @@ namespace michaelcc {
                 m_set_dest(std::move(set_dest)),
                 m_set_value(std::move(set_value)) {}
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
+            const ast_element* destination() const noexcept { return m_set_dest.get(); }
+            const ast_element* value() const noexcept { return m_set_value.get(); }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<set_operator>(m_set_dest->clone(), m_set_value->clone(), source_location(location()));
@@ -801,7 +752,7 @@ namespace michaelcc {
                 : ast_element(std::move(location)),
                 m_pointer(std::move(pointer)) {}
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
+            const ast_element* pointer() const noexcept { return m_pointer.get(); }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<dereference_operator>(m_pointer->clone(), source_location(location()));
@@ -822,7 +773,7 @@ namespace michaelcc {
                 : ast_element(std::move(location)),
                 m_item(std::move(item)) {}
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
+            const ast_element* item() const noexcept { return m_item.get(); }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<get_reference>(m_item->clone(), source_location(location()));
@@ -850,8 +801,8 @@ namespace michaelcc {
                 m_operation(operation) {}
 
             token_type operation() const noexcept { return m_operation; }
-
-            void build_c_string(std::stringstream&, int indent = 0) const override;
+            const ast_element* left() const noexcept { return m_left.get(); }
+            const ast_element* right() const noexcept { return m_right.get(); }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<arithmetic_operator>(m_operation, m_left->clone(), m_right->clone(), source_location(location()));
@@ -884,8 +835,6 @@ namespace michaelcc {
             const ast_element* true_expr() const noexcept { return m_true_expr.get(); }
             const ast_element* false_expr() const noexcept { return m_false_expr.get(); }
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
-
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<conditional_expression>(m_condition->clone(), m_true_expr->clone(), m_false_expr->clone(), source_location(location()));
             }
@@ -911,7 +860,8 @@ namespace michaelcc {
                 m_callee(std::move(callee)),
                 m_arguments(std::move(arguments)) {}
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
+            const ast_element* callee() const noexcept { return m_callee.get(); }
+            const std::vector<std::unique_ptr<ast_element>>& arguments() const noexcept { return m_arguments; }
 
             std::unique_ptr<ast_element> clone() const override {
                 std::vector<std::unique_ptr<ast_element>> cloned_arguments;
@@ -939,8 +889,6 @@ namespace michaelcc {
                 : ast_element(std::move(location)), m_initializers(std::move(initializers)) {}
 
             const std::vector<std::unique_ptr<ast_element>>& initializers() const noexcept { return m_initializers; }
-
-            void build_c_string(std::stringstream& ss, int indent = 0) const override;
 
             std::unique_ptr<ast_element> clone() const override {
                 std::vector<std::unique_ptr<ast_element>> cloned_initializers;
@@ -982,8 +930,6 @@ namespace michaelcc {
             const std::string& identifier() const noexcept { return m_identifier; }
             const ast_element* set_value() const noexcept { return m_set_value.has_value() ? m_set_value.value().get() : nullptr; }
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
-
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<variable_declaration>(
                     m_qualifiers,
@@ -1016,8 +962,6 @@ namespace michaelcc {
             const ast_element* type() const noexcept { return m_type.get(); }
             const std::string& name() const noexcept { return m_name; }
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
-
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<typedef_declaration>(m_type->clone(), std::string(m_name), source_location(location()));
             }
@@ -1038,15 +982,8 @@ namespace michaelcc {
                 : ast_element(std::move(location)),
                 m_struct_name(std::move(struct_name)), m_members(std::move(members)) {}
 
-            const std::optional<std::string> struct_name() const noexcept { return m_struct_name; }
+            const std::optional<std::string>& struct_name() const noexcept { return m_struct_name; }
             const std::vector<variable_declaration>& members() const noexcept { return m_members; }
-
-            void build_c_string(std::stringstream&, int indent = 0) const override;
-
-            void build_declarator(std::stringstream& ss, const std::string& identifier) const {
-                build_c_string(ss);
-                ss << ' ' << identifier;
-            }
 
             std::unique_ptr<ast_element> clone() const override {
                 if (m_struct_name.has_value()) {
@@ -1094,15 +1031,8 @@ namespace michaelcc {
                 : ast_element(std::move(location)),
                 m_enum_name(std::move(enum_name)), m_enumerators(std::move(enumerators)) {}
 
-            const std::optional<std::string> enum_name() const noexcept { return m_enum_name; }
+            const std::optional<std::string>& enum_name() const noexcept { return m_enum_name; }
             const std::vector<enumerator>& enumerators() const noexcept { return m_enumerators; }
-
-            void build_c_string(std::stringstream&, int indent = 0) const override;
-
-            void build_declarator(std::stringstream& ss, const std::string& identifier) const {
-                build_c_string(ss);
-                ss << ' ' << identifier;
-            }
 
             std::unique_ptr<ast_element> clone() const override {
                 if (m_enum_name.has_value()) {
@@ -1141,15 +1071,8 @@ namespace michaelcc {
                 : ast_element(std::move(location)),
                 m_union_name(std::move(union_name)), m_members(std::move(members)) {}
 
-            const std::optional<std::string> union_name() const noexcept { return m_union_name; }
+            const std::optional<std::string>& union_name() const noexcept { return m_union_name; }
             const std::vector<member>& members() const noexcept { return m_members; }
-
-            void build_c_string(std::stringstream&, int indent = 0) const override;
-
-            void build_declarator(std::stringstream& ss, const std::string& identifier) const {
-                build_c_string(ss);
-                ss << ' ' << identifier;
-            }
 
             std::unique_ptr<ast_element> clone() const override {
                 if (m_union_name.has_value()) {
@@ -1201,8 +1124,6 @@ namespace michaelcc {
             const std::string& function_name() const noexcept { return m_function_name; }
             const std::vector<function_parameter>& parameters() const noexcept { return m_parameters; }
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
-
             std::unique_ptr<ast_element> clone() const override {
                 std::vector<function_parameter> cloned_params;
                 cloned_params.reserve(m_parameters.size());
@@ -1245,8 +1166,6 @@ namespace michaelcc {
             const std::vector<function_parameter>& parameters() const noexcept { return m_parameters; }
             const context_block& function_body() const noexcept { return m_function_body; }
 
-            void build_c_string(std::stringstream&, int indent = 0) const override;
-
             std::unique_ptr<ast_element> clone() const override {
                 std::vector<function_parameter> cloned_params;
                 cloned_params.reserve(m_parameters.size());
@@ -1272,6 +1191,9 @@ namespace michaelcc {
                 m_function_body.accept(v);
             }
         };
+
+        // Utility function to convert any AST element to a C string representation
+        std::string to_c_string(const ast_element* elem, int indent = 0);
 	}
 }
 

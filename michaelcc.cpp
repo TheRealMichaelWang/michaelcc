@@ -11,13 +11,18 @@ using namespace std;
 int main()
 {
     cout << "Michael C Compiler" << endl;
-	ifstream infile("../../tests/main.c");
+	ifstream infile("../../tests/fib.c");
+	
+	if (!infile.is_open()) {
+		cerr << "Failed to open file!" << endl;
+		return 1;
+	}
 
 	std::stringstream ss;
 	ss << infile.rdbuf();
 
 	try {
-		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/main.c");
+		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/fib.c");
 		preprocessor.preprocess();
 		vector<michaelcc::token> tokens = preprocessor.result();
 
@@ -26,11 +31,11 @@ int main()
 		
 		// Print all top-level elements
 		for (const auto& element : ast) {
-			cout << element->to_string() << endl;
+			cout << michaelcc::ast::to_c_string(element.get()) << endl;
 		}
 	}
 	catch (const michaelcc::compilation_error& error) {
-		cout << error.what() << endl;
+		cerr << error.what() << endl;
 	}
 	
 	return 0;
