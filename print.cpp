@@ -123,6 +123,7 @@ private:
     std::stringstream& m_out;
     int m_indent;
     bool m_print_requested = false;
+    int m_parent_precedence = 0;
 
     std::string indent_str() const {
         return std::string(m_indent * 2, ' ');
@@ -413,23 +414,39 @@ public:
     void visit(const arithmetic_operator& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
-        m_out << "(";
+        
+        auto it = arithmetic_operator::operator_precedence.find(node.operation());
+        int prec = (it != arithmetic_operator::operator_precedence.end()) ? it->second : 0;
+        bool need_parens = m_parent_precedence > prec;
+        
+        if (need_parens) m_out << "(";
+        int saved_prec = m_parent_precedence;
+        m_parent_precedence = prec;
         print(node.left());
         m_out << " " << token_to_str(node.operation()) << " ";
         print(node.right());
-        m_out << ")";
+        m_parent_precedence = saved_prec;
+        if (need_parens) m_out << ")";
     }
 
     void visit(const conditional_expression& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
+        
+        const int TERNARY_PREC = 1;
+        bool need_parens = m_parent_precedence > TERNARY_PREC;
+        
+        if (need_parens) m_out << "(";
+        int saved_prec = m_parent_precedence;
+        m_parent_precedence = TERNARY_PREC;
         m_out << "(";
         print(node.condition());
-        m_out << " ? ";
+        m_out << ") ? ";
         print(node.true_expr());
         m_out << " : ";
         print(node.false_expr());
-        m_out << ")";
+        m_parent_precedence = saved_prec;
+        if (need_parens) m_out << ")";
     }
 
     void visit(const function_call& node) override {
