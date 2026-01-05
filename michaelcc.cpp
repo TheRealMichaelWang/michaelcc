@@ -1,40 +1,59 @@
-﻿// michaelcc.cpp : Defines the entry point for the application.
-
-#include "preprocessor.hpp"
-#include "ast.hpp"
+﻿#include "preprocessor.hpp"
 #include "parser.hpp"
+#include "semantic_analyzer.hpp"
 #include <fstream>
 #include <iostream>
+#include <sstream>
 
-using namespace std;
+int main(int argc, char** argv) {
+	std::cout << "michaelcc - C Compiler\n";
 
-int main()
-{
-    cout << "Michael C Compiler" << endl;
-	ifstream infile("../../tests/main.c");
+	std::filesystem::path input = "../../tests/main.c";
+	if (argc > 1) input = argv[1];
 
-	std::stringstream ss;
-	ss << infile.rdbuf();
+	std::ifstream file(input);
+	if (!file) {
+		std::cerr << "error: cannot open " << input << "\n";
+		return 1;
+	}
+
+	std::ostringstream ss;
+	ss << file.rdbuf();
 
 	try {
-		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/main.c");
-		preprocessor.preprocess();
-		vector<michaelcc::token> tokens = preprocessor.result();
+		michaelcc::preprocessor pp(ss.str(), input);
+		pp.run();
+		auto tokens = pp.take_result();
 
 		michaelcc::parser parser(std::move(tokens));
-		michaelcc::syntax_tree ast = parser.parse_all();
-		
-		// Print all top-level elements
-		for (const auto& element : ast) {
-			cout << element->to_string() << endl;
+		auto ast = parser.parse();
+
+		michaelcc::analyzer analyzer;
+		auto unit = analyzer.analyze(ast);
+
+		std::cout << "\nFunctions: " << unit.funcs().size() << "\n";
+		for (auto& f : unit.funcs()) {
+			std::cout << "  " << f->name << ": " << f->ftype->str() << "\n";
 		}
 
-		// Example: lookup a typedef if you need it
-		// if (auto* my_typedef = ast.find_typedef("MyType")) { ... }
+		std::cout << "Globals: " << unit.globals().size() << "\n";
+		for (auto& v : unit.globals()) {
+			std::cout << "  " << v->name << ": " << v->vtype->str() << "\n";
+		}
+
+		std::cout << "Strings: " << unit.strings().size() << "\n";
+		for (size_t i = 0; i < unit.strings().size(); ++i) {
+			std::cout << "  [" << i << "] \"" << unit.strings()[i] << "\"\n";
+		}
+
+	} catch (const michaelcc::compile_error& e) {
+		std::cerr << e.what() << "\n";
+		return 1;
+	} catch (const std::exception& e) {
+		std::cerr << "error: " << e.what() << "\n";
+		return 1;
 	}
-	catch (const michaelcc::compilation_error& error) {
-		cout << error.what() << endl;
-	}
-	
+
+	std::cout << "\nDone.\n";
 	return 0;
 }

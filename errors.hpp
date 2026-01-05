@@ -2,64 +2,45 @@
 #define MICHAELCC_ERRORS_HPP
 
 #include <filesystem>
+#include <string>
+#include <exception>
 
 namespace michaelcc {
-	struct source_location {
-	private:
-		size_t m_row;
-		size_t m_col;
-		std::filesystem::path m_file_name;
 
-	public:
-		source_location(const size_t row, const size_t col, const std::filesystem::path file_name) : m_row(row), m_col(col), m_file_name(file_name) {
+class source_location {
+	size_t m_row = 1;
+	size_t m_col = 1;
+	std::filesystem::path m_file;
 
-		}
+public:
+	source_location() = default;
 
-		source_location() : source_location(1, 1, std::filesystem::path()) { }
+	source_location(size_t row, size_t col, std::filesystem::path file)
+		: m_row(row), m_col(col), m_file(std::move(file)) {}
 
-		const size_t row() const noexcept {
-			return m_row;
-		}
+	size_t row() const noexcept { return m_row; }
+	size_t col() const noexcept { return m_col; }
+	const std::filesystem::path& file() const noexcept { return m_file; }
 
-		const size_t col() const noexcept {
-			return m_col;
-		}
+	std::string to_string() const;
 
-		const std::filesystem::path filename() const noexcept {
-			return m_file_name;
-		}
+	void next_line() noexcept { ++m_row; m_col = 1; }
+	void set_col(size_t col) noexcept { m_col = col; }
+};
 
-		const std::string to_string() const;
+class compile_error : public std::exception {
+	std::string m_message;
+	source_location m_location;
+	std::string m_formatted;
 
-		void increment_line() noexcept {
-			m_row++;
-		}
+public:
+	compile_error(std::string message, source_location location);
 
-		void set_col(uint32_t col) noexcept {
-			m_col = col;
-		}
-	};
+	const source_location& location() const noexcept { return m_location; }
+	const std::string& message() const noexcept { return m_message; }
+	const char* what() const noexcept override { return m_formatted.c_str(); }
+};
 
-	class compilation_error : public std::exception {
-	private:
-		std::string m_msg, m_display_msg;
-		const source_location m_location;
-
-	public:
-		compilation_error(const std::string msg, const source_location location);
-
-		const source_location location() const noexcept {
-			return m_location;
-		}
-
-		const std::string msg() const noexcept {
-			return m_msg;
-		}
-
-		const char* what() const noexcept override {
-			return m_display_msg.c_str();
-		}
-	};
 }
 
 #endif

@@ -1,18 +1,17 @@
-#include <sstream>
 #include "errors.hpp"
+#include <sstream>
 
-using namespace michaelcc;
+namespace michaelcc {
 
-compilation_error::compilation_error(const std::string msg, const source_location location) : m_location(location)
-{
-	std::stringstream ss;
-	ss << msg << " @ " << m_location.to_string();
-	m_display_msg = ss.str();
+std::string source_location::to_string() const {
+	std::ostringstream ss;
+	ss << m_file.string() << ":" << m_row << ":" << m_col;
+	return ss.str();
 }
 
-const std::string michaelcc::source_location::to_string() const
-{
-	std::stringstream ss;
-	ss << "row " << m_row << ", col " << m_col << " in " << m_file_name << ".";
-	return ss.str();
+compile_error::compile_error(std::string message, source_location location)
+	: m_message(std::move(message)), m_location(std::move(location)) {
+	m_formatted = m_location.to_string() + ": error: " + m_message;
+}
+
 }
