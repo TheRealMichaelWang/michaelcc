@@ -11,7 +11,7 @@ using namespace std;
 int main()
 {
     cout << "Michael C Compiler" << endl;
-	ifstream infile("../../tests/fib.c");
+	ifstream infile("../../tests/main.c");
 	
 	if (!infile.is_open()) {
 		cerr << "Failed to open file!" << endl;
@@ -22,7 +22,7 @@ int main()
 	ss << infile.rdbuf();
 
 	try {
-		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/fib.c");
+		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/main.c");
 		preprocessor.preprocess();
 		vector<michaelcc::token> tokens = preprocessor.result();
 
