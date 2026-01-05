@@ -1,5 +1,4 @@
 #include "parser.hpp"
-#include <cctype>
 #include <cstdint>
 #include <sstream>
 
@@ -25,6 +24,37 @@ const std::map<token_type, int> ast::arithmetic_operator::operator_precedence = 
     {MICHAELCC_TOKEN_EQUALS,              9},
     {MICHAELCC_TOKEN_QUESTION,			  1},
 };
+
+// Helper functions to add declarations to the result and register in lookup maps
+void parser::add_typedef(std::unique_ptr<ast::typedef_declaration> decl) {
+    m_result.m_typedefs.insert({ decl->name(), decl.get() });
+    m_result.m_elements.push_back(std::move(decl));
+}
+
+void parser::add_struct(std::unique_ptr<ast::struct_declaration> decl) {
+    if (decl->struct_name().has_value() && !decl->members().empty()) {
+        m_result.m_structs.insert({ decl->struct_name().value(), decl.get() });
+    }
+    m_result.m_elements.push_back(std::move(decl));
+}
+
+void parser::add_enum(std::unique_ptr<ast::enum_declaration> decl) {
+    if (decl->enum_name().has_value() && !decl->enumerators().empty()) {
+        m_result.m_enums.insert({ decl->enum_name().value(), decl.get() });
+    }
+    m_result.m_elements.push_back(std::move(decl));
+}
+
+void parser::add_union(std::unique_ptr<ast::union_declaration> decl) {
+    if (decl->union_name().has_value() && !decl->members().empty()) {
+        m_result.m_unions.insert({ decl->union_name().value(), decl.get() });
+    }
+    m_result.m_elements.push_back(std::move(decl));
+}
+
+void parser::add_element(std::unique_ptr<ast::top_level_element> elem) {
+    m_result.m_elements.push_back(std::move(elem));
+}
 
 void michaelcc::parser::next_token() noexcept {
 	for (;;) {
@@ -167,14 +197,14 @@ std::unique_ptr<ast::type> michaelcc::parser::parse_type(const bool parse_pointe
         next_token();
     }
     else if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
-        auto it = typedef_declarations.find(current_token().string());
-        if (it == typedef_declarations.end()) {
+        auto* typedef_decl = m_result.find_typedef(current_token().string());
+        if (typedef_decl == nullptr) {
             std::stringstream ss;
             ss << "Type definition " << current_token().string() << " does not exist.";
             throw panic(ss.str());
         }
 
-        base_type = it->second->type()->clone();
+        base_type = typedef_decl->type()->clone();
         next_token();
     }
     else {
@@ -590,7 +620,7 @@ std::unique_ptr<ast::statement> parser::parse_statement() {
     case MICHAELCC_TOKEN_DOUBLE:
         return std::make_unique<ast::variable_declaration>(parse_variable_declaration());
     default: {
-        if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER && typedef_declarations.contains(current_token().string())) {
+        if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER && m_result.has_typedef(current_token().string())) {
             return std::make_unique<ast::variable_declaration>(parse_variable_declaration());
         }
 
@@ -604,9 +634,10 @@ std::unique_ptr<ast::statement> parser::parse_statement() {
             throw panic("Expected statement but got expression instead.");
         }
 
-        expr.release();
-        // Wrap as an expression statement or declaration as appropriate
-        return std::unique_ptr<ast::statement>(statement); // If you have a separate expression_statement AST node, wrap it here
+        // Release ownership from expression unique_ptr; we're transferring to statement unique_ptr
+        // (This works because set_operator and function_call inherit from both expression and statement)
+        [[maybe_unused]] auto* released = expr.release();
+        return std::unique_ptr<ast::statement>(statement);
     }
     }
 }
@@ -668,16 +699,12 @@ std::unique_ptr<ast::struct_declaration> parser::parse_struct_declaration() {
     next_token();
 
     if (struct_name.has_value() && !members.empty()) {
-        auto it = named_struct_declarations.find(struct_name.value());
-        if (it != named_struct_declarations.end()) {
+        auto* existing = m_result.find_struct(struct_name.value());
+        if (existing != nullptr) {
             std::stringstream ss;
-            ss << "Struct " << struct_name.value() << " already defined at " << it->second->location().to_string() << '.';
+            ss << "Struct " << struct_name.value() << " already defined at " << existing->location().to_string() << '.';
             throw compilation_error(ss.str(), location);
         }
-        
-        auto to_ret = std::make_unique<ast::struct_declaration>(std::move(struct_name), std::move(members), std::move(location));
-        named_struct_declarations.insert({ to_ret->struct_name().value(), to_ret.get() });
-        return to_ret;
     }
 
     return std::make_unique<ast::struct_declaration>(std::move(struct_name), std::move(members), std::move(location));
@@ -716,16 +743,12 @@ std::unique_ptr<ast::union_declaration> parser::parse_union_declaration() {
     next_token();
 
     if (union_name.has_value() && !members.empty()) {
-        auto it = named_union_declarations.find(union_name.value());
-        if (it != named_union_declarations.end()) {
+        auto* existing = m_result.find_union(union_name.value());
+        if (existing != nullptr) {
             std::stringstream ss;
-            ss << "Struct " << union_name.value() << " already defined at " << it->second->location().to_string() << '.';
+            ss << "Union " << union_name.value() << " already defined at " << existing->location().to_string() << '.';
             throw compilation_error(ss.str(), location);
         }
-
-        auto to_ret = std::make_unique<ast::union_declaration>(std::move(union_name), std::move(members), std::move(location));
-        named_union_declarations.insert({ to_ret->union_name().value(), to_ret.get() });
-        return to_ret;
     }
 
     return std::make_unique<ast::union_declaration>(std::move(union_name), std::move(members), std::move(location));
@@ -780,17 +803,14 @@ std::unique_ptr<ast::enum_declaration> parser::parse_enum_declaration() {
     next_token();
 
     if (enum_name.has_value() && !enumerators.empty()) {
-        auto it = named_enum_declarations.find(enum_name.value());
-        if (it != named_enum_declarations.end()) {
+        auto* existing = m_result.find_enum(enum_name.value());
+        if (existing != nullptr) {
             std::stringstream ss;
-            ss << "Struct " << enum_name.value() << " already defined at " << it->second->location().to_string() << '.';
+            ss << "Enum " << enum_name.value() << " already defined at " << existing->location().to_string() << '.';
             throw compilation_error(ss.str(), location);
         }
-
-        auto to_ret = std::make_unique<ast::enum_declaration>(std::move(enum_name), std::move(enumerators), std::move(location));
-        named_enum_declarations.insert({ to_ret->enum_name().value(), to_ret.get()});
-        return to_ret;
     }
+
     return std::make_unique<ast::enum_declaration>(std::move(enum_name), std::move(enumerators), std::move(location));
 }
 
@@ -800,16 +820,14 @@ std::unique_ptr<ast::typedef_declaration> michaelcc::parser::parse_typedef_decla
     next_token();
     
     declarator decl = parse_declarator();
-    auto it = typedef_declarations.find(decl.identifier);
-    if (it != typedef_declarations.end()) {
+    auto* existing = m_result.find_typedef(decl.identifier);
+    if (existing != nullptr) {
         std::stringstream ss;
-        ss << "Type " << decl.identifier << " already defined at " << it->second->location().to_string() << '.';
+        ss << "Type " << decl.identifier << " already defined at " << existing->location().to_string() << '.';
         throw panic(ss.str());
     }
 
-    auto to_return = std::make_unique<ast::typedef_declaration>(std::move(decl.type), std::move(decl.identifier), std::move(location));
-    typedef_declarations.insert({ to_return->name(), to_return.get()});
-    return to_return;
+    return std::make_unique<ast::typedef_declaration>(std::move(decl.type), std::move(decl.identifier), std::move(location));
 }
 
 std::vector<ast::function_parameter> parser::parse_parameter_list() {
@@ -862,25 +880,23 @@ std::unique_ptr<ast::function_declaration> parser::parse_function_declaration() 
     );
 }
 
-std::vector<std::unique_ptr<ast::top_level_element>> michaelcc::parser::parse_all()
+syntax_tree michaelcc::parser::parse_all()
 {
-    std::vector<std::unique_ptr<ast::top_level_element>> top_level_elements;
-
     while (!end())
     {
         switch (current_token().type())
         {
         case MICHAELCC_TOKEN_STRUCT:
-            top_level_elements.emplace_back(parse_struct_declaration());
+            add_struct(parse_struct_declaration());
             break;
         case MICHAELCC_TOKEN_UNION:
-            top_level_elements.emplace_back(parse_union_declaration());
+            add_union(parse_union_declaration());
             break;
         case MICHAELCC_TOKEN_ENUM:
-            top_level_elements.emplace_back(parse_enum_declaration());
+            add_enum(parse_enum_declaration());
             break;
         case MICHAELCC_TOKEN_TYPEDEF:
-            top_level_elements.emplace_back(parse_typedef_declaration());
+            add_typedef(parse_typedef_declaration());
             break;
         case MICHAELCC_TOKEN_CONST:
         case MICHAELCC_TOKEN_VOLATILE:
@@ -908,12 +924,12 @@ std::vector<std::unique_ptr<ast::top_level_element>> michaelcc::parser::parse_al
                     parse_parameter_list();
                     if (current_token().type() == MICHAELCC_TOKEN_SEMICOLON) {
                         m_token_index = backup;
-                        top_level_elements.emplace_back(parse_function_prototype());
+                        add_element(parse_function_prototype());
                         continue;
                     }
                     else if (current_token().type() == MICHAELCC_TOKEN_OPEN_BRACE) {
                         m_token_index = backup;
-                        top_level_elements.emplace_back(parse_function_declaration());
+                        add_element(parse_function_declaration());
                         continue;
                     }
                 }
@@ -921,7 +937,7 @@ std::vector<std::unique_ptr<ast::top_level_element>> michaelcc::parser::parse_al
 
             // If not a function, treat as variable declaration
             m_token_index = backup;
-            top_level_elements.emplace_back(std::make_unique<ast::variable_declaration>(parse_variable_declaration()));
+            add_element(std::make_unique<ast::variable_declaration>(parse_variable_declaration()));
             continue;
         }
         default:
@@ -932,5 +948,5 @@ std::vector<std::unique_ptr<ast::top_level_element>> michaelcc::parser::parse_al
         next_token();
     }
 
-    return top_level_elements;
+    return std::move(m_result);
 }

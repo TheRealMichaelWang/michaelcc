@@ -2,12 +2,73 @@
 #define MICHAELCC_PARSER_HPP
 
 #include <cstdint>
-#include <map>
+#include <unordered_map>
 #include "tokens.hpp"
 #include "ast.hpp"
 #include "errors.hpp"
 
 namespace michaelcc {
+	// Represents a complete parsed syntax tree (a single C source file after preprocessing).
+	// Owns all AST nodes and provides fast lookups for named declarations.
+	// All pointers in the lookup maps are valid for the lifetime of this object.
+	class syntax_tree {
+	private:
+		std::vector<std::unique_ptr<ast::top_level_element>> m_elements;
+		std::unordered_map<std::string, ast::typedef_declaration*> m_typedefs;
+		std::unordered_map<std::string, ast::struct_declaration*> m_structs;
+		std::unordered_map<std::string, ast::enum_declaration*> m_enums;
+		std::unordered_map<std::string, ast::union_declaration*> m_unions;
+
+		// Only parser can construct
+		friend class parser;
+		syntax_tree() = default;
+
+	public:
+		// Move-only type
+		syntax_tree(syntax_tree&&) = default;
+		syntax_tree& operator=(syntax_tree&&) = default;
+		syntax_tree(const syntax_tree&) = delete;
+		syntax_tree& operator=(const syntax_tree&) = delete;
+
+		// Access to top-level elements
+		const std::vector<std::unique_ptr<ast::top_level_element>>& elements() const noexcept { 
+			return m_elements; 
+		}
+
+		// Lookup functions - return nullptr if not found
+		ast::typedef_declaration* find_typedef(const std::string& name) const {
+			auto it = m_typedefs.find(name);
+			return it != m_typedefs.end() ? it->second : nullptr;
+		}
+
+		ast::struct_declaration* find_struct(const std::string& name) const {
+			auto it = m_structs.find(name);
+			return it != m_structs.end() ? it->second : nullptr;
+		}
+
+		ast::enum_declaration* find_enum(const std::string& name) const {
+			auto it = m_enums.find(name);
+			return it != m_enums.end() ? it->second : nullptr;
+		}
+
+		ast::union_declaration* find_union(const std::string& name) const {
+			auto it = m_unions.find(name);
+			return it != m_unions.end() ? it->second : nullptr;
+		}
+
+		// Check if declarations exist
+		bool has_typedef(const std::string& name) const { return m_typedefs.contains(name); }
+		bool has_struct(const std::string& name) const { return m_structs.contains(name); }
+		bool has_enum(const std::string& name) const { return m_enums.contains(name); }
+		bool has_union(const std::string& name) const { return m_unions.contains(name); }
+
+		// Iteration support
+		auto begin() const { return m_elements.begin(); }
+		auto end() const { return m_elements.end(); }
+		size_t size() const noexcept { return m_elements.size(); }
+		bool empty() const noexcept { return m_elements.empty(); }
+	};
+
 	class parser {
 	private:
 		struct declarator {
@@ -15,10 +76,8 @@ namespace michaelcc {
 			std::string identifier;
 		};
 
-		std::map<std::string, ast::typedef_declaration*> typedef_declarations;
-		std::map<std::string, ast::struct_declaration*> named_struct_declarations;
-		std::map<std::string, ast::enum_declaration*> named_enum_declarations;
-		std::map<std::string, ast::union_declaration*> named_union_declarations;
+		// Result being built (moved out at end of parse_all)
+		syntax_tree m_result;
 
 		std::vector<token> m_tokens;
 		int64_t m_token_index;
@@ -73,6 +132,13 @@ namespace michaelcc {
 		const compilation_error panic(const std::string msg) const noexcept {
 			return compilation_error(msg, current_loc);
 		}
+		// Helper to add a declaration to the result and register in lookup maps
+		void add_typedef(std::unique_ptr<ast::typedef_declaration> decl);
+		void add_struct(std::unique_ptr<ast::struct_declaration> decl);
+		void add_enum(std::unique_ptr<ast::enum_declaration> decl);
+		void add_union(std::unique_ptr<ast::union_declaration> decl);
+		void add_element(std::unique_ptr<ast::top_level_element> elem);
+
 	public:
 		parser(std::vector<token>&& tokens) :
 			m_tokens(std::move(tokens)), 
@@ -81,7 +147,7 @@ namespace michaelcc {
 			next_token();
 		}
 
-		std::vector<std::unique_ptr<ast::top_level_element>> parse_all();
+		syntax_tree parse_all();
 	};
 }
 
