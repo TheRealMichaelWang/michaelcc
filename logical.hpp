@@ -15,6 +15,7 @@ namespace michaelcc {
 		class statement;
 		class symbol;
 		class type_context;
+		class control_block;
 
 		class type {
 		public:
@@ -250,13 +251,15 @@ namespace michaelcc {
 		private:
 			std::string m_name;
 			const type* m_type;
+            control_block* m_context;
 			kind m_kind;
 		public:
-			symbol(std::string&& name, const type* symbol_type, kind k)
-				: m_name(std::move(name)), m_type(symbol_type), m_kind(k) {}
+			symbol(std::string&& name, const type* symbol_type, kind k, control_block* context)
+				: m_name(std::move(name)), m_type(symbol_type), m_kind(k), m_context(context) {}
 
 			const std::string& name() const noexcept { return m_name; }
 			const type* get_type() const noexcept { return m_type; }
+			control_block* get_context() const noexcept { return m_context; }
 			kind get_kind() const noexcept { return m_kind; }
 		};
 
@@ -476,6 +479,19 @@ namespace michaelcc {
 			virtual ~statement() = default;
 		};
 
+        class control_block final {
+        private:
+            std::vector<std::unique_ptr<statement>> m_statements;
+            std::vector<symbol*> m_symbols;
+
+        public:
+            control_block(std::vector<std::unique_ptr<statement>>&& statements, std::vector<symbol*>&& symbols)
+                : m_statements(std::move(statements)), m_symbols(std::move(symbols)) {}
+
+            const std::vector<std::unique_ptr<statement>>& statements() const noexcept { return m_statements; }
+            const std::vector<symbol*>& symbols() const noexcept { return m_symbols; }
+        };
+
 		class expression_statement final : public statement {
 		private:
 			std::unique_ptr<expression> m_expression;
@@ -521,48 +537,38 @@ namespace michaelcc {
 			const expression* value() const noexcept { return m_value.get(); }
 		};
 
-		class block_statement final : public statement {
-		private:
-			std::vector<std::unique_ptr<statement>> m_statements;
-		public:
-			explicit block_statement(std::vector<std::unique_ptr<statement>>&& statements)
-				: m_statements(std::move(statements)) {}
-
-			const std::vector<std::unique_ptr<statement>>& statements() const noexcept { return m_statements; }
-		};
-
 		class if_statement final : public statement {
 		private:
 			std::unique_ptr<expression> m_condition;
-			std::vector<std::unique_ptr<statement>> m_then_body;
-			std::vector<std::unique_ptr<statement>> m_else_body;
+			control_block m_then_body;
+			control_block m_else_body;
 		public:
 			if_statement(std::unique_ptr<expression>&& condition,
-				std::vector<std::unique_ptr<statement>>&& then_body,
-				std::vector<std::unique_ptr<statement>>&& else_body = {})
+				control_block&& then_body,
+				control_block&& else_body)
 				: m_condition(std::move(condition)),
 				m_then_body(std::move(then_body)),
 				m_else_body(std::move(else_body)) {}
 
 			const expression* condition() const noexcept { return m_condition.get(); }
-			const std::vector<std::unique_ptr<statement>>& then_body() const noexcept { return m_then_body; }
-			const std::vector<std::unique_ptr<statement>>& else_body() const noexcept { return m_else_body; }
+			const control_block& then_body() const noexcept { return m_then_body; }
+			const control_block& else_body() const noexcept { return m_else_body; }
 		};
 
 		class loop_statement final : public statement {
 		private:
-			std::vector<std::unique_ptr<statement>> m_body;
+			control_block m_body;
 			std::unique_ptr<expression> m_condition;
 			bool m_check_condition_first;
 		public:
-			loop_statement(std::vector<std::unique_ptr<statement>>&& body,
+			loop_statement(control_block&& body,
 				std::unique_ptr<expression>&& condition,
 				bool check_condition_first = true)
 				: m_body(std::move(body)),
 				m_condition(std::move(condition)),
 				m_check_condition_first(check_condition_first) {}
 
-			const std::vector<std::unique_ptr<statement>>& body() const noexcept { return m_body; }
+			const control_block& body() const noexcept { return m_body; }
 			const expression* condition() const noexcept { return m_condition.get(); }
 			bool check_condition_first() const noexcept { return m_check_condition_first; }
 		};
@@ -574,18 +580,18 @@ namespace michaelcc {
 		private:
 			symbol* m_symbol;
 			std::vector<symbol*> m_parameters;
-			std::vector<std::unique_ptr<statement>> m_body;
+			control_block m_body;
 		public:
 			function_definition(symbol* sym,
 				std::vector<symbol*>&& parameters,
-				std::vector<std::unique_ptr<statement>>&& body)
+				control_block&& body)
 				: m_symbol(sym),
 				m_parameters(std::move(parameters)),
 				m_body(std::move(body)) {}
 
 			symbol* get_symbol() const noexcept { return m_symbol; }
 			const std::vector<symbol*>& parameters() const noexcept { return m_parameters; }
-			const std::vector<std::unique_ptr<statement>>& body() const noexcept { return m_body; }
+			const control_block& body() const noexcept { return m_body; }
 		};
 
 		class global_variable {
@@ -610,8 +616,8 @@ namespace michaelcc {
 			type_context& types() noexcept { return m_types; }
 			const type_context& types() const noexcept { return m_types; }
 
-			symbol* add_symbol(std::string&& name, const type* symbol_type, symbol::kind k) {
-				m_symbols.push_back(std::make_unique<symbol>(std::move(name), symbol_type, k));
+			symbol* add_symbol(std::string&& name, const type* symbol_type, symbol::kind k, control_block* context = nullptr) {
+				m_symbols.push_back(std::make_unique<symbol>(std::move(name), symbol_type, k, context));
 				return m_symbols.back().get();
 			}
 
