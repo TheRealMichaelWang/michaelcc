@@ -101,16 +101,14 @@ void preprocessor::preprocess()
 			}
 
 			std::ifstream infile(file_path.value());
-
-			std::stringstream ss;
-			ss << infile.rdbuf();
-
 			if (!infile.good()) {
 				std::stringstream ss;
 				ss << "Unable to open file \"" << file_path.value() << "\".";
 				throw panic(ss.str());
 			}
 
+			std::stringstream ss;
+			ss << infile.rdbuf();
 
 			m_scanners.push_back(preprocessor::scanner(ss.str(), file_path.value()));
 			m_result.push_back(token(m_scanners.back().location()));
