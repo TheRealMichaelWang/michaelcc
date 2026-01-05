@@ -52,7 +52,7 @@ void parser::add_union(std::unique_ptr<ast::union_declaration> decl) {
     m_result.m_elements.push_back(std::move(decl));
 }
 
-void parser::add_element(std::unique_ptr<ast::top_level_element> elem) {
+void parser::add_element(std::unique_ptr<ast::ast_element> elem) {
     m_result.m_elements.push_back(std::move(elem));
 }
 
@@ -105,7 +105,7 @@ uint8_t michaelcc::parser::parse_storage_qualifiers()
     }
 }
 
-std::unique_ptr<ast::type> parser::parse_int_type() {
+std::unique_ptr<ast::ast_element> parser::parse_int_type() {
     source_location location = current_loc;
     uint8_t qualifiers = ast::NO_INT_QUALIFIER;
     ast::int_class int_cls = ast::INT_INT_CLASS;
@@ -170,10 +170,10 @@ std::unique_ptr<ast::type> parser::parse_int_type() {
     return std::make_unique<ast::int_type>(qualifiers, int_cls, std::move(location));
 }
 
-std::unique_ptr<ast::type> michaelcc::parser::parse_type(const bool parse_pointer)
+std::unique_ptr<ast::ast_element> michaelcc::parser::parse_type(const bool parse_pointer)
 {
     source_location location = current_loc;
-    std::unique_ptr<ast::type> base_type;
+    std::unique_ptr<ast::ast_element> base_type;
 
     // Parse float types
     if (current_token().type() == MICHAELCC_TOKEN_FLOAT ||
@@ -226,7 +226,7 @@ std::unique_ptr<ast::type> michaelcc::parser::parse_type(const bool parse_pointe
 
 parser::declarator parser::parse_declarator() {
     source_location location = current_loc;
-    std::unique_ptr<ast::type> current_type = parse_type(false);
+    std::unique_ptr<ast::ast_element> current_type = parse_type(false);
     std::string identifier;
 
     // Handle pointer declarators (e.g., int *x)
@@ -254,7 +254,7 @@ parser::declarator parser::parse_declarator() {
         match_token(MICHAELCC_TOKEN_OPEN_PAREN);
 
         next_token();
-        std::vector<std::unique_ptr<ast::type>> parameter_types;
+        std::vector<std::unique_ptr<ast::ast_element>> parameter_types;
         while (current_token().type() != MICHAELCC_TOKEN_CLOSE_PAREN) {
             parameter_types.push_back(parse_type());
             if (current_token().type() == MICHAELCC_TOKEN_COMMA) {
@@ -277,7 +277,7 @@ parser::declarator parser::parse_declarator() {
         if (current_token().type() == MICHAELCC_TOKEN_OPEN_BRACKET) {
             // Array declarator (e.g., int x[10])
             next_token();
-            std::optional<std::unique_ptr<ast::expression>> length;
+            std::optional<std::unique_ptr<ast::ast_element>> length;
             if (current_token().type() != MICHAELCC_TOKEN_CLOSE_BRACKET) {
                 length = parse_expression();
             }
@@ -294,9 +294,9 @@ parser::declarator parser::parse_declarator() {
 }
 
 
-std::unique_ptr<ast::set_destination> michaelcc::parser::parse_set_accessors(std::unique_ptr<ast::set_destination>&& initial_value)
+std::unique_ptr<ast::ast_element> michaelcc::parser::parse_set_accessors(std::unique_ptr<ast::ast_element>&& initial_value)
 {
-	std::unique_ptr<ast::set_destination> value = std::move(initial_value);
+	std::unique_ptr<ast::ast_element> value = std::move(initial_value);
 
 	for (;;) {
 		source_location location = current_loc;
@@ -326,10 +326,10 @@ std::unique_ptr<ast::set_destination> michaelcc::parser::parse_set_accessors(std
 	}
 }
 
-std::unique_ptr<ast::set_destination> michaelcc::parser::parse_set_destination()
+std::unique_ptr<ast::ast_element> michaelcc::parser::parse_set_destination()
 {
 	source_location location = current_loc;
-	std::unique_ptr<ast::set_destination> value;
+	std::unique_ptr<ast::ast_element> value;
 	switch (current_token().type())
 	{
 	case MICHAELCC_TOKEN_IDENTIFIER:
@@ -347,10 +347,10 @@ std::unique_ptr<ast::set_destination> michaelcc::parser::parse_set_destination()
 	return parse_set_accessors(std::move(value));
 }
 
-std::unique_ptr<ast::expression> michaelcc::parser::parse_value()
+std::unique_ptr<ast::ast_element> michaelcc::parser::parse_value()
 {
 	source_location location = current_loc;
-    std::unique_ptr<ast::expression> value;
+    std::unique_ptr<ast::ast_element> value;
 
 	switch (current_token().type())
 	{
@@ -371,14 +371,14 @@ std::unique_ptr<ast::expression> michaelcc::parser::parse_value()
         break;
 	case MICHAELCC_TOKEN_OPEN_PAREN: {
 		next_token();
-		std::unique_ptr<ast::expression> expression = parse_expression();
+		std::unique_ptr<ast::ast_element> expression = parse_expression();
 		match_token(MICHAELCC_TOKEN_CLOSE_PAREN);
 		next_token();
 		return expression;
 	}
     case MICHAELCC_TOKEN_OPEN_BRACE: {
         next_token();
-        std::vector<std::unique_ptr<ast::expression>> initializers;
+        std::vector<std::unique_ptr<ast::ast_element>> initializers;
         while (current_token().type() != MICHAELCC_TOKEN_CLOSE_BRACE && !end()) {
             initializers.push_back(parse_expression());
             if (current_token().type() == MICHAELCC_TOKEN_COMMA) {
@@ -394,7 +394,7 @@ std::unique_ptr<ast::expression> michaelcc::parser::parse_value()
         break;
     }
     default: {
-        std::unique_ptr<ast::set_destination> destination = parse_set_destination();
+        std::unique_ptr<ast::ast_element> destination = parse_set_destination();
         if (current_token().type() == MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR) {
             next_token();
             return std::make_unique<ast::set_operator>(std::move(destination), parse_expression(), std::move(location));
@@ -410,7 +410,7 @@ std::unique_ptr<ast::expression> michaelcc::parser::parse_value()
         {
         case MICHAELCC_TOKEN_OPEN_PAREN: {
             next_token();
-            std::vector<std::unique_ptr<ast::expression>> arguments;
+            std::vector<std::unique_ptr<ast::ast_element>> arguments;
             while (current_token().type() != MICHAELCC_TOKEN_CLOSE_PAREN && !end()) {
                 arguments.push_back(parse_expression());
                 if (current_token().type() == MICHAELCC_TOKEN_COMMA) {
@@ -432,10 +432,10 @@ std::unique_ptr<ast::expression> michaelcc::parser::parse_value()
     }
 }
 
-std::unique_ptr<ast::expression> michaelcc::parser::parse_expression(int min_precedence)
+std::unique_ptr<ast::ast_element> michaelcc::parser::parse_expression(int min_precedence)
 { 
 	// Parse the leftmost value (could be a literal, variable, or parenthesized expression)
-	std::unique_ptr<ast::expression> left = parse_value();
+	std::unique_ptr<ast::ast_element> left = parse_value();
 
     while (current_token().is_operator()) {
         auto it = ast::arithmetic_operator::operator_precedence.find(current_token().type());
@@ -475,7 +475,7 @@ std::unique_ptr<ast::expression> michaelcc::parser::parse_expression(int min_pre
                 next_min_prec = precedence;
             }
 
-            std::unique_ptr<ast::expression> right = parse_expression(next_min_prec);
+            std::unique_ptr<ast::ast_element> right = parse_expression(next_min_prec);
             left = std::make_unique<ast::arithmetic_operator>(op, std::move(left), std::move(right), std::move(op_loc));
         }
     }
@@ -483,7 +483,7 @@ std::unique_ptr<ast::expression> michaelcc::parser::parse_expression(int min_pre
 	return left;
 }
 
-std::unique_ptr<ast::statement> parser::parse_statement() {
+std::unique_ptr<ast::ast_element> parser::parse_statement() {
     source_location location = current_loc;
 
     switch (current_token().type()) {
@@ -567,7 +567,7 @@ std::unique_ptr<ast::statement> parser::parse_statement() {
     }
     case MICHAELCC_TOKEN_RETURN: {
         next_token();
-        std::unique_ptr<ast::expression> value;
+        std::unique_ptr<ast::ast_element> value;
         if (current_token().type() != MICHAELCC_TOKEN_SEMICOLON) {
             value = parse_expression();
         }
@@ -624,20 +624,12 @@ std::unique_ptr<ast::statement> parser::parse_statement() {
             return std::make_unique<ast::variable_declaration>(parse_variable_declaration());
         }
 
-        // Expression or declaration statement
-        std::unique_ptr<ast::expression> expr = parse_expression();
+        // Expression statement
+        std::unique_ptr<ast::ast_element> expr = parse_expression();
         match_token(MICHAELCC_TOKEN_SEMICOLON);
         next_token();
 
-        ast::statement* statement = dynamic_cast<ast::statement*>(expr.get());
-        if (statement == nullptr) {
-            throw panic("Expected statement but got expression instead.");
-        }
-
-        // Release ownership from expression unique_ptr; we're transferring to statement unique_ptr
-        // (This works because set_operator and function_call inherit from both expression and statement)
-        [[maybe_unused]] auto* released = expr.release();
-        return std::unique_ptr<ast::statement>(statement);
+        return expr;
     }
     }
 }
@@ -647,7 +639,7 @@ ast::context_block parser::parse_block() {
     match_token(MICHAELCC_TOKEN_OPEN_BRACE);
     next_token();
 
-    std::vector<std::unique_ptr<ast::statement>> statements;
+    std::vector<std::unique_ptr<ast::ast_element>> statements;
     while (current_token().type() != MICHAELCC_TOKEN_CLOSE_BRACE && !end()) {
         statements.push_back(parse_statement());
     }
@@ -662,7 +654,7 @@ ast::variable_declaration parser::parse_variable_declaration() {
     source_location location = current_loc;
     uint8_t qualifiers = parse_storage_qualifiers();
     declarator decl = parse_declarator();
-    std::optional<std::unique_ptr<ast::expression>> initializer;
+    std::optional<std::unique_ptr<ast::ast_element>> initializer;
     if (current_token().type() == MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR) {
         next_token();
         initializer = parse_expression();
