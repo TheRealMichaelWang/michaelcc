@@ -11,13 +11,13 @@ using namespace std;
 int main()
 {
     cout << "Michael C Compiler" << endl;
-	ifstream infile("./tests/main.c");
+	ifstream infile("../../tests/main.c");
 
 	std::stringstream ss;
 	ss << infile.rdbuf();
 
 	try {
-		michaelcc::preprocessor preprocessor(ss.str(), "tests/main.c");
+		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/main.c");
 		preprocessor.preprocess();
 		vector<michaelcc::token> tokens = preprocessor.result();
 

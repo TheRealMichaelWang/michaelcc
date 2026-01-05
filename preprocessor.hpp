@@ -161,7 +161,7 @@ namespace michaelcc {
 
 		token expect_token(token_type type);
 	public:
-		preprocessor(std::string source, std::string file_name) {
+		preprocessor(std::string source, const std::filesystem::path file_name) {
 			m_scanners.emplace_back(scanner(source, file_name));
 		}
 
