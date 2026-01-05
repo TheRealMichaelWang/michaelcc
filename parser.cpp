@@ -25,37 +25,6 @@ const std::map<token_type, int> ast::arithmetic_operator::operator_precedence = 
     {MICHAELCC_TOKEN_QUESTION,			  1},
 };
 
-// Helper functions to add declarations to the result and register in lookup maps
-void parser::add_typedef(std::unique_ptr<ast::typedef_declaration> decl) {
-    m_result.m_typedefs.insert({ decl->name(), decl.get() });
-    m_result.m_elements.push_back(std::move(decl));
-}
-
-void parser::add_struct(std::unique_ptr<ast::struct_declaration> decl) {
-    if (decl->struct_name().has_value() && !decl->members().empty()) {
-        m_result.m_structs.insert({ decl->struct_name().value(), decl.get() });
-    }
-    m_result.m_elements.push_back(std::move(decl));
-}
-
-void parser::add_enum(std::unique_ptr<ast::enum_declaration> decl) {
-    if (decl->enum_name().has_value() && !decl->enumerators().empty()) {
-        m_result.m_enums.insert({ decl->enum_name().value(), decl.get() });
-    }
-    m_result.m_elements.push_back(std::move(decl));
-}
-
-void parser::add_union(std::unique_ptr<ast::union_declaration> decl) {
-    if (decl->union_name().has_value() && !decl->members().empty()) {
-        m_result.m_unions.insert({ decl->union_name().value(), decl.get() });
-    }
-    m_result.m_elements.push_back(std::move(decl));
-}
-
-void parser::add_element(std::unique_ptr<ast::ast_element> elem) {
-    m_result.m_elements.push_back(std::move(elem));
-}
-
 void michaelcc::parser::next_token() noexcept {
 	for (;;) {
 		if (end()) {
@@ -197,14 +166,14 @@ std::unique_ptr<ast::ast_element> michaelcc::parser::parse_type(const bool parse
         next_token();
     }
     else if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
-        auto* typedef_decl = m_result.find_typedef(current_token().string());
-        if (typedef_decl == nullptr) {
+        auto* typedef_type = find_typedef(current_token().string());
+        if (typedef_type == nullptr) {
             std::stringstream ss;
             ss << "Type definition " << current_token().string() << " does not exist.";
             throw panic(ss.str());
         }
 
-        base_type = typedef_decl->type()->clone();
+        base_type = typedef_type->clone();
         next_token();
     }
     else {
@@ -587,7 +556,7 @@ std::unique_ptr<ast::ast_element> parser::parse_statement() {
         }
         match_token(MICHAELCC_TOKEN_SEMICOLON);
         next_token();
-        return std::make_unique<ast::break_statement>(break_depth, std::move(location)); // loop depth can be set as needed
+        return std::make_unique<ast::break_statement>(break_depth, std::move(location));
     }
     case MICHAELCC_TOKEN_CONTINUE: {
         next_token();
@@ -601,7 +570,7 @@ std::unique_ptr<ast::ast_element> parser::parse_statement() {
         }
         match_token(MICHAELCC_TOKEN_SEMICOLON);
         next_token();
-        return std::make_unique<ast::continue_statement>(continue_depth, std::move(location)); // loop depth can be set as needed
+        return std::make_unique<ast::continue_statement>(continue_depth, std::move(location));
     }
     case MICHAELCC_TOKEN_OPEN_BRACE:
         return std::make_unique<ast::context_block>(parse_block());
@@ -620,7 +589,7 @@ std::unique_ptr<ast::ast_element> parser::parse_statement() {
     case MICHAELCC_TOKEN_DOUBLE:
         return std::make_unique<ast::variable_declaration>(parse_variable_declaration());
     default: {
-        if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER && m_result.has_typedef(current_token().string())) {
+        if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER && has_typedef(current_token().string())) {
             return std::make_unique<ast::variable_declaration>(parse_variable_declaration());
         }
 
@@ -690,15 +659,6 @@ std::unique_ptr<ast::struct_declaration> parser::parse_struct_declaration() {
     match_token(MICHAELCC_TOKEN_CLOSE_BRACE);
     next_token();
 
-    if (struct_name.has_value() && !members.empty()) {
-        auto* existing = m_result.find_struct(struct_name.value());
-        if (existing != nullptr) {
-            std::stringstream ss;
-            ss << "Struct " << struct_name.value() << " already defined at " << existing->location().to_string() << '.';
-            throw compilation_error(ss.str(), location);
-        }
-    }
-
     return std::make_unique<ast::struct_declaration>(std::move(struct_name), std::move(members), std::move(location));
 }
 
@@ -733,15 +693,6 @@ std::unique_ptr<ast::union_declaration> parser::parse_union_declaration() {
 
     match_token(MICHAELCC_TOKEN_CLOSE_BRACE);
     next_token();
-
-    if (union_name.has_value() && !members.empty()) {
-        auto* existing = m_result.find_union(union_name.value());
-        if (existing != nullptr) {
-            std::stringstream ss;
-            ss << "Union " << union_name.value() << " already defined at " << existing->location().to_string() << '.';
-            throw compilation_error(ss.str(), location);
-        }
-    }
 
     return std::make_unique<ast::union_declaration>(std::move(union_name), std::move(members), std::move(location));
 }
@@ -794,15 +745,6 @@ std::unique_ptr<ast::enum_declaration> parser::parse_enum_declaration() {
     match_token(MICHAELCC_TOKEN_CLOSE_BRACE);
     next_token();
 
-    if (enum_name.has_value() && !enumerators.empty()) {
-        auto* existing = m_result.find_enum(enum_name.value());
-        if (existing != nullptr) {
-            std::stringstream ss;
-            ss << "Enum " << enum_name.value() << " already defined at " << existing->location().to_string() << '.';
-            throw compilation_error(ss.str(), location);
-        }
-    }
-
     return std::make_unique<ast::enum_declaration>(std::move(enum_name), std::move(enumerators), std::move(location));
 }
 
@@ -812,12 +754,6 @@ std::unique_ptr<ast::typedef_declaration> michaelcc::parser::parse_typedef_decla
     next_token();
     
     declarator decl = parse_declarator();
-    auto* existing = m_result.find_typedef(decl.identifier);
-    if (existing != nullptr) {
-        std::stringstream ss;
-        ss << "Type " << decl.identifier << " already defined at " << existing->location().to_string() << '.';
-        throw panic(ss.str());
-    }
 
     return std::make_unique<ast::typedef_declaration>(std::move(decl.type), std::move(decl.identifier), std::move(location));
 }
@@ -872,24 +808,28 @@ std::unique_ptr<ast::function_declaration> parser::parse_function_declaration() 
     );
 }
 
-syntax_tree michaelcc::parser::parse_all()
+std::vector<std::unique_ptr<ast::ast_element>> michaelcc::parser::parse_all()
 {
     while (!end())
     {
         switch (current_token().type())
         {
         case MICHAELCC_TOKEN_STRUCT:
-            add_struct(parse_struct_declaration());
+            m_result.push_back(parse_struct_declaration());
             break;
         case MICHAELCC_TOKEN_UNION:
-            add_union(parse_union_declaration());
+            m_result.push_back(parse_union_declaration());
             break;
         case MICHAELCC_TOKEN_ENUM:
-            add_enum(parse_enum_declaration());
+            m_result.push_back(parse_enum_declaration());
             break;
-        case MICHAELCC_TOKEN_TYPEDEF:
-            add_typedef(parse_typedef_declaration());
+        case MICHAELCC_TOKEN_TYPEDEF: {
+            auto typedef_decl = parse_typedef_declaration();
+            // Register typedef internally for type substitution
+            m_typedefs.insert({ typedef_decl->name(), typedef_decl->type() });
+            m_result.push_back(std::move(typedef_decl));
             break;
+        }
         case MICHAELCC_TOKEN_CONST:
         case MICHAELCC_TOKEN_VOLATILE:
         case MICHAELCC_TOKEN_EXTERN:
@@ -916,12 +856,12 @@ syntax_tree michaelcc::parser::parse_all()
                     parse_parameter_list();
                     if (current_token().type() == MICHAELCC_TOKEN_SEMICOLON) {
                         m_token_index = backup;
-                        add_element(parse_function_prototype());
+                        m_result.push_back(parse_function_prototype());
                         continue;
                     }
                     else if (current_token().type() == MICHAELCC_TOKEN_OPEN_BRACE) {
                         m_token_index = backup;
-                        add_element(parse_function_declaration());
+                        m_result.push_back(parse_function_declaration());
                         continue;
                     }
                 }
@@ -929,7 +869,7 @@ syntax_tree michaelcc::parser::parse_all()
 
             // If not a function, treat as variable declaration
             m_token_index = backup;
-            add_element(std::make_unique<ast::variable_declaration>(parse_variable_declaration()));
+            m_result.push_back(std::make_unique<ast::variable_declaration>(parse_variable_declaration()));
             continue;
         }
         default:
@@ -940,5 +880,7 @@ syntax_tree michaelcc::parser::parse_all()
         next_token();
     }
 
+    // Clear internal typedef map after parsing
+    m_typedefs.clear();
     return std::move(m_result);
 }
