@@ -295,11 +295,11 @@ namespace michaelcc {
 
 		class string_constant final : public expression {
 		private:
-			std::string m_value;
+			size_t m_index;
 		public:
-			explicit string_constant(std::string&& value) : m_value(std::move(value)) {}
+			explicit string_constant(size_t index) : m_index(index) {}
 
-			const std::string& value() const noexcept { return m_value; }
+			size_t index() const noexcept { return m_index; }
 			const type* get_type(const type_context& ctx) const override { return ctx.get_char_ptr(); }
 		};
 
@@ -612,6 +612,7 @@ namespace michaelcc {
 			std::vector<std::unique_ptr<symbol>> m_symbols;
 			std::vector<std::unique_ptr<function_definition>> m_functions;
 			std::vector<std::unique_ptr<global_variable>> m_globals;
+            std::vector<std::string> m_strings;
 		public:
 			type_context& types() noexcept { return m_types; }
 			const type_context& types() const noexcept { return m_types; }
@@ -619,6 +620,11 @@ namespace michaelcc {
 			symbol* add_symbol(std::string&& name, const type* symbol_type, symbol::kind k, control_block* context = nullptr) {
 				m_symbols.push_back(std::make_unique<symbol>(std::move(name), symbol_type, k, context));
 				return m_symbols.back().get();
+			}
+
+			size_t add_string(std::string&& str) {
+				m_strings.push_back(std::move(str));
+				return m_strings.size() - 1;
 			}
 
 			void add_function(std::unique_ptr<function_definition>&& function) {
