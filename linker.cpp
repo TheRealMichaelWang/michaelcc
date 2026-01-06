@@ -68,7 +68,7 @@ void linker::type_declare_pass::visit(const ast::enum_declaration& node) {
     type_context->declare_enum(std::string(node.enum_name().value()), std::move(enumerators), nullptr);
 }
 
-void linker::type_link_pass::visit(const ast::struct_declaration& node) {
+void linker::type_implement_pass::visit(const ast::struct_declaration& node) {
     auto type_context = &m_linker.m_translation_unit.types();
     auto struct_type = type_context->lookup_struct(std::string(node.struct_name().value()));
 
@@ -86,7 +86,7 @@ void linker::type_link_pass::visit(const ast::struct_declaration& node) {
     type_context->implement_struct_field_types(std::string(node.struct_name().value()), std::move(field_types));
 }
 
-void linker::type_link_pass::visit(const ast::union_declaration& node) {
+void linker::type_implement_pass::visit(const ast::union_declaration& node) {
     auto type_context = &m_linker.m_translation_unit.types();
     auto union_type = type_context->lookup_union(std::string(node.union_name().value()));
 
@@ -102,4 +102,8 @@ void linker::type_link_pass::visit(const ast::union_declaration& node) {
         member_types.push_back(m_linker.resolve_type(*member.member_type));
     }
     type_context->implement_union_member_types(std::string(node.union_name().value()), std::move(member_types));
+}
+
+void linker::function_declare_pass::visit(const ast::function_declaration& node) {
+    
 }
