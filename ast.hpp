@@ -975,39 +975,39 @@ namespace michaelcc {
         class struct_declaration final : public ast_element {
         private:
             std::optional<std::string> m_struct_name;
-            std::vector<variable_declaration> m_members;
+            std::vector<variable_declaration> m_fields;
 
         public:
-            struct_declaration(std::optional<std::string>&& struct_name, std::vector<variable_declaration>&& members, source_location&& location)
+            struct_declaration(std::optional<std::string>&& struct_name, std::vector<variable_declaration>&& feilds, source_location&& location)
                 : ast_element(std::move(location)),
-                m_struct_name(std::move(struct_name)), m_members(std::move(members)) {}
+                m_struct_name(std::move(struct_name)), m_fields(std::move(feilds)) {}
 
             const std::optional<std::string>& struct_name() const noexcept { return m_struct_name; }
-            const std::vector<variable_declaration>& members() const noexcept { return m_members; }
+            const std::vector<variable_declaration>& feilds() const noexcept { return m_fields; }
 
             std::unique_ptr<ast_element> clone() const override {
                 if (m_struct_name.has_value()) {
                     return std::make_unique<struct_declaration>(std::optional<std::string>(m_struct_name), std::vector<variable_declaration>(), source_location(location()));
                 }
 
-                std::vector<variable_declaration> cloned_members;
-                cloned_members.reserve(m_members.size());
-                for (const variable_declaration& member : m_members) {
-                    cloned_members.emplace_back(variable_declaration(
-                        member.qualifiers(),
-                        member.type()->clone(),
-                        std::string(member.identifier()),
-                        source_location(member.location()),
-                        member.set_value() != nullptr ? std::make_optional(member.set_value()->clone()) : std::nullopt
+                std::vector<variable_declaration> cloned_feilds;
+                cloned_feilds.reserve(m_fields.size());
+                for (const variable_declaration& feild : m_fields) {
+                    cloned_feilds.emplace_back(variable_declaration(
+                        feild.qualifiers(),
+                        feild.type()->clone(),
+                        std::string(feild.identifier()),
+                        source_location(feild.location()),
+                        feild.set_value() != nullptr ? std::make_optional(feild.set_value()->clone()) : std::nullopt
                     ));
                 }
-                return std::make_unique<struct_declaration>(std::optional<std::string>(m_struct_name), std::move(cloned_members), source_location(location()));
+                return std::make_unique<struct_declaration>(std::optional<std::string>(m_struct_name), std::move(cloned_feilds), source_location(location()));
             }
 
             void accept(visitor& v) const override {
                 v.visit(*this);
-                for (const auto& member : m_members) {
-                    member.accept(v);
+                for (const auto& feild : m_fields) {
+                    feild.accept(v);
                 }
             }
         };
