@@ -10,44 +10,14 @@
 
 #include "tokens.hpp"
 #include "errors.hpp"
+#include "typing.hpp"
 
 namespace michaelcc {
 	namespace ast {
-		enum {
-			NO_STORAGE_QUALIFIER = 0,
-			CONST_STORAGE_QUALIFIER = 1,
-			VOLATILE_STORAGE_QUALIFIER = 2,
-			RESTRICT_STORAGE_QUALIFIER = 4,
-			EXTERN_STORAGE_QUALIFIER = 8,
-			STATIC_STORAGE_QUALIFIER = 16,
-			REGISTER_STORAGE_QUALIFIER = 32
-		};
-
-		enum {
-			NO_INT_QUALIFIER = 0,
-			LONG_INT_QUALIFIER = 1,
-			SIGNED_INT_QUALIFIER = 4,
-			UNSIGNED_INT_QUALIFIER = 8
-		};
-
-		enum int_class {
-			CHAR_INT_CLASS,
-			SHORT_INT_CLASS,
-			INT_INT_CLASS,
-			LONG_INT_CLASS
-		};
-
-		enum float_class {
-			FLOAT_FLOAT_CLASS,
-			DOUBLE_FLOAT_CLASS
-		};
-
-        class void_type;
-        class int_type;
-        class float_type;
-        class pointer_type;
-        class array_type;
-        class function_pointer_type;
+        class type_specifier;
+        class qualified_type;
+        class derived_type;
+        class function_type;
         class context_block;
         class for_loop;
         class do_block;
@@ -83,13 +53,11 @@ namespace michaelcc {
         public:
             virtual ~visitor() = default;
 
-            // Types
-            virtual void visit(const void_type& node) { }
-            virtual void visit(const int_type& node) { }
-            virtual void visit(const float_type& node) { }
-            virtual void visit(const pointer_type& node) { }
-            virtual void visit(const array_type& node) { }
-            virtual void visit(const function_pointer_type& node) { }
+            // Type AST nodes
+            virtual void visit(const type_specifier& node) { }
+            virtual void visit(const qualified_type& node) { }
+            virtual void visit(const derived_type& node) { }
+            virtual void visit(const function_type& node) { }
 
             // Statements
             virtual void visit(const context_block& node) { }
@@ -150,136 +118,145 @@ namespace michaelcc {
 			virtual std::unique_ptr<ast_element> clone() const = 0;
 		};
 
-		class void_type : public ast_element {
-		public:
-			void_type(source_location&& location)
-				: ast_element(std::move(location)) { }
+        class type_specifier final : public ast_element {
+        private:
+            std::vector<token_type> m_type_keywords;
 
-			std::unique_ptr<ast_element> clone() const override {
-				return std::make_unique<void_type>(source_location(location()));
-			}
+        public:
+            explicit type_specifier(std::vector<token_type>&& type_keywords, source_location&& location)
+                : ast_element(std::move(location)), m_type_keywords(std::move(type_keywords)) {}
 
-			void accept(visitor& v) const override {
-				v.visit(*this);
-			}
-		};
+            const std::vector<token_type>& type_keywords() const noexcept { return m_type_keywords; }
 
-		class int_type : public ast_element {
-		private:
-			uint8_t m_qualifiers;
-			int_class m_class;
-		public:
-			int_type(uint8_t qualifiers, int_class m_class, source_location&& location)
-				: ast_element(std::move(location)),
-				m_qualifiers(qualifiers), m_class(m_class) { }
+            std::unique_ptr<ast_element> clone() const override {
+                return std::make_unique<type_specifier>(std::vector<token_type>(m_type_keywords), source_location(location()));
+            }
 
-			uint8_t qualifiers() const noexcept { return m_qualifiers; }
-			int_class type_class() const noexcept { return m_class; }
+            void accept(visitor& v) const override { v.visit(*this); }
+        };
 
-			std::unique_ptr<ast_element> clone() const override {
-				return std::make_unique<int_type>(m_qualifiers, m_class, source_location(location()));
-			}
+        class qualified_type final : public ast_element {
+        private:
+            uint8_t m_qualifiers;
+            std::unique_ptr<ast_element> m_inner_type;
 
-			void accept(visitor& v) const override {
-				v.visit(*this);
-			}
-		};
+        public:
+            qualified_type(uint8_t qualifiers, std::unique_ptr<ast_element>&& inner_type, source_location&& location)
+                : ast_element(std::move(location)), m_qualifiers(qualifiers), m_inner_type(std::move(inner_type)) {}
 
-		class float_type : public ast_element {
-		private:
-			float_class m_class;
+            uint8_t qualifiers() const noexcept { return m_qualifiers; }
+            const ast_element* inner_type() const noexcept { return m_inner_type.get(); }
+            bool is_const() const noexcept { return m_qualifiers & typing::CONST_TYPE_QUALIFIER; }
+            bool is_volatile() const noexcept { return m_qualifiers & typing::VOLATILE_TYPE_QUALIFIER; }
+            bool is_restrict() const noexcept { return m_qualifiers & typing::RESTRICT_TYPE_QUALIFIER; }
 
-		public:
-			explicit float_type(float_class m_class, source_location&& location)
-				: ast_element(std::move(location)),
-				m_class(m_class) { }
+            std::unique_ptr<ast_element> clone() const override {
+                return std::make_unique<qualified_type>(m_qualifiers, m_inner_type->clone(), source_location(location()));
+            }
 
-			float_class type_class() const noexcept { return m_class; }
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_inner_type->accept(v);
+            }
+        };
 
-			std::unique_ptr<ast_element> clone() const override {
-				return std::make_unique<float_type>(m_class, source_location(location()));
-			}
+        class derived_type final : public ast_element {
+        public:
+            enum class kind { POINTER, ARRAY };
 
-			void accept(visitor& v) const override {
-				v.visit(*this);
-			}
-		};
+        private:
+            kind m_kind;
+            std::unique_ptr<ast_element> m_inner_type;
+            std::optional<std::unique_ptr<ast_element>> m_array_size;
 
-		class pointer_type : public ast_element {
-		private:
-			std::unique_ptr<ast_element> m_pointee_type;
+        public:
+            explicit derived_type(std::unique_ptr<ast_element>&& inner_type, source_location&& location)
+                : ast_element(std::move(location)), m_kind(kind::POINTER), 
+                  m_inner_type(std::move(inner_type)), m_array_size(std::nullopt) {}
 
-		public:
-			pointer_type(std::unique_ptr<ast_element>&& pointee_type, source_location&& location)
-				: ast_element(std::move(location)),
-				m_pointee_type(std::move(pointee_type)) { }
+            derived_type(std::unique_ptr<ast_element>&& inner_type, 
+                        std::optional<std::unique_ptr<ast_element>>&& array_size,
+                        source_location&& location)
+                : ast_element(std::move(location)), m_kind(kind::ARRAY),
+                  m_inner_type(std::move(inner_type)), m_array_size(std::move(array_size)) {}
 
-			const ast_element* pointee_type() const noexcept { return m_pointee_type.get(); }
+            kind type_kind() const noexcept { return m_kind; }
+            bool is_pointer() const noexcept { return m_kind == kind::POINTER; }
+            bool is_array() const noexcept { return m_kind == kind::ARRAY; }
+            const ast_element* inner_type() const noexcept { return m_inner_type.get(); }
+            const ast_element* array_size() const noexcept { 
+                return m_array_size.has_value() ? m_array_size.value().get() : nullptr; 
+            }
 
-			std::unique_ptr<ast_element> clone() const override {
-				return std::make_unique<pointer_type>(m_pointee_type->clone(), source_location(location()));
-			}
+            std::unique_ptr<ast_element> clone() const override {
+                if (m_kind == kind::POINTER) {
+                    return std::make_unique<derived_type>(m_inner_type->clone(), source_location(location()));
+                }
+                return std::make_unique<derived_type>(
+                    m_inner_type->clone(),
+                    m_array_size.has_value() ? std::make_optional(m_array_size.value()->clone()) : std::nullopt,
+                    source_location(location())
+                );
+            }
 
-			void accept(visitor& v) const override {
-				v.visit(*this);
-				m_pointee_type->accept(v);
-			}
-		};
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_inner_type->accept(v);
+                if (m_array_size.has_value()) {
+                    m_array_size.value()->accept(v);
+                }
+            }
+        };
 
-		// Array type, e.g. int[10], float[]
-		class array_type : public ast_element {
-		private:
-			std::unique_ptr<ast_element> m_element_type;
-			std::optional<std::unique_ptr<ast_element>> m_length;
+        class function_type final : public ast_element {
+        public:
+            struct parameter {
+                std::unique_ptr<ast_element> param_type;
+                std::optional<std::string> param_name;
 
-		public:
-			array_type(std::unique_ptr<ast_element>&& element_type, std::optional<std::unique_ptr<ast_element>>&& length, source_location&& location)
-				: ast_element(std::move(location)),
-				m_element_type(std::move(element_type)), m_length(std::move(length)) {}
+                parameter(std::unique_ptr<ast_element>&& type, std::optional<std::string>&& name = std::nullopt)
+                    : param_type(std::move(type)), param_name(std::move(name)) {}
+            };
 
-			const ast_element* element_type() const noexcept { return m_element_type.get(); }
-			const std::optional<std::unique_ptr<ast_element>>& length() const noexcept { return m_length; }
+        private:
+            std::unique_ptr<ast_element> m_return_type;
+            std::vector<parameter> m_parameters;
+            bool m_is_variadic;
 
-			std::unique_ptr<ast_element> clone() const override {
-				return std::make_unique<array_type>(m_element_type->clone(), m_length.has_value() ? std::make_optional(m_length.value()->clone()) : std::nullopt, source_location(location()));
-			}
+        public:
+            function_type(std::unique_ptr<ast_element>&& return_type,
+                         std::vector<parameter>&& parameters,
+                         bool is_variadic,
+                         source_location&& location)
+                : ast_element(std::move(location)), m_return_type(std::move(return_type)),
+                  m_parameters(std::move(parameters)), m_is_variadic(is_variadic) {}
 
-			void accept(visitor& v) const override {
-				v.visit(*this);
-				m_element_type->accept(v);
-				if (m_length.has_value()) {
-					m_length.value()->accept(v);
-				}
-			}
-		};
+            const ast_element* return_type() const noexcept { return m_return_type.get(); }
+            const std::vector<parameter>& parameters() const noexcept { return m_parameters; }
+            bool is_variadic() const noexcept { return m_is_variadic; }
 
-		class function_pointer_type : public ast_element {
-		private:
-			std::unique_ptr<ast_element> m_return_type;
-			std::vector<std::unique_ptr<ast_element>> m_parameter_types;
-		public:
-			function_pointer_type(std::unique_ptr<ast_element>&& return_type, std::vector<std::unique_ptr<ast_element>>&& parameter_types, source_location&& location)
-				: ast_element(std::move(location)), m_return_type(std::move(return_type)), m_parameter_types(std::move(parameter_types)) {}
-			const ast_element* return_type() const noexcept { return m_return_type.get(); }
-			const std::vector<std::unique_ptr<ast_element>>& parameter_types() const noexcept { return m_parameter_types; }
+            std::unique_ptr<ast_element> clone() const override {
+                std::vector<parameter> cloned_params;
+                cloned_params.reserve(m_parameters.size());
+                for (const auto& p : m_parameters) {
+                    cloned_params.emplace_back(
+                        p.param_type->clone(),
+                        p.param_name.has_value() ? std::make_optional(std::string(p.param_name.value())) : std::nullopt
+                    );
+                }
+                return std::make_unique<function_type>(
+                    m_return_type->clone(), std::move(cloned_params), m_is_variadic, source_location(location())
+                );
+            }
 
-			std::unique_ptr<ast_element> clone() const override {
-				std::vector<std::unique_ptr<ast_element>> parameter_types;
-				parameter_types.reserve(m_parameter_types.size());
-				for (const auto& parameter : m_parameter_types) {
-					parameter_types.push_back(parameter->clone());
-				}
-				return std::make_unique<function_pointer_type>(m_return_type->clone(), std::move(parameter_types), source_location(location()));
-			}
-
-			void accept(visitor& v) const override {
-				v.visit(*this);
-				m_return_type->accept(v);
-				for (const auto& paramater : m_parameter_types) {
-					paramater->accept(v);
-				}
-			}
-		};
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_return_type->accept(v);
+                for (const auto& param : m_parameters) {
+                    param.param_type->accept(v);
+                }
+            }
+        };
 
 		class context_block : public ast_element {
 		private:
@@ -563,29 +540,19 @@ namespace michaelcc {
 
         class int_literal final : public ast_element {
         private:
-            uint8_t m_qualifiers;
-            int_class m_class;
-            size_t m_value;
+            int64_t m_value;
 
         public:
-            explicit int_literal(uint8_t qualifiers, int_class i_class, size_t value, source_location&& location)
-                : ast_element(std::move(location)),
-                m_qualifiers(qualifiers),
-                m_class(i_class),
-                m_value(value) {}
+            explicit int_literal(int64_t value, source_location&& location)
+                : ast_element(std::move(location)), m_value(value) {}
 
-            uint8_t qualifiers() const noexcept { return m_qualifiers; }
-            int_class storage_class() const noexcept { return m_class; }
-            size_t unsigned_value() const noexcept { return m_value; }
-            int64_t signed_value() const noexcept { return static_cast<int64_t>(m_value); }
+            int64_t value() const noexcept { return m_value; }
 
             std::unique_ptr<ast_element> clone() const override {
-                return std::make_unique<int_literal>(m_qualifiers, m_class, m_value, source_location(location()));
+                return std::make_unique<int_literal>(m_value, source_location(location()));
             }
 
-            void accept(visitor& v) const override {
-                v.visit(*this);
-            }
+            void accept(visitor& v) const override { v.visit(*this); }
         };
 
         class float_literal final : public ast_element {

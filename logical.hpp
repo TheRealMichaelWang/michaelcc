@@ -7,13 +7,15 @@
 #include <cstdint>
 #include <unordered_map>
 #include "tokens.hpp"
+#include "symbols.hpp"
 
 namespace michaelcc {
 	namespace logical_ir {
 		class type;
 		class expression;
 		class statement;
-		class symbol;
+		class variable;
+		class function_definition;
 		class type_context;
 		class control_block;
 
@@ -64,53 +66,6 @@ namespace michaelcc {
 
 			const type* element() const noexcept { return m_element; }
 			size_t length() const noexcept { return m_length; }
-		};
-
-		class struct_type final : public type {
-		public:
-			struct field {
-				std::string name;
-				type* field_type;
-				size_t offset;
-			};
-		private:
-			std::string m_name;
-			std::vector<field> m_fields;
-			size_t m_size;
-			size_t m_align;
-        
-            friend class type_context;
-		public:
-			struct_type(std::string&& name, std::vector<field>&& fields, size_t size, size_t align)
-				: m_name(std::move(name)), m_fields(std::move(fields)), m_size(size), m_align(align) {}
-
-			const std::string& name() const noexcept { return m_name; }
-			const std::vector<field>& fields() const noexcept { return m_fields; }
-			size_t size() const noexcept { return m_size; }
-			size_t align() const noexcept { return m_align; }
-		};
-
-		class union_type final : public type {
-		public:
-			struct member {
-				std::string name;
-				type* member_type;
-			};
-		private:
-			std::string m_name;
-			std::vector<member> m_members;
-			size_t m_size;
-			size_t m_align;
-
-            friend class type_context;
-		public:
-			union_type(std::string&& name, std::vector<member>&& members, size_t size, size_t align)
-				: m_name(std::move(name)), m_members(std::move(members)), m_size(size), m_align(align) {}
-
-			const std::string& name() const noexcept { return m_name; }
-			const std::vector<member>& members() const noexcept { return m_members; }
-			size_t size() const noexcept { return m_size; }
-			size_t align() const noexcept { return m_align; }
 		};
 
 		class enum_type final : public type {
@@ -270,40 +225,36 @@ namespace michaelcc {
             }
 		};
 
-		class symbol {
-		public:
-			enum class kind { LOCAL, GLOBAL, PARAMETER };
+		class variable final : public symbol {
 		private:
-			std::string m_name;
 			const type* m_type;
-            control_block* m_context;
-			kind m_kind;
+			control_block* m_context;
+			bool m_is_global;
 		public:
-			symbol(std::string&& name, const type* symbol_type, kind k, control_block* context)
-				: m_name(std::move(name)), m_type(symbol_type), m_kind(k), m_context(context) {}
+			variable(std::string&& name, const type* var_type, bool is_global, control_block* context = nullptr)
+				: symbol(std::move(name)), m_type(var_type), m_is_global(is_global), m_context(context) {}
 
-			const std::string& name() const noexcept { return m_name; }
 			const type* get_type() const noexcept { return m_type; }
 			control_block* get_context() const noexcept { return m_context; }
-			kind get_kind() const noexcept { return m_kind; }
+			bool is_global() const noexcept { return m_is_global; }
 		};
 
 		class expression {
 		public:
 			virtual ~expression() = default;
-			virtual const type* get_type(const type_context& ctx) const = 0;
+			virtual const std::unique_ptr<type>& get_type(const type_context& ctx) const = 0;
 		};
 
 		class integer_constant final : public expression {
 		private:
 			uint64_t m_value;
-			const integer_type* m_type;
+			std::unique_ptr<integer_type> m_type;
 		public:
-			integer_constant(uint64_t value, const integer_type* int_type)
-				: m_value(value), m_type(int_type) {}
+			integer_constant(uint64_t value, std::unique_ptr<integer_type>&& int_type)
+				: m_value(value), m_type(std::move(int_type)) {}
 
 			uint64_t value() const noexcept { return m_value; }
-			const type* get_type(const type_context&) const override { return m_type; }
+			const std::unique_ptr<type>& get_type(const type_context& ctx) const override { return m_type; }
 		};
 
 		class floating_constant final : public expression {
@@ -330,12 +281,16 @@ namespace michaelcc {
 
 		class variable_reference final : public expression {
 		private:
-			symbol* m_symbol;
+			variable* m_variable;
 		public:
-			explicit variable_reference(symbol* sym) : m_symbol(sym) {}
+			explicit variable_reference(variable* var) : m_variable(var) {}
 
-			symbol* get_symbol() const noexcept { return m_symbol; }
-			const type* get_type(const type_context&) const override { return m_symbol->get_type(); }
+			variable* get_variable() const noexcept { return m_variable; }
+			bool is_global() const noexcept { return m_variable->is_global(); }
+
+			const type* get_type(const type_context&) const override {
+				return m_variable->get_type();
+			}
 		};
 
 		class binary_operation final : public expression {
@@ -364,18 +319,15 @@ namespace michaelcc {
 		private:
 			token_type m_operator;
 			std::unique_ptr<expression> m_operand;
-			const type* m_result_type;
 		public:
 			unary_operation(token_type op,
-				std::unique_ptr<expression>&& operand,
-				const type* result_type)
+				std::unique_ptr<expression>&& operand)
 				: m_operator(op),
-				m_operand(std::move(operand)),
-				m_result_type(result_type) {}
+				m_operand(std::move(operand)) { }
 
 			token_type get_operator() const noexcept { return m_operator; }
 			const expression* operand() const noexcept { return m_operand.get(); }
-			const type* get_type(const type_context&) const override { return m_result_type; }
+			const type* get_type(const type_context& ctx) const override { return operand()->get_type(ctx); }
 		};
 
 		class type_cast final : public expression {
@@ -393,13 +345,15 @@ namespace michaelcc {
 		class address_of final : public expression {
 		private:
 			std::unique_ptr<expression> m_operand;
-			const pointer_type* m_result_type;
 		public:
-			address_of(std::unique_ptr<expression>&& operand, const pointer_type* result_type)
-				: m_operand(std::move(operand)), m_result_type(result_type) {}
+			address_of(std::unique_ptr<expression>&& operand)
+				: m_operand(std::move(operand)) {}
 
 			const expression* operand() const noexcept { return m_operand.get(); }
-			const type* get_type(const type_context&) const override { return m_result_type; }
+
+			const type* get_type(const type_context& ctx) const override { 
+                return ctx.get_pointer(operand()->get_type(ctx)); 
+            }
 		};
 
 		class dereference final : public expression {
@@ -504,18 +458,26 @@ namespace michaelcc {
 			virtual ~statement() = default;
 		};
 
-        class control_block final {
-        private:
-            std::vector<std::unique_ptr<statement>> m_statements;
-            std::vector<symbol*> m_symbols;
+		class control_block final {
+		private:
+			std::vector<std::unique_ptr<statement>> m_statements;
+			std::vector<std::unique_ptr<symbol>> m_locals;
 
-        public:
-            control_block(std::vector<std::unique_ptr<statement>>&& statements, std::vector<symbol*>&& symbols)
-                : m_statements(std::move(statements)), m_symbols(std::move(symbols)) {}
+		public:
+			control_block() = default;
+			control_block(std::vector<std::unique_ptr<statement>>&& statements, std::vector<std::unique_ptr<symbol>>&& locals)
+				: m_statements(std::move(statements)), m_locals(std::move(locals)) {}
 
-            const std::vector<std::unique_ptr<statement>>& statements() const noexcept { return m_statements; }
-            const std::vector<symbol*>& symbols() const noexcept { return m_symbols; }
-        };
+			const std::vector<std::unique_ptr<statement>>& statements() const noexcept { return m_statements; }
+			const std::vector<std::unique_ptr<symbol>>& locals() const noexcept { return m_locals; }
+
+            void implement_statements(std::vector<std::unique_ptr<statement>>&& statements) {
+                if (!m_statements.empty()) {
+                    throw std::runtime_error("Control block already implemented");
+                }
+                m_statements = std::move(statements);
+            }
+		};
 
 		class expression_statement final : public statement {
 		private:
@@ -542,13 +504,13 @@ namespace michaelcc {
 
 		class local_declaration final : public statement {
 		private:
-			symbol* m_symbol;
+			variable* m_variable;
 			std::unique_ptr<expression> m_initializer;
 		public:
-			local_declaration(symbol* sym, std::unique_ptr<expression>&& initializer = nullptr)
-				: m_symbol(sym), m_initializer(std::move(initializer)) {}
+			local_declaration(variable* var, std::unique_ptr<expression>&& initializer = nullptr)
+				: m_variable(var), m_initializer(std::move(initializer)) {}
 
-			symbol* get_symbol() const noexcept { return m_symbol; }
+			variable* get_variable() const noexcept { return m_variable; }
 			const expression* initializer() const noexcept { return m_initializer.get(); }
 		};
 
@@ -601,50 +563,58 @@ namespace michaelcc {
 		class break_statement final : public statement {};
 		class continue_statement final : public statement {};
 
-		class function_definition {
+		class function_definition final : public symbol {
 		private:
-			symbol* m_symbol;
-			std::vector<symbol*> m_parameters;
+			std::vector<variable*> m_parameters;
 			control_block m_body;
 		public:
-			function_definition(symbol* sym,
-				std::vector<symbol*>&& parameters,
+			explicit function_definition(std::string&& name)
+				: symbol(std::move(name)), m_body() {}
+
+			function_definition(std::string&& name,
+				std::vector<variable*>&& parameters,
 				control_block&& body)
-				: m_symbol(sym),
+				: symbol(std::move(name)),
 				m_parameters(std::move(parameters)),
 				m_body(std::move(body)) {}
 
-			symbol* get_symbol() const noexcept { return m_symbol; }
-			const std::vector<symbol*>& parameters() const noexcept { return m_parameters; }
-			const control_block& body() const noexcept { return m_body; }
-		};
+			const std::vector<variable*>& parameters() const noexcept { return m_parameters; }
+			const control_block& body() const { return *m_body; }
+			bool is_defined() const noexcept { return m_body.has_value(); }
 
-		class global_variable {
-		private:
-			symbol* m_symbol;
-			std::unique_ptr<expression> m_initializer;
-		public:
-			global_variable(symbol* sym, std::unique_ptr<expression>&& initializer = nullptr)
-				: m_symbol(sym), m_initializer(std::move(initializer)) {}
-
-			symbol* get_symbol() const noexcept { return m_symbol; }
-			const expression* initializer() const noexcept { return m_initializer.get(); }
+			void define(std::vector<variable*>&& parameters, control_block&& body) {
+				m_parameters = std::move(parameters);
+				m_body = std::move(body);
+			}
 		};
 
 		class translation_unit {
 		private:
 			type_context m_types;
 			std::vector<std::unique_ptr<symbol>> m_symbols;
-			std::vector<std::unique_ptr<function_definition>> m_functions;
-			std::vector<std::unique_ptr<global_variable>> m_globals;
-            std::vector<std::string> m_strings;
+			std::unordered_map<std::string, symbol*> m_symbol_table;
+			std::vector<std::string> m_strings;
 		public:
 			type_context& types() noexcept { return m_types; }
 			const type_context& types() const noexcept { return m_types; }
 
-			symbol* add_symbol(std::string&& name, const type* symbol_type, symbol::kind k, control_block* context = nullptr) {
-				m_symbols.push_back(std::make_unique<symbol>(std::move(name), symbol_type, k, context));
-				return m_symbols.back().get();
+			symbol* lookup(const std::string& name) const {
+				auto it = m_symbol_table.find(name);
+				return it != m_symbol_table.end() ? it->second : nullptr;
+			}
+
+			function_definition* add_function(std::unique_ptr<function_definition>&& fn) {
+				auto* ptr = fn.get();
+				m_symbol_table[ptr->name()] = ptr;
+				m_symbols.push_back(std::move(fn));
+				return ptr;
+			}
+
+			variable* add_global(std::unique_ptr<variable>&& var) {
+				auto* ptr = var.get();
+				m_symbol_table[ptr->name()] = ptr;
+				m_symbols.push_back(std::move(var));
+				return ptr;
 			}
 
 			size_t add_string(std::string&& str) {
@@ -652,16 +622,10 @@ namespace michaelcc {
 				return m_strings.size() - 1;
 			}
 
-			void add_function(std::unique_ptr<function_definition>&& function) {
-				m_functions.push_back(std::move(function));
-			}
+			const std::string& get_string(size_t index) const { return m_strings[index]; }
+			const std::vector<std::string>& strings() const noexcept { return m_strings; }
 
-			void add_global(std::unique_ptr<global_variable>&& global) {
-				m_globals.push_back(std::move(global));
-			}
-
-			const std::vector<std::unique_ptr<function_definition>>& functions() const noexcept { return m_functions; }
-			const std::vector<std::unique_ptr<global_variable>>& globals() const noexcept { return m_globals; }
+			const std::vector<std::unique_ptr<symbol>>& symbols() const noexcept { return m_symbols; }
 		};
 	}
 }
