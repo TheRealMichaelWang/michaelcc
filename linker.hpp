@@ -27,16 +27,27 @@ namespace michaelcc {
             void visit(const ast::enum_declaration& node) override;
         };
 
-        class type_link_pass final : public ast::visitor {
+        class type_implement_pass final : public ast::visitor {
         private:
             linker& m_linker;
 
         public:
-            type_link_pass(linker& linker) : m_linker(linker) { }
+            type_implement_pass(linker& linker) : m_linker(linker) { }
 
             void visit(const ast::struct_declaration& node) override;
 
             void visit(const ast::union_declaration& node) override;
+        };
+
+        class function_declare_pass final : public ast::visitor {
+        private:
+            linker& m_linker;
+        public:
+            function_declare_pass(linker& linker) : m_linker(linker) { }
+
+            void visit(const ast::function_declaration& node) override;
+
+            void visit(const ast::function_prototype& node) override;
         };
 
         logical_ir::type* resolve_type(const ast::ast_element& type);
