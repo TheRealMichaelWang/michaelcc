@@ -70,7 +70,7 @@ namespace michaelcc {
 		public:
 			struct field {
 				std::string name;
-				const type* field_type;
+				type* field_type;
 				size_t offset;
 			};
 		private:
@@ -78,6 +78,8 @@ namespace michaelcc {
 			std::vector<field> m_fields;
 			size_t m_size;
 			size_t m_align;
+        
+            friend class type_context;
 		public:
 			struct_type(std::string&& name, std::vector<field>&& fields, size_t size, size_t align)
 				: m_name(std::move(name)), m_fields(std::move(fields)), m_size(size), m_align(align) {}
@@ -92,13 +94,15 @@ namespace michaelcc {
 		public:
 			struct member {
 				std::string name;
-				const type* member_type;
+				type* member_type;
 			};
 		private:
 			std::string m_name;
 			std::vector<member> m_members;
 			size_t m_size;
 			size_t m_align;
+
+            friend class type_context;
 		public:
 			union_type(std::string&& name, std::vector<member>&& members, size_t size, size_t align)
 				: m_name(std::move(name)), m_members(std::move(members)), m_size(size), m_align(align) {}
@@ -145,9 +149,9 @@ namespace michaelcc {
 		class type_context {
 		private:
 			std::vector<std::unique_ptr<type>> m_types;
-			std::unordered_map<std::string, const struct_type*> m_structs;
-			std::unordered_map<std::string, const union_type*> m_unions;
-			std::unordered_map<std::string, const enum_type*> m_enums;
+			std::unordered_map<std::string, struct_type*> m_structs;
+			std::unordered_map<std::string, union_type*> m_unions;
+			std::unordered_map<std::string, enum_type*> m_enums;
 
 			void_type* m_void;
 			integer_type* m_i8;
@@ -169,7 +173,6 @@ namespace michaelcc {
 				m_types.push_back(std::move(ptr));
 				return raw;
 			}
-
 		public:
 			type_context() {
 				m_void = make<void_type>();
@@ -243,6 +246,28 @@ namespace michaelcc {
 				auto it = m_enums.find(name);
 				return it != m_enums.end() ? it->second : nullptr;
 			}
+
+            void implement_struct_field_types(std::string&& name, const std::vector<type*>& field_types) {
+                auto it = m_structs.find(name);
+                if (it == m_structs.end()) {
+                    throw std::runtime_error("Struct not found: " + name);
+                }
+
+                for (size_t i = 0; i < it->second->fields().size(); i++) {
+                    it->second->m_fields[i].field_type = field_types[i];
+                }
+            }
+
+            void implement_union_member_types(std::string&& name, const std::vector<type*>& member_types) {
+                auto it = m_unions.find(name);
+                if (it == m_unions.end()) {
+                    throw std::runtime_error("Union not found: " + name);
+                }
+
+                for (size_t i = 0; i < it->second->m_members.size(); i++) {
+                    it->second->m_members[i].member_type = member_types[i];
+                }
+            }
 		};
 
 		class symbol {
