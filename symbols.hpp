@@ -7,31 +7,53 @@
 
 namespace michaelcc {
     namespace logical_ir {
+        class symbol;
+        class symbol_context;
+
         class symbol {
         protected:
             std::string m_name;
+            std::weak_ptr<symbol_context> m_context;
+
         public:
-            explicit symbol(std::string&& name) : m_name(std::move(name)) {}
+            explicit symbol(std::string&& name, std::weak_ptr<symbol_context>&& context) : m_name(std::move(name)), m_context(std::move(context)) {}
             virtual ~symbol() = default;
 
             const std::string& name() const noexcept { return m_name; }
+
+            virtual std::string to_string() const noexcept = 0;
         };
 
         class symbol_context {
         private:
-            std::unordered_map<std::string, std::unique_ptr<symbol>> m_symbol_table;
+            std::unordered_map<std::string, std::shared_ptr<symbol>> m_symbol_table;
+            std::vector<std::shared_ptr<symbol>> m_symbols;
+
+            std::vector<std::shared_ptr<symbol_context>> m_nested_contexts;
+            std::weak_ptr<symbol_context> m_parent_context;
 
         public:
-            explicit symbol_context() = default;
+            explicit symbol_context(std::weak_ptr<symbol_context>&& parent_context) : m_parent_context(std::move(parent_context)) {}
 
-            symbol* lookup(const std::string& name) const {
+            std::shared_ptr<symbol> lookup(const std::string& name) const {
                 auto it = m_symbol_table.find(name);
-                return it != m_symbol_table.end() ? it->second.get() : nullptr;
+                
+                if (it != m_symbol_table.end()) {
+                    return it->second;
+                }
+
+                if (auto shared_parent = m_parent_context.lock()) {
+                    return shared_parent->lookup(name);
+                }
+                return nullptr;
             }
 
-            void add(std::unique_ptr<symbol>&& sym) {
-                m_symbol_table[sym->name()] = std::move(sym);
+            void add(std::shared_ptr<symbol>&& sym) noexcept {
+                m_symbol_table[sym->name()] = sym;
+                m_symbols.emplace_back(std::move(sym));
             }
+
+            const std::vector<std::shared_ptr<symbol>>& symbols() const noexcept { return m_symbols; }
         };
     }
 }
