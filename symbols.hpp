@@ -25,7 +25,7 @@ namespace michaelcc {
             virtual std::string to_string() const noexcept = 0;
 
             void set_context(std::weak_ptr<symbol_context>&& context) { 
-                if (auto shared_context = context.lock()) {
+                if (auto existing = m_context.lock()) {
                     throw std::runtime_error("Context already set");
                 }
                 m_context = std::move(context); 

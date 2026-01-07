@@ -208,6 +208,9 @@ namespace michaelcc {
                 }
 
                 const function_pointer_type& other_fptr = static_cast<const function_pointer_type&>(other);
+                if (m_parameter_types.size() != other_fptr.parameter_types().size()) {
+                    return false;
+                }
                 for (size_t i = 0; i < m_parameter_types.size(); i++) {
                     if (!other_fptr.parameter_types()[i]->is_assignable_from(*m_parameter_types[i])) {
                         return false;
@@ -289,8 +292,8 @@ namespace michaelcc {
             std::unique_ptr<type> clone() const override {
                 std::vector<field> fields;
                 fields.reserve(m_fields.size());
-                for (const auto& field : m_fields) {
-                    fields.emplace_back(field.name, field.field_type->clone());
+                for (const auto& f : m_fields) {
+                    fields.emplace_back(f.name, f.field_type ? f.field_type->clone() : nullptr);
                 }
                 return std::make_unique<struct_type>(
                     m_name.has_value() ? std::make_optional(std::string(m_name.value())) : std::nullopt, 
@@ -332,7 +335,7 @@ namespace michaelcc {
             }
 
             bool implement_field_types(std::vector<std::unique_ptr<type>>&& field_types) {
-                if (!implemented() || field_types.size() != m_fields.size()) {
+                if (implemented() || field_types.size() != m_fields.size()) {
                     return false;
                 }
 
@@ -378,8 +381,8 @@ namespace michaelcc {
             std::unique_ptr<type> clone() const override {
                 std::vector<member> members;
                 members.reserve(m_members.size());
-                for (const auto& member : m_members) {
-                    members.emplace_back(member.name, member.member_type->clone());
+                for (const auto& m : m_members) {
+                    members.emplace_back(m.name, m.member_type ? m.member_type->clone() : nullptr);
                 }
                 return std::make_unique<union_type>(
                     m_name.has_value() ? std::make_optional(std::string(m_name.value())) : std::nullopt,
@@ -429,7 +432,7 @@ namespace michaelcc {
             }
 
             bool implement_member_types(std::vector<std::unique_ptr<type>>&& member_types) {
-                if (!implemented() || member_types.size() != m_members.size()) {
+                if (implemented() || member_types.size() != m_members.size()) {
                     return false;
                 }
 
