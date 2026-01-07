@@ -341,7 +341,7 @@ public:
     void visit(const int_literal& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
-        m_out << node.unsigned_value();
+        m_out << node.value();
     }
 
     void visit(const float_literal& node) override {
@@ -504,14 +504,14 @@ public:
         if (node.struct_name().has_value()) {
             m_out << " " << node.struct_name().value();
         }
-        if (node.members().empty()) {
+        if (node.feilds().empty()) {
             return;
         }
         m_out << " {\n";
         m_indent++;
-        for (const auto& member : node.members()) {
+        for (const auto& field : node.feilds()) {
             m_out << indent_str();
-            print(&member);
+            print(&field);
             m_out << ";\n";
         }
         m_indent--;
