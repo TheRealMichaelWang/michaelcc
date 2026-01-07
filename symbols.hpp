@@ -4,6 +4,7 @@
 #include <string>
 #include <unordered_map>
 #include <memory>
+#include <stdexcept>
 
 namespace michaelcc {
     namespace logical_ir {
@@ -22,6 +23,13 @@ namespace michaelcc {
             const std::string& name() const noexcept { return m_name; }
 
             virtual std::string to_string() const noexcept = 0;
+
+            void set_context(std::weak_ptr<symbol_context>&& context) { 
+                if (auto shared_context = context.lock()) {
+                    throw std::runtime_error("Context already set");
+                }
+                m_context = std::move(context); 
+            }
         };
 
         class symbol_context {
@@ -48,9 +56,14 @@ namespace michaelcc {
                 return nullptr;
             }
 
-            void add(std::shared_ptr<symbol>&& sym) noexcept {
+            bool add(std::shared_ptr<symbol>&& sym) noexcept {
+                if (m_symbol_table.contains(sym->name())) {
+                    return false;
+                }
+
                 m_symbol_table[sym->name()] = sym;
                 m_symbols.emplace_back(std::move(sym));
+                return true;
             }
 
             const std::vector<std::shared_ptr<symbol>>& symbols() const noexcept { return m_symbols; }
