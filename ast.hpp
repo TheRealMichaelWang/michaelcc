@@ -1,7 +1,6 @@
 #ifndef MICHAELCC_AST_HPP
 #define MICHAELCC_AST_HPP
 
-#include <map>
 #include <memory>
 #include <vector>
 #include <optional>
@@ -11,6 +10,7 @@
 #include "tokens.hpp"
 #include "errors.hpp"
 #include "typing.hpp"
+#include "utils.hpp"
 
 namespace michaelcc {
 	namespace ast {
@@ -49,54 +49,44 @@ namespace michaelcc {
         class function_prototype;
         class function_declaration;
 
-        class visitor {
-        public:
-            virtual ~visitor() = default;
+        using visitor = generic_visitor<
+            type_specifier,
+            qualified_type,
+            derived_type,
+            function_type,
+            context_block,
+            for_loop,
+            do_block,
+            while_block,
+            if_block,
+            if_else_block,
+            return_statement,
+            break_statement,
+            continue_statement,
+            int_literal,
+            float_literal,
+            double_literal,
+            string_literal,
+            variable_reference,
+            get_index,
+            get_property,
+            set_operator,
+            dereference_operator,
+            get_reference,
+            arithmetic_operator,
+            conditional_expression,
+            function_call,
+            initializer_list_expression,
+            variable_declaration,
+            typedef_declaration,
+            struct_declaration,
+            enum_declaration,
+            union_declaration,
+            function_prototype,
+            function_declaration
+        >;
 
-            // Type AST nodes
-            virtual void visit(const type_specifier& node) { }
-            virtual void visit(const qualified_type& node) { }
-            virtual void visit(const derived_type& node) { }
-            virtual void visit(const function_type& node) { }
-
-            // Statements
-            virtual void visit(const context_block& node) { }
-            virtual void visit(const for_loop& node) { }
-            virtual void visit(const do_block& node) { }
-            virtual void visit(const while_block& node) { }
-            virtual void visit(const if_block& node) { }
-            virtual void visit(const if_else_block& node) { }
-            virtual void visit(const return_statement& node) { }
-            virtual void visit(const break_statement& node) { }
-            virtual void visit(const continue_statement& node) { }
-
-            // Expressions
-            virtual void visit(const int_literal& node) { }
-            virtual void visit(const float_literal& node) { }
-            virtual void visit(const double_literal& node) { }
-            virtual void visit(const string_literal& node) { }
-            virtual void visit(const variable_reference& node) { }
-            virtual void visit(const get_index& node) { }
-            virtual void visit(const get_property& node) { }
-            virtual void visit(const set_operator& node) { }
-            virtual void visit(const dereference_operator& node) { }
-            virtual void visit(const get_reference& node) { }
-            virtual void visit(const arithmetic_operator& node) { }
-            virtual void visit(const conditional_expression& node) { }
-            virtual void visit(const function_call& node) { }
-            virtual void visit(const initializer_list_expression& node) { }
-
-            // Top-level elements
-            virtual void visit(const variable_declaration& node) { }
-            virtual void visit(const typedef_declaration& node) { }
-            virtual void visit(const struct_declaration& node) { }
-            virtual void visit(const enum_declaration& node) { }
-            virtual void visit(const union_declaration& node) { }
-            virtual void visit(const function_prototype& node) { }
-            virtual void visit(const function_declaration& node) { }
-        };
-
-		class ast_element {
+		class ast_element : public visitable_base<visitor> {
 		private:
 			source_location m_location;
 
