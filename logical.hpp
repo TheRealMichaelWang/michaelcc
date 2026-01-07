@@ -18,6 +18,7 @@ namespace michaelcc {
 
 		class variable final : public symbol {
 		private:
+            uint8_t m_qualifiers;
             std::unique_ptr<typing::type> m_type;
 			bool m_is_global;
 		public:
@@ -382,6 +383,7 @@ namespace michaelcc {
                 m_body = std::move(body);
                 for (const auto& parameter : m_parameters) {
                     m_body->add(std::shared_ptr<symbol>(parameter));
+                    parameter->set_context(std::weak_ptr<symbol_context>(m_body));
                 }
             }
 
@@ -392,7 +394,7 @@ namespace michaelcc {
 
 		class translation_unit {
 		private:
-            std::unique_ptr<symbol_context> m_global_context;
+            std::shared_ptr<symbol_context> m_global_context;
 			std::vector<std::string> m_strings;
 
             std::unordered_map<std::string, std::unique_ptr<typing::struct_type>> m_structs;
@@ -400,7 +402,7 @@ namespace michaelcc {
             std::unordered_map<std::string, std::unique_ptr<typing::enum_type>> m_enums;
 		public:
             translation_unit() : m_global_context(
-                std::make_unique<symbol_context>(std::weak_ptr<symbol_context>())
+                std::make_shared<symbol_context>(std::weak_ptr<symbol_context>())
             ) {}
 
             void declare_struct(std::unique_ptr<typing::struct_type>&& struct_type) {
@@ -430,8 +432,12 @@ namespace michaelcc {
                 return it != m_enums.end() ? it->second.get() : nullptr;
             }
 
-            void declare_global(std::shared_ptr<symbol>&& sym) {
-                m_global_context->add(std::move(sym));
+            std::shared_ptr<symbol> lookup_global(const std::string& name) {
+                return m_global_context->lookup(name);
+            }
+
+            bool declare_global(std::shared_ptr<symbol>&& sym) {
+                return m_global_context->add(std::move(sym));
             }
 
 			size_t add_string(std::string&& str) {
@@ -445,6 +451,8 @@ namespace michaelcc {
 			const std::vector<std::shared_ptr<symbol>>& global_symbols() const noexcept { 
                 return m_global_context->symbols();
             }
+
+            const std::shared_ptr<symbol_context>& global_context() const noexcept { return m_global_context; }
 		};
 	}
 }
