@@ -5,6 +5,7 @@
 #include <optional>
 #include <vector>
 #include <string>
+#include <sstream>
 #include <map>
 #include <typeinfo>
 
@@ -60,7 +61,13 @@ namespace michaelcc {
             virtual std::unique_ptr<type> clone() const = 0;
 
             virtual bool is_assignable_from(const type& other) const = 0;
+
+            virtual std::string to_string() const = 0;
         };
+
+        inline bool are_quivalent(const type& lhs, const type& rhs) {
+            return lhs.is_assignable_from(rhs) && rhs.is_assignable_from(lhs);
+        }
 
         class void_type : public type {
         public:
@@ -70,6 +77,10 @@ namespace michaelcc {
 
             bool is_assignable_from(const type& other) const override {
                 return typeid(other) == typeid(*this);
+            }
+
+            std::string to_string() const override {
+                return "void";
             }
         };
 
@@ -96,6 +107,20 @@ namespace michaelcc {
                 const int_type& other_int = static_cast<const int_type&>(other);
                 return m_qualifiers == other_int.qualifiers() && m_class == other_int.type_class();
             }
+
+            std::string to_string() const override {
+                std::ostringstream ss;
+                if (m_qualifiers & UNSIGNED_INT_QUALIFIER) ss << "unsigned ";
+                else if (m_qualifiers & SIGNED_INT_QUALIFIER) ss << "signed ";
+                if (m_qualifiers & LONG_INT_QUALIFIER) ss << "long ";
+                switch (m_class) {
+                    case CHAR_INT_CLASS: ss << "char"; break;
+                    case SHORT_INT_CLASS: ss << "short"; break;
+                    case INT_INT_CLASS: ss << "int"; break;
+                    case LONG_INT_CLASS: ss << "long long"; break;
+                }
+                return ss.str();
+            }
         };
 
         class float_type : public type {
@@ -119,6 +144,10 @@ namespace michaelcc {
 
                 const float_type& other_float = static_cast<const float_type&>(other);
                 return m_class == other_float.type_class();
+            }
+
+            std::string to_string() const override {
+                return m_class == FLOAT_FLOAT_CLASS ? "float" : "double";
             }
         };
 
@@ -144,8 +173,13 @@ namespace michaelcc {
                 }
 
                 const array_type& other_arr = static_cast<const array_type&>(other);
-                return m_element_type->is_assignable_from(*other_arr.element_type())
-                && other_arr.element_type()->is_assignable_from(*m_element_type);
+                return are_quivalent(*m_element_type, *other_arr.element_type());
+            }
+
+            std::string to_string() const override {
+                std::ostringstream ss;
+                ss << m_element_type->to_string() << "[]";
+                return ss.str();
             }
         };
 
@@ -182,6 +216,17 @@ namespace michaelcc {
 
                 return return_type()->is_assignable_from(*other_fptr.return_type());
             }
+
+            std::string to_string() const override {
+                std::ostringstream ss;
+                ss << m_return_type->to_string() << " (*)(";
+                for (size_t i = 0; i < m_parameter_types.size(); i++) {
+                    if (i > 0) ss << ", ";
+                    ss << m_parameter_types[i]->to_string();
+                }
+                ss << ")";
+                return ss.str();
+            }
         };
 
         class pointer_type : public type {
@@ -214,6 +259,12 @@ namespace michaelcc {
                 }
 
                 return m_pointee_type->is_assignable_from(*other_ptr.pointee_type());
+            }
+
+            std::string to_string() const override {
+                std::ostringstream ss;
+                ss << m_pointee_type->to_string() << "*";
+                return ss.str();
             }
         };
 
@@ -290,6 +341,19 @@ namespace michaelcc {
                 }
                 return true;
             }
+
+            std::string to_string() const override {
+                if (m_name.has_value()) {
+                    return "struct " + m_name.value();
+                }
+                std::ostringstream ss;
+                ss << "struct { ";
+                for (const auto& f : m_fields) {
+                    ss << f.field_type->to_string() << " " << f.name << "; ";
+                }
+                ss << "}";
+                return ss.str();
+            }
         };
 
         class union_type final : public type {
@@ -347,8 +411,7 @@ namespace michaelcc {
                         return false;
                     }
 
-                    if (!it->second->is_assignable_from(*member.member_type)
-                        && !member.member_type->is_assignable_from(*it->second)) {
+                    if (!are_quivalent(*it->second, *member.member_type)) {
                         return false;
                     }
                 }
@@ -374,6 +437,19 @@ namespace michaelcc {
                     m_members[i].member_type = std::move(member_types[i]);
                 }
                 return true;
+            }
+
+            std::string to_string() const override {
+                if (m_name.has_value()) {
+                    return "union " + m_name.value();
+                }
+                std::ostringstream ss;
+                ss << "union { ";
+                for (const auto& m : m_members) {
+                    ss << m.member_type->to_string() << " " << m.name << "; ";
+                }
+                ss << "}";
+                return ss.str();
             }
         };
 
@@ -428,11 +504,24 @@ namespace michaelcc {
                 }
 
                 if (m_underlying_type.has_value() && other_enum.underlying_type().has_value()) {
-                    return m_underlying_type->is_assignable_from(*other_enum.underlying_type()) 
-                    && other_enum.underlying_type()->is_assignable_from(*m_underlying_type);
+                    return are_quivalent(*m_underlying_type, *other_enum.underlying_type());
                 }
 
                 return true;
+            }
+
+            std::string to_string() const override {
+                if (m_name.has_value()) {
+                    return "enum " + m_name.value();
+                }
+                std::ostringstream ss;
+                ss << "enum { ";
+                for (size_t i = 0; i < m_enumerators.size(); i++) {
+                    if (i > 0) ss << ", ";
+                    ss << m_enumerators[i].name << " = " << m_enumerators[i].value;
+                }
+                ss << " }";
+                return ss.str();
             }
         };
     }

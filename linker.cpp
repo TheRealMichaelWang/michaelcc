@@ -1,4 +1,6 @@
 #include "linker.hpp"
+#include "logical.hpp"
+#include <memory>
 
 using namespace michaelcc;
 
@@ -109,6 +111,51 @@ void linker::type_implement_pass::visit(const ast::union_declaration& node) {
     }
 }
 
-void linker::function_declare_pass::visit(const ast::function_declaration& node) {
-    
+void linker::function_declare_pass::forward_declare_function(const std::string& function_name, const std::vector<ast::function_parameter>& parameters, const source_location& location) {
+    std::vector<std::shared_ptr<logical_ir::variable>> logical_parameters;
+    logical_parameters.reserve(parameters.size());
+    for (const ast::function_parameter& parameter : parameters) {
+        logical_parameters.emplace_back(std::make_shared<logical_ir::variable>(
+            std::string(parameter.param_name),
+            m_linker.resolve_type(*parameter.param_type),
+            false,
+            std::weak_ptr<logical_ir::symbol_context>()
+        ));
+    }
+
+    auto function_definition = std::make_shared<logical_ir::function_definition>(
+        std::string(function_name),
+        std::move(logical_parameters),
+        std::weak_ptr<logical_ir::symbol_context>(m_linker.m_translation_unit.global_context())
+    );
+
+    auto existing_function = m_linker.m_translation_unit.lookup_global(function_name);
+    if (existing_function) {
+        logical_ir::function_definition* existing_function_definition = dynamic_cast<logical_ir::function_definition*>(existing_function.get());
+        if (existing_function_definition == nullptr) {
+            throw m_linker.panic(std::format("Symbol {} is not a function", function_name), location);
+        }
+
+        if (existing_function_definition->parameters().size() != parameters.size()) {
+            throw m_linker.panic(std::format(
+                "Parameter count mismatch for function {}; Function originally declared with {} parameters, but now declared with {} parameters.", 
+                function_name,
+                existing_function_definition->parameters().size(),
+                parameters.size()
+            ), location);
+        }
+
+        for (size_t i = 0; i < parameters.size(); i++) {
+            if (!typing::are_quivalent(*existing_function_definition->parameters()[i]->get_type(), *m_linker.resolve_type(*parameters[i].param_type))) {
+                throw m_linker.panic(std::format(
+                    "Parameter type mismatch for function {}; Function originally declared with parameter type {}, but now declared with parameter type {}.", 
+                    function_name,
+                    existing_function_definition->parameters()[i]->get_type()->to_string(),
+                    logical_parameters[i]->get_type()->to_string()
+                ), location);
+            }
+        }
+    } else {
+        m_linker.m_translation_unit.declare_global(std::move(function_definition));
+    }
 }

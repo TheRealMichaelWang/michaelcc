@@ -43,12 +43,18 @@ namespace michaelcc {
         class function_declare_pass final : public ast::visitor {
         private:
             linker& m_linker;
+
+            void forward_declare_function(const std::string& function_name, const std::vector<ast::function_parameter>& parameters, const source_location& location);
         public:
             function_declare_pass(linker& linker) : m_linker(linker) { }
 
-            void visit(const ast::function_declaration& node) override;
+            void visit(const ast::function_declaration& node) override {
+                forward_declare_function(node.function_name(), node.parameters(), node.location());
+            }
 
-            void visit(const ast::function_prototype& node) override;
+            void visit(const ast::function_prototype& node) override {
+                forward_declare_function(node.function_name(), node.parameters(), node.location());
+            }
         };
 
         std::unique_ptr<typing::type> resolve_type(const ast::ast_element& type);
