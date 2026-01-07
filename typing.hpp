@@ -6,6 +6,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <typeinfo>
 
 namespace michaelcc {
     namespace typing {
@@ -50,6 +51,7 @@ namespace michaelcc {
         class float_type;
         class pointer_type;
         class array_type;
+        class enum_type;
         class function_pointer_type;
 
         class type {
@@ -57,7 +59,7 @@ namespace michaelcc {
             virtual ~type() = default;
             virtual std::unique_ptr<type> clone() const = 0;
 
-            virtual bool is_assignable_from(const type* other) const = 0;
+            virtual bool is_assignable_from(const type& other) const = 0;
         };
 
         class void_type : public type {
@@ -66,8 +68,8 @@ namespace michaelcc {
                 return std::make_unique<void_type>();
             }
 
-            bool is_assignable_from(const type* other) const override {
-                return dynamic_cast<const void_type*>(other) != nullptr;
+            bool is_assignable_from(const type& other) const override {
+                return typeid(other) == typeid(*this);
             }
         };
 
@@ -86,12 +88,13 @@ namespace michaelcc {
                 return std::make_unique<int_type>(m_qualifiers, m_class);
             }
 
-            bool is_assignable_from(const type* other) const override {
-                const int_type* other_int = dynamic_cast<const int_type*>(other);
-                if (other_int == nullptr) {
+            bool is_assignable_from(const type& other) const override {
+                if (typeid(other) != typeid(*this)) {
                     return false;
                 }
-                return m_qualifiers == other_int->qualifiers() && m_class == other_int->type_class();
+
+                const int_type& other_int = static_cast<const int_type&>(other);
+                return m_qualifiers == other_int.qualifiers() && m_class == other_int.type_class();
             }
         };
 
@@ -109,12 +112,13 @@ namespace michaelcc {
                 return std::make_unique<float_type>(m_class);
             }
 
-            bool is_assignable_from(const type* other) const override {
-                const float_type* other_float = dynamic_cast<const float_type*>(other);
-                if (other_float == nullptr) {
+            bool is_assignable_from(const type& other) const override {
+                if (typeid(other) != typeid(*this)) {
                     return false;
                 }
-                return m_class == other_float->type_class();
+
+                const float_type& other_float = static_cast<const float_type&>(other);
+                return m_class == other_float.type_class();
             }
         };
 
@@ -134,17 +138,14 @@ namespace michaelcc {
                 return std::make_unique<array_type>(m_element_type->clone(), m_length.has_value() ? std::make_optional(m_length.value()->clone()) : std::nullopt);
             }
 
-            bool is_assignable_from(const type* other) const override {
-                const array_type* other_arr = dynamic_cast<const array_type*>(other);
-                if (other_arr == nullptr) {
+            bool is_assignable_from(const type& other) const override {
+                if (typeid(other) != typeid(*this)) {
                     return false;
                 }
 
-                if (dynamic_cast<const void_type*>(other_arr->element_type()) != nullptr) {
-                    return true;
-                }
-
-                return m_element_type->is_assignable_from(other_arr->element_type());
+                const array_type& other_arr = static_cast<const array_type&>(other);
+                return m_element_type->is_assignable_from(*other_arr.element_type())
+                && other_arr.element_type()->is_assignable_from(*m_element_type);
             }
         };
 
@@ -167,19 +168,19 @@ namespace michaelcc {
                 return std::make_unique<function_pointer_type>(m_return_type->clone(), std::move(parameter_types));
             }
 
-            bool is_assignable_from(const type* other) const override {
-                const function_pointer_type* other_fptr = dynamic_cast<const function_pointer_type*>(other);
-                if (other_fptr == nullptr) {
+            bool is_assignable_from(const type& other) const override {
+                if (typeid(other) != typeid(*this)) {
                     return false;
                 }
-                
+
+                const function_pointer_type& other_fptr = static_cast<const function_pointer_type&>(other);
                 for (size_t i = 0; i < m_parameter_types.size(); i++) {
-                    if (!other_fptr->parameter_types()[i]->is_assignable_from(m_parameter_types[i].get())) {
+                    if (!other_fptr.parameter_types()[i]->is_assignable_from(*m_parameter_types[i])) {
                         return false;
                     }
                 }
 
-                return return_type()->is_assignable_from(other_fptr->return_type());
+                return return_type()->is_assignable_from(*other_fptr.return_type());
             }
         };
 
@@ -197,31 +198,22 @@ namespace michaelcc {
                 return std::make_unique<pointer_type>(m_pointee_type->clone());
             }
 
-            bool is_assignable_from(const type* other) const override {
-                const pointer_type* other_ptr = dynamic_cast<const pointer_type*>(other);
-                if (other_ptr == nullptr) {
-                    const array_type* other_arr = dynamic_cast<const array_type*>(other);
-                    if (other_arr == nullptr) {
-                        if (dynamic_cast<const void_type*>(pointee_type()) != nullptr
-                            && dynamic_cast<const function_pointer_type*>(other_arr->element_type()) != nullptr) {
-                            return true;
-                        }
-
-                        return false;
-                    }
-
-                    if (dynamic_cast<const void_type*>(other_arr->element_type()) != nullptr) {
+            bool is_assignable_from(const type& other) const override {
+                if (typeid(other) != typeid(*this)) {
+                    if (typeid(other) == typeid(function_pointer_type)
+                        && dynamic_cast<const void_type*>(pointee_type()) != nullptr) {
                         return true;
                     }
 
-                    return m_pointee_type->is_assignable_from(other_arr->element_type());
+                    return false;
                 }
 
-                if (dynamic_cast<const void_type*>(other_ptr->pointee_type()) != nullptr) {
+                const pointer_type& other_ptr = dynamic_cast<const pointer_type&>(other);
+                if (dynamic_cast<const void_type*>(pointee_type()) != nullptr) {
                     return true;
                 }
 
-                return m_pointee_type->is_assignable_from(other_ptr->pointee_type());
+                return m_pointee_type->is_assignable_from(*other_ptr.pointee_type());
             }
         };
 
@@ -255,22 +247,23 @@ namespace michaelcc {
                 );
             }
 
-            bool is_assignable_from(const type* other) const override {
-                const struct_type* other_struct = dynamic_cast<const struct_type*>(other);
-                if (other_struct == nullptr) {
+            bool is_assignable_from(const type& other) const override {
+                if (typeid(other) != typeid(*this)) {
                     return false;
                 }
 
-                if (m_name != other_struct->name()) {
+                const struct_type& other_struct = static_cast<const struct_type&>(other);
+
+                if (m_name != other_struct.name()) {
                     return false;
                 }
 
-                if (fields().size() != other_struct->fields().size()) {
+                if (fields().size() != other_struct.fields().size()) {
                     return false;
                 }
 
                 for (size_t i = 0; i < fields().size(); i++) {
-                    if (!fields()[i].field_type->is_assignable_from(other_struct->fields()[i].field_type.get())) {
+                    if (!fields()[i].field_type->is_assignable_from(*other_struct.fields()[i].field_type)) {
                         return false;
                     }
                 }
@@ -285,6 +278,7 @@ namespace michaelcc {
                 std::string name;
                 std::unique_ptr<type> member_type;
             };
+
         private:
             std::optional<std::string> m_name;
             std::vector<member> m_members;
@@ -309,16 +303,17 @@ namespace michaelcc {
                 );
             }
 
-            bool is_assignable_from(const type* other) const override {
-                const union_type* other_union = dynamic_cast<const union_type*>(other);
-                if (other_union == nullptr) {
-                    return false;
-                }
-                if (m_name != other_union->name()) {
+            bool is_assignable_from(const type& other) const override {
+                if (typeid(other) != typeid(*this)) {
                     return false;
                 }
 
-                if (members().size() != other_union->members().size()) {
+                const union_type& other_union = static_cast<const union_type&>(other);
+                if (m_name != other_union.name()) {
+                    return false;
+                }
+
+                if (members().size() != other_union.members().size()) {
                     return false;
                 }
 
@@ -326,16 +321,73 @@ namespace michaelcc {
                 for (const auto& member : members()) {
                     member_types[member.name] = member.member_type.get();
                 }
-                for (const auto& member : other_union->members()) {
+                for (const auto& member : other_union.members()) {
                     auto it = member_types.find(member.name);
                     if (it == member_types.end()) {
                         return false;
                     }
 
-                    if (!it->second->is_assignable_from(member.member_type.get())
-                        && !member.member_type->is_assignable_from(it->second)) {
+                    if (!it->second->is_assignable_from(*member.member_type)
+                        && !member.member_type->is_assignable_from(*it->second)) {
                         return false;
                     }
+                }
+
+                return true;
+            }
+        };
+
+        class enum_type final : public type {
+        private:
+            struct enumerator {
+                std::string name;
+                int64_t value;
+            };
+
+            std::optional<std::string> m_name;
+            std::vector<enumerator> m_enumerators;
+            
+            std::optional<int_type> m_underlying_type;
+
+        public:
+            enum_type(std::optional<std::string>&& name, std::vector<enumerator>&& enumerators, std::optional<int_type>&& underlying_type)
+                : m_name(std::move(name)), m_enumerators(std::move(enumerators)), m_underlying_type(std::move(underlying_type)) {}
+
+            const std::optional<std::string>& name() const noexcept { return m_name; }
+            const std::vector<enumerator>& enumerators() const noexcept { return m_enumerators; }
+            const std::optional<int_type>& underlying_type() const noexcept { return m_underlying_type; }
+
+            std::unique_ptr<type> clone() const override {
+                std::vector<enumerator> cloned_enumerators;
+                cloned_enumerators.reserve(m_enumerators.size());
+                for (const auto& enumerator : m_enumerators) {
+                    cloned_enumerators.emplace_back(std::string(enumerator.name), enumerator.value);
+                }
+
+                return std::make_unique<enum_type>(
+                    m_name.has_value() ? std::make_optional(std::string(m_name.value())) : std::nullopt, 
+                    std::move(cloned_enumerators), 
+                    m_underlying_type.has_value() ? std::make_optional(m_underlying_type.value()) : std::nullopt
+                );
+            }
+
+            bool is_assignable_from(const type& other) const override {
+                if (typeid(other) != typeid(*this)) {
+                    return false;
+                }
+
+                const enum_type& other_enum = static_cast<const enum_type&>(other);
+                if (m_name != other_enum.name()) {
+                    return false;
+                }
+
+                if (m_underlying_type.has_value() != other_enum.underlying_type().has_value()) {
+                    return false;
+                }
+
+                if (m_underlying_type.has_value() && other_enum.underlying_type().has_value()) {
+                    return m_underlying_type->is_assignable_from(*other_enum.underlying_type()) 
+                    && other_enum.underlying_type()->is_assignable_from(*m_underlying_type);
                 }
 
                 return true;
