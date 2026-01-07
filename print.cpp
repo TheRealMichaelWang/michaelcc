@@ -1,10 +1,12 @@
 #include "tokens.hpp"
 #include "ast.hpp"
+#include "typing.hpp"
 #include <cctype>
 #include <iomanip>
 
 using namespace michaelcc;
 using namespace michaelcc::ast;
+using namespace michaelcc::typing;
 
 const std::string michaelcc::token_to_str(token_type type) {
     static const char* tok_names[] = {
@@ -129,10 +131,10 @@ private:
         return std::string(m_indent * 2, ' ');
     }
 
-    void print_int_qualifiers(uint8_t q) {
-        if (q & UNSIGNED_INT_QUALIFIER) m_out << "unsigned ";
-        if (q & SIGNED_INT_QUALIFIER) m_out << "signed ";
-        if (q & LONG_INT_QUALIFIER) m_out << "long ";
+    void print_type_qualifiers(uint8_t q) {
+        if (q & CONST_TYPE_QUALIFIER) m_out << "const ";
+        if (q & VOLATILE_TYPE_QUALIFIER) m_out << "volatile ";
+        if (q & RESTRICT_TYPE_QUALIFIER) m_out << "restrict ";
     }
 
     void escape_char(char c) {
@@ -172,61 +174,48 @@ public:
         elem->accept(*this);
     }
 
-    // === Type visitors ===
+    // === Type AST visitors ===
     
-    void visit(const void_type& node) override {
+    void visit(const type_specifier& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
-        m_out << "void";
-    }
-
-    void visit(const int_type& node) override {
-        if (!m_print_requested) return;
-        m_print_requested = false;
-        print_int_qualifiers(node.qualifiers());
-        switch (node.type_class()) {
-        case CHAR_INT_CLASS: m_out << "char"; break;
-        case SHORT_INT_CLASS: m_out << "short"; break;
-        case INT_INT_CLASS: m_out << "int"; break;
-        case LONG_INT_CLASS: m_out << "long"; break;
+        for (size_t i = 0; i < node.type_keywords().size(); ++i) {
+            if (i > 0) m_out << " ";
+            m_out << token_to_str(node.type_keywords()[i]);
         }
     }
 
-    void visit(const float_type& node) override {
+    void visit(const qualified_type& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
-        switch (node.type_class()) {
-        case FLOAT_FLOAT_CLASS: m_out << "float"; break;
-        case DOUBLE_FLOAT_CLASS: m_out << "double"; break;
+        print_type_qualifiers(node.qualifiers());
+        print(node.inner_type());
+    }
+
+    void visit(const derived_type& node) override {
+        if (!m_print_requested) return;
+        m_print_requested = false;
+        if (node.is_pointer()) {
+            print(node.inner_type());
+            m_out << "*";
+        } else {
+            print(node.inner_type());
+            m_out << "[";
+            if (node.array_size()) {
+                print(node.array_size());
+            }
+            m_out << "]";
         }
     }
 
-    void visit(const pointer_type& node) override {
-        if (!m_print_requested) return;
-        m_print_requested = false;
-        print(node.pointee_type());
-        m_out << "*";
-    }
-
-    void visit(const array_type& node) override {
-        if (!m_print_requested) return;
-        m_print_requested = false;
-        print(node.element_type());
-        m_out << "[";
-        if (node.length().has_value() && node.length().value()) {
-            print(node.length().value().get());
-        }
-        m_out << "]";
-    }
-
-    void visit(const function_pointer_type& node) override {
+    void visit(const function_type& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
         print(node.return_type());
-        m_out << "(*)(";
-        for (size_t i = 0; i < node.parameter_types().size(); ++i) {
+        m_out << " (*)(";
+        for (size_t i = 0; i < node.parameters().size(); ++i) {
             if (i > 0) m_out << ", ";
-            print(node.parameter_types()[i].get());
+            print(node.parameters()[i].param_type.get());
         }
         m_out << ")";
     }
@@ -477,11 +466,13 @@ public:
     void visit(const variable_declaration& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
-        if (node.qualifiers() & CONST_STORAGE_QUALIFIER) m_out << "const ";
-        if (node.qualifiers() & VOLATILE_STORAGE_QUALIFIER) m_out << "volatile ";
-        if (node.qualifiers() & EXTERN_STORAGE_QUALIFIER) m_out << "extern ";
-        if (node.qualifiers() & STATIC_STORAGE_QUALIFIER) m_out << "static ";
-        if (node.qualifiers() & REGISTER_STORAGE_QUALIFIER) m_out << "register ";
+        uint8_t storage = node.qualifiers() & 0x0F;
+        uint8_t type_quals = (node.qualifiers() >> 4) & 0x0F;
+        if (type_quals & CONST_TYPE_QUALIFIER) m_out << "const ";
+        if (type_quals & VOLATILE_TYPE_QUALIFIER) m_out << "volatile ";
+        if (storage & EXTERN_STORAGE_CLASS) m_out << "extern ";
+        if (storage & STATIC_STORAGE_CLASS) m_out << "static ";
+        if (storage & REGISTER_STORAGE_CLASS) m_out << "register ";
         print_declarator(node.type(), node.identifier());
         if (node.set_value()) {
             m_out << " = ";
@@ -586,38 +577,50 @@ public:
 // Helper for complex C declarator syntax (pointers to arrays, function pointers, etc.)
 // This needs special handling because C declarators are "inside-out"
 void print_visitor::print_declarator(const ast_element* type, const std::string& identifier) {
-    // For complex types, we need to build the declarator recursively
-    if (auto* ptr = dynamic_cast<const pointer_type*>(type)) {
-        // Pointer to array or function pointer needs parentheses
-        if (dynamic_cast<const array_type*>(ptr->pointee_type()) ||
-            dynamic_cast<const function_pointer_type*>(ptr->pointee_type())) {
-            print_declarator(ptr->pointee_type(), "(*" + identifier + ")");
-        } else {
+    if (auto* derived = dynamic_cast<const derived_type*>(type)) {
+        if (derived->is_pointer()) {
+            // Check if pointee is array or function - needs parentheses
+            auto* inner = derived->inner_type();
+            if (auto* inner_derived = dynamic_cast<const derived_type*>(inner)) {
+                if (inner_derived->is_array()) {
+                    print_declarator(inner, "(*" + identifier + ")");
+                    return;
+                }
+            }
+            if (dynamic_cast<const function_type*>(inner)) {
+                print_declarator(inner, "(*" + identifier + ")");
+                return;
+            }
+            // Simple pointer
             print(type);
             m_out << ' ' << identifier;
+        } else {
+            // Array - build suffix and recurse on element type
+            std::stringstream length_ss;
+            if (derived->array_size()) {
+                print_visitor len_printer(length_ss, 0);
+                len_printer.print(derived->array_size());
+            }
+            print_declarator(derived->inner_type(), identifier + "[" + length_ss.str() + "]");
         }
     }
-    else if (auto* arr = dynamic_cast<const array_type*>(type)) {
-        // Build array suffix and recurse on element type
-        std::stringstream length_ss;
-        if (arr->length().has_value()) {
-            print_visitor len_printer(length_ss, 0);
-            len_printer.print(arr->length().value().get());
-        }
-        print_declarator(arr->element_type(), identifier + "[" + length_ss.str() + "]");
-    }
-    else if (auto* fptr = dynamic_cast<const function_pointer_type*>(type)) {
+    else if (auto* func = dynamic_cast<const function_type*>(type)) {
         // Build parameter list and recurse on return type
         std::stringstream params_ss;
         print_visitor params_printer(params_ss, 0);
-        for (size_t i = 0; i < fptr->parameter_types().size(); ++i) {
+        for (size_t i = 0; i < func->parameters().size(); ++i) {
             if (i > 0) params_ss << ", ";
-            params_printer.print(fptr->parameter_types()[i].get());
+            params_printer.print(func->parameters()[i].param_type.get());
         }
-        print_declarator(fptr->return_type(), "(*" + identifier + ")(" + params_ss.str() + ")");
+        print_declarator(func->return_type(), identifier + "(" + params_ss.str() + ")");
+    }
+    else if (auto* qualified = dynamic_cast<const qualified_type*>(type)) {
+        // Print qualifiers then recurse
+        print_type_qualifiers(qualified->qualifiers());
+        print_declarator(qualified->inner_type(), identifier);
     }
     else {
-        // Simple types: just print type then identifier
+        // Simple types (type_specifier, struct_declaration, etc.)
         print(type);
         m_out << ' ' << identifier;
     }
