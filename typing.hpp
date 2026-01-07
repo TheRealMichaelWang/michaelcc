@@ -270,6 +270,26 @@ namespace michaelcc {
 
                 return true;
             }
+
+            bool implemented() const noexcept { 
+                for (const auto& field : fields()) {
+                    if (field.field_type == nullptr) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            bool implement_field_types(std::vector<std::unique_ptr<type>>&& field_types) {
+                if (!implemented() || field_types.size() != m_fields.size()) {
+                    return false;
+                }
+
+                for (size_t i = 0; i < m_fields.size(); i++) {
+                    m_fields[i].field_type = std::move(field_types[i]);
+                }
+                return true;
+            }
         };
 
         class union_type final : public type {
@@ -335,14 +355,36 @@ namespace michaelcc {
 
                 return true;
             }
+
+            bool implemented() const noexcept { 
+                for (const auto& member : members()) {
+                    if (member.member_type == nullptr) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            bool implement_member_types(std::vector<std::unique_ptr<type>>&& member_types) {
+                if (!implemented() || member_types.size() != m_members.size()) {
+                    return false;
+                }
+
+                for (size_t i = 0; i < m_members.size(); i++) {
+                    m_members[i].member_type = std::move(member_types[i]);
+                }
+                return true;
+            }
         };
 
         class enum_type final : public type {
-        private:
+        public:
             struct enumerator {
                 std::string name;
                 int64_t value;
             };
+
+        private:
 
             std::optional<std::string> m_name;
             std::vector<enumerator> m_enumerators;

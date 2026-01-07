@@ -3,6 +3,7 @@
 
 #include "ast.hpp"
 #include "logical.hpp"
+#include "typing.hpp"
 
 namespace michaelcc {
     class linker {
@@ -50,7 +51,7 @@ namespace michaelcc {
             void visit(const ast::function_prototype& node) override;
         };
 
-        logical_ir::type* resolve_type(const ast::ast_element& type);
+        std::unique_ptr<typing::type> resolve_type(const ast::ast_element& type);
     public:
         linker(logical_ir::translation_unit& translation_unit) : m_translation_unit(translation_unit) { }
     };
