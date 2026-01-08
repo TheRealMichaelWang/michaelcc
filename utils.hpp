@@ -29,12 +29,12 @@ namespace michaelcc {
     template<typename Node, typename ReturnType>
     using children_tuple_t = typename children_tuple<Node, ReturnType>::type;
 
-    template<typename Derived, typename Visitor>
-    class visitable_base {
+    template<typename Derived, typename Visitor, typename Base>
+    class visitable_base : public Base {
     public:
-        virtual ~visitable_base() = default;
+        using Base::Base;
         
-        void accept(Visitor& v) const {
+        void accept(Visitor& v) const override {
             const auto& self = static_cast<const Derived&>(*this);
             v.visit(self);
             std::apply([&](auto... child_infos) {
@@ -104,5 +104,26 @@ namespace michaelcc {
         virtual ReturnType transform(const NodeType& node, children_t children) = 0;
     };
 }
+
+// Macro to declare a child accessor
+// Usage: CHILD(ast_element, left) expands to child<ast_element, &_NodeType::left>
+#define MICHAELCC_AST_CHILD(ChildType, accessor) \
+    michaelcc::child<ChildType, &_NodeType::accessor>
+
+// Macro to specialize node_info for a node type
+// Usage: NODE_INFO(ast::arithmetic_operator, CHILD(ast_element, left), CHILD(ast_element, right))
+#define MICHAELCC_AST_NODE_INFO(NodeType, ...) \
+    template<> \
+    struct michaelcc::node_info<NodeType> { \
+        using _NodeType = NodeType; \
+        using children = std::tuple<__VA_ARGS__>; \
+    }
+
+// Macro for nodes with no children
+#define MICHAELCC_AST_NODE_INFO_LEAF(NodeType) \
+    template<> \
+    struct michaelcc::node_info<NodeType> { \
+        using children = std::tuple<>; \
+    }
 
 #endif
