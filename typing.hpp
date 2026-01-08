@@ -58,7 +58,6 @@ namespace michaelcc {
         class type {
         public:
             virtual ~type() = default;
-            virtual std::unique_ptr<type> clone() const = 0;
 
             virtual bool is_assignable_from(const type& other) const = 0;
 
@@ -71,10 +70,6 @@ namespace michaelcc {
 
         class void_type : public type {
         public:
-            std::unique_ptr<type> clone() const override {
-                return std::make_unique<void_type>();
-            }
-
             bool is_assignable_from(const type& other) const override {
                 return typeid(other) == typeid(*this);
             }
@@ -94,10 +89,6 @@ namespace michaelcc {
 
             uint8_t qualifiers() const noexcept { return m_qualifiers; }
             int_class type_class() const noexcept { return m_class; }
-
-            std::unique_ptr<type> clone() const override {
-                return std::make_unique<int_type>(m_qualifiers, m_class);
-            }
 
             bool is_assignable_from(const type& other) const override {
                 if (typeid(other) != typeid(*this)) {
@@ -133,10 +124,6 @@ namespace michaelcc {
 
             float_class type_class() const noexcept { return m_class; }
 
-            std::unique_ptr<type> clone() const override {
-                return std::make_unique<float_type>(m_class);
-            }
-
             bool is_assignable_from(const type& other) const override {
                 if (typeid(other) != typeid(*this)) {
                     return false;
@@ -153,19 +140,13 @@ namespace michaelcc {
 
         class array_type : public type {
         private:
-            std::unique_ptr<type> m_element_type;
-            std::optional<std::unique_ptr<type>> m_length;
+            std::weak_ptr<type> m_element_type;
 
         public:
-            array_type(std::unique_ptr<type>&& element_type, std::optional<std::unique_ptr<type>>&& length)
-                : m_element_type(std::move(element_type)), m_length(std::move(length)) {}
+            array_type(std::weak_ptr<type>&& element_type)
+                : m_element_type(std::move(element_type)) {}
 
-            const type* element_type() const noexcept { return m_element_type.get(); }
-            const std::optional<std::unique_ptr<type>>& length() const noexcept { return m_length; }
-
-            std::unique_ptr<type> clone() const override {
-                return std::make_unique<array_type>(m_element_type->clone(), m_length.has_value() ? std::make_optional(m_length.value()->clone()) : std::nullopt);
-            }
+            const std::shared_ptr<type> element_type() const noexcept { return m_element_type.lock(); }
 
             bool is_assignable_from(const type& other) const override {
                 if (typeid(other) != typeid(*this)) {
@@ -173,33 +154,28 @@ namespace michaelcc {
                 }
 
                 const array_type& other_arr = static_cast<const array_type&>(other);
-                return are_quivalent(*m_element_type, *other_arr.element_type());
+                return are_quivalent(*m_element_type.lock(), *other_arr.element_type());
             }
 
             std::string to_string() const override {
                 std::ostringstream ss;
-                ss << m_element_type->to_string() << "[]";
+                ss << m_element_type.lock()->to_string() << "[]";
                 return ss.str();
             }
         };
 
         class function_pointer_type : public type {
         private:
-            std::unique_ptr<type> m_return_type;
-            std::vector<std::unique_ptr<type>> m_parameter_types;
+            std::weak_ptr<type> m_return_type;
+            std::vector<std::weak_ptr<type>> m_parameter_types;
         public:
-            function_pointer_type(std::unique_ptr<type>&& return_type, std::vector<std::unique_ptr<type>>&& parameter_types)
+            function_pointer_type(std::weak_ptr<type>&& return_type, std::vector<std::weak_ptr<type>>&& parameter_types)
                 : m_return_type(std::move(return_type)), m_parameter_types(std::move(parameter_types)) {}
-            const type* return_type() const noexcept { return m_return_type.get(); }
-            const std::vector<std::unique_ptr<type>>& parameter_types() const noexcept { return m_parameter_types; }
 
-            std::unique_ptr<type> clone() const override {
-                std::vector<std::unique_ptr<type>> parameter_types;
-                parameter_types.reserve(m_parameter_types.size());
-                for (const auto& parameter : m_parameter_types) {
-                    parameter_types.push_back(parameter->clone());
-                }
-                return std::make_unique<function_pointer_type>(m_return_type->clone(), std::move(parameter_types));
+            const std::shared_ptr<type> return_type() const noexcept { return m_return_type.lock(); }
+            
+            const std::vector<std::shared_ptr<type>> parameter_types() const noexcept { 
+                return std::vector<std::shared_ptr<type>>(m_parameter_types.begin(), m_parameter_types.end()); 
             }
 
             bool is_assignable_from(const type& other) const override {
@@ -212,7 +188,7 @@ namespace michaelcc {
                     return false;
                 }
                 for (size_t i = 0; i < m_parameter_types.size(); i++) {
-                    if (!other_fptr.parameter_types()[i]->is_assignable_from(*m_parameter_types[i])) {
+                    if (!other_fptr.parameter_types()[i]->is_assignable_from(*m_parameter_types[i].lock())) {
                         return false;
                     }
                 }
@@ -222,10 +198,10 @@ namespace michaelcc {
 
             std::string to_string() const override {
                 std::ostringstream ss;
-                ss << m_return_type->to_string() << " (*)(";
+                ss << m_return_type.lock()->to_string() << " (*)(";
                 for (size_t i = 0; i < m_parameter_types.size(); i++) {
                     if (i > 0) ss << ", ";
-                    ss << m_parameter_types[i]->to_string();
+                    ss << m_parameter_types[i].lock()->to_string();
                 }
                 ss << ")";
                 return ss.str();
@@ -234,22 +210,18 @@ namespace michaelcc {
 
         class pointer_type : public type {
         private:
-            std::unique_ptr<type> m_pointee_type;
+            std::weak_ptr<type> m_pointee_type;
 
         public:
-            pointer_type(std::unique_ptr<type>&& pointee_type)
+            pointer_type(std::weak_ptr<type>&& pointee_type)
                 : m_pointee_type(std::move(pointee_type)) { }
 
-            const type* pointee_type() const noexcept { return m_pointee_type.get(); }
-
-            std::unique_ptr<type> clone() const override {
-                return std::make_unique<pointer_type>(m_pointee_type->clone());
-            }
+            const std::shared_ptr<type> pointee_type() const noexcept { return m_pointee_type.lock(); }
 
             bool is_assignable_from(const type& other) const override {
                 if (typeid(other) != typeid(*this)) {
                     if (typeid(other) == typeid(function_pointer_type)
-                        && dynamic_cast<const void_type*>(pointee_type()) != nullptr) {
+                        && dynamic_cast<const void_type*>(pointee_type().get()) != nullptr) {
                         return true;
                     }
 
@@ -257,16 +229,16 @@ namespace michaelcc {
                 }
 
                 const pointer_type& other_ptr = dynamic_cast<const pointer_type&>(other);
-                if (dynamic_cast<const void_type*>(pointee_type()) != nullptr) {
+                if (dynamic_cast<const void_type*>(pointee_type().get()) != nullptr) {
                     return true;
                 }
 
-                return m_pointee_type->is_assignable_from(*other_ptr.pointee_type());
+                return m_pointee_type.lock()->is_assignable_from(*other_ptr.pointee_type());
             }
 
             std::string to_string() const override {
                 std::ostringstream ss;
-                ss << m_pointee_type->to_string() << "*";
+                ss << m_pointee_type.lock()->to_string() << "*";
                 return ss.str();
             }
         };
@@ -275,7 +247,7 @@ namespace michaelcc {
         public:
             struct field {
                 std::string name;
-                std::unique_ptr<type> field_type;
+                std::weak_ptr<type> field_type = std::weak_ptr<type>();
             };
         private:
             std::optional<std::string> m_name;
@@ -288,18 +260,6 @@ namespace michaelcc {
 
             const std::optional<std::string>& name() const noexcept { return m_name; }
             const std::vector<field>& fields() const noexcept { return m_fields; }
-
-            std::unique_ptr<type> clone() const override {
-                std::vector<field> fields;
-                fields.reserve(m_fields.size());
-                for (const auto& f : m_fields) {
-                    fields.emplace_back(f.name, f.field_type ? f.field_type->clone() : nullptr);
-                }
-                return std::make_unique<struct_type>(
-                    m_name.has_value() ? std::make_optional(std::string(m_name.value())) : std::nullopt, 
-                    std::move(fields)
-                );
-            }
 
             bool is_assignable_from(const type& other) const override {
                 if (typeid(other) != typeid(*this)) {
@@ -317,7 +277,7 @@ namespace michaelcc {
                 }
 
                 for (size_t i = 0; i < fields().size(); i++) {
-                    if (!fields()[i].field_type->is_assignable_from(*other_struct.fields()[i].field_type)) {
+                    if (!fields()[i].field_type.lock()->is_assignable_from(*other_struct.fields()[i].field_type.lock())) {
                         return false;
                     }
                 }
@@ -327,20 +287,20 @@ namespace michaelcc {
 
             bool implemented() const noexcept { 
                 for (const auto& field : fields()) {
-                    if (field.field_type == nullptr) {
+                    if (field.field_type.lock()) {
                         return false;
                     }
                 }
                 return true;
             }
 
-            bool implement_field_types(std::vector<std::unique_ptr<type>>&& field_types) {
+            bool implement_field_types(std::vector<std::shared_ptr<type>>&& field_types) {
                 if (implemented() || field_types.size() != m_fields.size()) {
                     return false;
                 }
 
                 for (size_t i = 0; i < m_fields.size(); i++) {
-                    m_fields[i].field_type = std::move(field_types[i]);
+                    m_fields[i].field_type = std::weak_ptr<type>(field_types[i]);
                 }
                 return true;
             }
@@ -352,7 +312,7 @@ namespace michaelcc {
                 std::ostringstream ss;
                 ss << "struct { ";
                 for (const auto& f : m_fields) {
-                    ss << f.field_type->to_string() << " " << f.name << "; ";
+                    ss << f.field_type.lock()->to_string() << " " << f.name << "; ";
                 }
                 ss << "}";
                 return ss.str();
@@ -363,7 +323,7 @@ namespace michaelcc {
         public:
             struct member {
                 std::string name;
-                std::unique_ptr<type> member_type;
+                std::weak_ptr<type> member_type = std::weak_ptr<type>();
             };
 
         private:
@@ -377,18 +337,6 @@ namespace michaelcc {
 
             const std::optional<std::string>& name() const noexcept { return m_name; }
             const std::vector<member>& members() const noexcept { return m_members; }
-
-            std::unique_ptr<type> clone() const override {
-                std::vector<member> members;
-                members.reserve(m_members.size());
-                for (const auto& m : m_members) {
-                    members.emplace_back(m.name, m.member_type ? m.member_type->clone() : nullptr);
-                }
-                return std::make_unique<union_type>(
-                    m_name.has_value() ? std::make_optional(std::string(m_name.value())) : std::nullopt,
-                    std::move(members)
-                );
-            }
 
             bool is_assignable_from(const type& other) const override {
                 if (typeid(other) != typeid(*this)) {
@@ -406,7 +354,7 @@ namespace michaelcc {
 
                 std::map<std::string, const type*> member_types;
                 for (const auto& member : members()) {
-                    member_types[member.name] = member.member_type.get();
+                    member_types[member.name] = member.member_type.lock().get();
                 }
                 for (const auto& member : other_union.members()) {
                     auto it = member_types.find(member.name);
@@ -414,7 +362,7 @@ namespace michaelcc {
                         return false;
                     }
 
-                    if (!are_quivalent(*it->second, *member.member_type)) {
+                    if (!are_quivalent(*it->second, *member.member_type.lock())) {
                         return false;
                     }
                 }
@@ -424,20 +372,20 @@ namespace michaelcc {
 
             bool implemented() const noexcept { 
                 for (const auto& member : members()) {
-                    if (member.member_type == nullptr) {
+                    if (member.member_type.lock()) {
                         return false;
                     }
                 }
                 return true;
             }
 
-            bool implement_member_types(std::vector<std::unique_ptr<type>>&& member_types) {
+            bool implement_member_types(std::vector<std::shared_ptr<type>>&& member_types) {
                 if (implemented() || member_types.size() != m_members.size()) {
                     return false;
                 }
 
                 for (size_t i = 0; i < m_members.size(); i++) {
-                    m_members[i].member_type = std::move(member_types[i]);
+                    m_members[i].member_type = std::weak_ptr<type>(member_types[i]);
                 }
                 return true;
             }
@@ -449,7 +397,7 @@ namespace michaelcc {
                 std::ostringstream ss;
                 ss << "union { ";
                 for (const auto& m : m_members) {
-                    ss << m.member_type->to_string() << " " << m.name << "; ";
+                    ss << m.member_type.lock()->to_string() << " " << m.name << "; ";
                 }
                 ss << "}";
                 return ss.str();
@@ -467,30 +415,13 @@ namespace michaelcc {
 
             std::optional<std::string> m_name;
             std::vector<enumerator> m_enumerators;
-            
-            std::optional<int_type> m_underlying_type;
 
         public:
-            enum_type(std::optional<std::string>&& name, std::vector<enumerator>&& enumerators, std::optional<int_type>&& underlying_type)
-                : m_name(std::move(name)), m_enumerators(std::move(enumerators)), m_underlying_type(std::move(underlying_type)) {}
+            enum_type(std::optional<std::string>&& name, std::vector<enumerator>&& enumerators)
+                : m_name(std::move(name)), m_enumerators(std::move(enumerators)) {}
 
             const std::optional<std::string>& name() const noexcept { return m_name; }
             const std::vector<enumerator>& enumerators() const noexcept { return m_enumerators; }
-            const std::optional<int_type>& underlying_type() const noexcept { return m_underlying_type; }
-
-            std::unique_ptr<type> clone() const override {
-                std::vector<enumerator> cloned_enumerators;
-                cloned_enumerators.reserve(m_enumerators.size());
-                for (const auto& enumerator : m_enumerators) {
-                    cloned_enumerators.emplace_back(std::string(enumerator.name), enumerator.value);
-                }
-
-                return std::make_unique<enum_type>(
-                    m_name.has_value() ? std::make_optional(std::string(m_name.value())) : std::nullopt, 
-                    std::move(cloned_enumerators), 
-                    m_underlying_type.has_value() ? std::make_optional(m_underlying_type.value()) : std::nullopt
-                );
-            }
 
             bool is_assignable_from(const type& other) const override {
                 if (typeid(other) != typeid(*this)) {
@@ -502,12 +433,13 @@ namespace michaelcc {
                     return false;
                 }
 
-                if (m_underlying_type.has_value() != other_enum.underlying_type().has_value()) {
+                if (enumerators().size() != other_enum.enumerators().size()) {
                     return false;
                 }
-
-                if (m_underlying_type.has_value() && other_enum.underlying_type().has_value()) {
-                    return are_quivalent(*m_underlying_type, *other_enum.underlying_type());
+                for (size_t i = 0; i < enumerators().size(); i++) {
+                    if (enumerators()[i].value != other_enum.enumerators()[i].value) {
+                        return false;
+                    }
                 }
 
                 return true;
