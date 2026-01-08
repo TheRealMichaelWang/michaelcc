@@ -577,39 +577,39 @@ namespace michaelcc {
             std::shared_ptr<symbol_context> m_global_context;
 			std::vector<std::string> m_strings;
 
-            std::unordered_map<std::string, std::unique_ptr<typing::struct_type>> m_structs;
-            std::unordered_map<std::string, std::unique_ptr<typing::union_type>> m_unions;
-            std::unordered_map<std::string, std::unique_ptr<typing::enum_type>> m_enums;
+            std::unordered_map<std::string, std::shared_ptr<typing::struct_type>> m_structs;
+            std::unordered_map<std::string, std::shared_ptr<typing::union_type>> m_unions;
+            std::unordered_map<std::string, std::shared_ptr<typing::enum_type>> m_enums;
 		public:
             translation_unit() : m_global_context(
                 std::make_shared<symbol_context>(std::weak_ptr<symbol_context>())
             ) {}
 
             void declare_struct(std::unique_ptr<typing::struct_type>&& struct_type) {
-                m_structs[struct_type->name().value()] = std::move(struct_type);
+                m_structs[struct_type->name().value()] = std::shared_ptr<typing::struct_type>(std::move(struct_type));
             }
 
             void declare_union(std::unique_ptr<typing::union_type>&& union_type) {
-                m_unions[union_type->name().value()] = std::move(union_type);
+                m_unions[union_type->name().value()] = std::shared_ptr<typing::union_type>(std::move(union_type));
             }
 
             void declare_enum(std::unique_ptr<typing::enum_type>&& enum_type) {
-                m_enums[enum_type->name().value()] = std::move(enum_type);
+                m_enums[enum_type->name().value()] = std::shared_ptr<typing::enum_type>(std::move(enum_type));
             }
 
-            typing::struct_type* lookup_struct(const std::string& name) {
+            std::shared_ptr<typing::struct_type> lookup_struct(const std::string& name) {
                 auto it = m_structs.find(name);
-                return it != m_structs.end() ? it->second.get() : nullptr;
+                return it != m_structs.end() ? it->second : nullptr;
             }
 
-            typing::union_type* lookup_union(const std::string& name) {
+            std::shared_ptr<typing::union_type> lookup_union(const std::string& name) {
                 auto it = m_unions.find(name);
-                return it != m_unions.end() ? it->second.get() : nullptr;
+                return it != m_unions.end() ? it->second : nullptr;
             }
 
-            typing::enum_type* lookup_enum(const std::string& name) {
+            std::shared_ptr<typing::enum_type> lookup_enum(const std::string& name) {
                 auto it = m_enums.find(name);
-                return it != m_enums.end() ? it->second.get() : nullptr;
+                return it != m_enums.end() ? it->second : nullptr;
             }
 
             std::shared_ptr<symbol> lookup_global(const std::string& name) {
