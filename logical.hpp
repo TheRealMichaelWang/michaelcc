@@ -649,6 +649,9 @@ namespace michaelcc {
 				}
 			}
 		};
+
+		// Utility function to print the IR as a tree
+		std::string to_tree_string(const translation_unit& unit);
 	}
 }
 
