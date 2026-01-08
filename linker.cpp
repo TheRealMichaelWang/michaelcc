@@ -16,7 +16,7 @@ void compiler::forward_declare_types::visit(const ast::struct_declaration& node)
     for (const ast::variable_declaration& feild : node.feilds()) {
         fields.emplace_back(typing::struct_type::field{
             feild.identifier(),
-            nullptr
+            std::weak_ptr<typing::type>()
         });
     }
 
@@ -35,7 +35,7 @@ void compiler::forward_declare_types::visit(const ast::union_declaration& node) 
     for (const ast::union_declaration::member& member : node.members()) {
         members.emplace_back(typing::union_type::member{
             member.member_name,
-            nullptr
+            std::weak_ptr<typing::type>()
         });
     }
     m_compiler.m_translation_unit.declare_union(std::make_unique<typing::union_type>(node.union_name().value(), std::move(members)));
@@ -62,8 +62,7 @@ void compiler::forward_declare_types::visit(const ast::enum_declaration& node) {
     }
     m_compiler.m_translation_unit.declare_enum(std::make_unique<typing::enum_type>(
         node.enum_name().value(), 
-        std::move(enumerators), 
-        std::make_optional<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS)
+        std::move(enumerators)
     ));
 }
 
@@ -78,7 +77,7 @@ void compiler::implement_type_declarations::visit(const ast::struct_declaration&
 
     if (node.feilds().empty()) { return; } // skip structs with no implementation
 
-    std::vector<std::unique_ptr<typing::type>> field_types;
+    std::vector<std::shared_ptr<typing::type>> field_types;
     field_types.reserve(node.feilds().size());
     for (const ast::variable_declaration& field : node.feilds()) {
         field_types.emplace_back(m_compiler.resolve_type(*field.type()));
@@ -101,7 +100,7 @@ void compiler::implement_type_declarations::visit(const ast::union_declaration& 
 
     if (node.members().empty()) { return; } // skip unions with no implementation
 
-    std::vector<std::unique_ptr<typing::type>> member_types;
+    std::vector<std::shared_ptr<typing::type>> member_types;
     member_types.reserve(node.members().size());
     for (const ast::union_declaration::member& member : node.members()) {
         member_types.emplace_back(m_compiler.resolve_type(*member.member_type));
