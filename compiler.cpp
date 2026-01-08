@@ -1,10 +1,10 @@
-#include "linker.hpp"
+#include "compiler.hpp"
 #include "logical.hpp"
 #include <memory>
 
 using namespace michaelcc;
 
-void linker::type_declare_pass::visit(const ast::struct_declaration& node) {
+void compiler::forward_declare_types::visit(const ast::struct_declaration& node) {
     if (node.feilds().empty()) return; // skip structs with no implementation
 
     if (m_linker.m_translation_unit.lookup_struct(node.struct_name().value()) != nullptr) {
@@ -23,7 +23,7 @@ void linker::type_declare_pass::visit(const ast::struct_declaration& node) {
     m_linker.m_translation_unit.declare_struct(std::make_unique<typing::struct_type>(node.struct_name().value(), std::move(fields)));
 }
 
-void linker::type_declare_pass::visit(const ast::union_declaration& node) {
+void compiler::forward_declare_types::visit(const ast::union_declaration& node) {
     if (node.members().empty()) return; // skip unions with no implementation
 
     if (m_linker.m_translation_unit.lookup_union(node.union_name().value()) != nullptr) {
@@ -41,7 +41,7 @@ void linker::type_declare_pass::visit(const ast::union_declaration& node) {
     m_linker.m_translation_unit.declare_union(std::make_unique<typing::union_type>(node.union_name().value(), std::move(members)));
 }
 
-void linker::type_declare_pass::visit(const ast::enum_declaration& node) {
+void compiler::forward_declare_types::visit(const ast::enum_declaration& node) {
     if (node.enumerators().empty()) return; // skip enums with no implementation
 
     if (m_linker.m_translation_unit.lookup_enum(node.enum_name().value()) != nullptr) {
@@ -67,7 +67,7 @@ void linker::type_declare_pass::visit(const ast::enum_declaration& node) {
     ));
 }
 
-void linker::type_implement_pass::visit(const ast::struct_declaration& node) {
+void compiler::implement_type_declarations::visit(const ast::struct_declaration& node) {
     auto struct_type = m_linker.m_translation_unit.lookup_struct(node.struct_name().value());
     if (struct_type == nullptr) {
         throw m_linker.panic("Undefined struct " + node.struct_name().value(), node.location());
@@ -89,7 +89,7 @@ void linker::type_implement_pass::visit(const ast::struct_declaration& node) {
     }
 }
 
-void linker::type_implement_pass::visit(const ast::union_declaration& node) {
+void compiler::implement_type_declarations::visit(const ast::union_declaration& node) {
     auto union_type = m_linker.m_translation_unit.lookup_union(node.union_name().value());
 
     if (union_type == nullptr) {
@@ -111,7 +111,7 @@ void linker::type_implement_pass::visit(const ast::union_declaration& node) {
     }
 }
 
-void linker::function_declare_pass::forward_declare_function(const std::string& function_name, const std::vector<ast::function_parameter>& parameters, const source_location& location) {
+void compiler::forward_declare_functions::forward_declare_function(const std::string& function_name, const std::vector<ast::function_parameter>& parameters, const source_location& location) {
     std::vector<std::shared_ptr<logical_ir::variable>> logical_parameters;
     logical_parameters.reserve(parameters.size());
     for (const ast::function_parameter& parameter : parameters) {
