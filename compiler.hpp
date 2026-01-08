@@ -57,7 +57,7 @@ namespace michaelcc {
             }
         };
 
-        std::unique_ptr<typing::type> resolve_type(const ast::ast_element& type);
+        std::shared_ptr<typing::type> resolve_type(const ast::ast_element& type);
 
         void calculate_type_sizes(std::shared_ptr<typing::type>& type);
     public:
