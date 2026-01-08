@@ -16,10 +16,10 @@ namespace michaelcc {
 
         class forward_declare_types final : public ast::visitor {
         private:
-            compiler& m_linker;
+            compiler& m_compiler;
 
         public:
-            forward_declare_types(compiler& linker) : m_linker(linker) { }
+            forward_declare_types(compiler& linker) : m_compiler(linker) { }
 
             void visit(const ast::struct_declaration& node) override;
 
@@ -30,10 +30,10 @@ namespace michaelcc {
 
         class implement_type_declarations final : public ast::visitor {
         private:
-            compiler& m_linker;
+            compiler& m_compiler;
 
         public:
-            implement_type_declarations(compiler& linker) : m_linker(linker) { }
+            implement_type_declarations(compiler& linker) : m_compiler(linker) { }
 
             void visit(const ast::struct_declaration& node) override;
 
@@ -42,11 +42,11 @@ namespace michaelcc {
 
         class forward_declare_functions final : public ast::visitor {
         private:
-            compiler& m_linker;
+            compiler& m_compiler;
 
             void forward_declare_function(const std::string& function_name, const std::vector<ast::function_parameter>& parameters, const source_location& location);
         public:
-            forward_declare_functions(compiler& linker) : m_linker(linker) { }
+            forward_declare_functions(compiler& linker) : m_compiler(linker) { }
 
             void visit(const ast::function_declaration& node) override {
                 forward_declare_function(node.function_name(), node.parameters(), node.location());
@@ -58,6 +58,8 @@ namespace michaelcc {
         };
 
         std::unique_ptr<typing::type> resolve_type(const ast::ast_element& type);
+
+        void calculate_type_sizes();
     public:
         compiler() : m_translation_unit() { }
     };
