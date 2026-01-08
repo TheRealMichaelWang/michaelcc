@@ -7,6 +7,7 @@
 #include "tokens.hpp"
 #include "symbols.hpp"
 #include "typing.hpp"
+#include "utils.hpp"
 
 namespace michaelcc {
 	namespace logical_ir {
@@ -15,8 +16,58 @@ namespace michaelcc {
 		class variable;
 		class function_definition;
 		class control_block;
+		class integer_constant;
+		class floating_constant;
+		class string_constant;
+		class variable_reference;
+		class binary_operation;
+		class unary_operation;
+		class type_cast;
+		class address_of;
+		class dereference;
+		class member_access;
+		class array_index;
+		class function_call;
+		class conditional_expression;
+		class expression_statement;
+		class assignment_statement;
+		class local_declaration;
+		class return_statement;
+		class if_statement;
+		class loop_statement;
+		class break_statement;
+		class continue_statement;
+		class translation_unit;
 
-		class variable final : public symbol {
+		using visitor = generic_visitor<
+			variable,
+			control_block,
+			function_definition,
+			integer_constant,
+			floating_constant,
+			string_constant,
+			variable_reference,
+			binary_operation,
+			unary_operation,
+			type_cast,
+			address_of,
+			dereference,
+			member_access,
+			array_index,
+			function_call,
+			conditional_expression,
+			expression_statement,
+			assignment_statement,
+			local_declaration,
+			return_statement,
+			if_statement,
+			loop_statement,
+			break_statement,
+			continue_statement,
+			translation_unit
+		>;
+
+		class variable final : public symbol, public visitable_base<visitor> {
 		private:
             uint8_t m_qualifiers;
             std::unique_ptr<typing::type> m_type;
@@ -31,12 +82,15 @@ namespace michaelcc {
             std::string to_string() const noexcept override {
                 return std::format("{} variable {}", m_is_global ? "global" : "local", name());
             }
+
+			void accept(visitor& v) const override { v.visit(*this); }
 		};
 
-		class expression {
+		class expression : public visitable_base<visitor> {
 		public:
 			virtual ~expression() = default;
 			virtual const std::unique_ptr<typing::type> get_type() const = 0;
+			virtual void accept(visitor& v) const override = 0;
 		};
 
 		class integer_constant final : public expression {
@@ -52,6 +106,8 @@ namespace michaelcc {
             const std::unique_ptr<typing::type> get_type() const override { 
                 return m_type->clone(); 
             }
+
+			void accept(visitor& v) const override { v.visit(*this); }
 		};
 
 		class floating_constant final : public expression {
@@ -67,6 +123,8 @@ namespace michaelcc {
 			const std::unique_ptr<typing::type> get_type() const override { 
                 return m_type->clone(); 
             }
+
+			void accept(visitor& v) const override { v.visit(*this); }
 		};
 
 		class string_constant final : public expression {
@@ -79,6 +137,8 @@ namespace michaelcc {
 			const std::unique_ptr<typing::type> get_type() const override { 
                 return std::make_unique<typing::pointer_type>(std::make_unique<typing::int_type>(0, typing::CHAR_INT_CLASS)); 
             }
+
+			void accept(visitor& v) const override { v.visit(*this); }
 		};
 
 		class variable_reference final : public expression {
@@ -93,6 +153,8 @@ namespace michaelcc {
 			const std::unique_ptr<typing::type> get_type() const override {
 				return m_variable->get_type();
 			}
+
+			void accept(visitor& v) const override { v.visit(*this); }
 		};
 
 		class binary_operation final : public expression {
@@ -117,6 +179,12 @@ namespace michaelcc {
 			const expression* right() const noexcept { return m_right.get(); }
 			
             const std::unique_ptr<typing::type> get_type() const override { return m_result_type->clone(); }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_left->accept(v);
+				m_right->accept(v);
+			}
 		};
 
 		class unary_operation final : public expression {
@@ -133,6 +201,11 @@ namespace michaelcc {
             const expression* operand() const noexcept { return m_operand.get(); }
 
             const std::unique_ptr<typing::type> get_type() const override { return m_operand->get_type(); }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_operand->accept(v);
+			}
 		};
 
 		class type_cast final : public expression {
@@ -145,6 +218,11 @@ namespace michaelcc {
 
 			const expression* operand() const noexcept { return m_operand.get(); }
 			const std::unique_ptr<typing::type> get_type() const override { return m_target_type->clone(); }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_operand->accept(v);
+			}
 		};
 
 		class address_of final : public expression {
@@ -159,6 +237,11 @@ namespace michaelcc {
 			const std::unique_ptr<typing::type> get_type() const override { 
                 return m_operand->get_type();
             }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_operand->accept(v);
+			}
 		};
 
 		class dereference final : public expression {
@@ -174,6 +257,11 @@ namespace michaelcc {
 				auto* ptr_type = dynamic_cast<const typing::pointer_type*>(operand_type.get());
 				return ptr_type ? ptr_type->pointee_type()->clone() : nullptr;
 			}
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_operand->accept(v);
+			}
 		};
 
 		class member_access final : public expression {
@@ -188,6 +276,11 @@ namespace michaelcc {
 			const expression* base() const noexcept { return m_base.get(); }
 			size_t field_index() const noexcept { return m_field_index; }
 			const std::unique_ptr<typing::type> get_type() const override { return m_field_type->clone(); }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_base->accept(v);
+			}
 		};
 
 		class array_index final : public expression {
@@ -209,6 +302,12 @@ namespace michaelcc {
 				}
 				auto* ptr_type = dynamic_cast<const typing::pointer_type*>(base_type.get());
 				return ptr_type ? std::make_unique<typing::pointer_type>(ptr_type->pointee_type()->clone()) : nullptr;
+			}
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_base->accept(v);
+				m_index->accept(v);
 			}
 		};
 
@@ -232,6 +331,14 @@ namespace michaelcc {
 				}
 				auto* fn_type = dynamic_cast<const typing::function_pointer_type*>(callee_type.get());
 				return fn_type ? fn_type->return_type()->clone() : nullptr;
+			}
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_callee->accept(v);
+				for (const auto& arg : m_arguments) {
+					arg->accept(v);
+				}
 			}
 		};
 
@@ -258,14 +365,22 @@ namespace michaelcc {
             const std::unique_ptr<typing::type> get_type() const override { 
                 return m_result_type->clone(); 
             }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_condition->accept(v);
+				m_then_expression->accept(v);
+				m_else_expression->accept(v);
+			}
 		};
 
-		class statement {
+		class statement : public visitable_base<visitor> {
 		public:
 			virtual ~statement() = default;
+			virtual void accept(visitor& v) const override = 0;
 		};
 
-		class control_block final : public symbol_context{
+		class control_block final : public symbol_context, public visitable_base<visitor> {
 		private:
 			std::vector<std::unique_ptr<statement>> m_statements;
 
@@ -274,6 +389,13 @@ namespace michaelcc {
 				: symbol_context(std::move(parent_context)), m_statements(std::move(statements)) {}
 
 			const std::vector<std::unique_ptr<statement>>& statements() const noexcept { return m_statements; }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				for (const auto& stmt : m_statements) {
+					stmt->accept(v);
+				}
+			}
 		};
 
 		class expression_statement final : public statement {
@@ -284,6 +406,11 @@ namespace michaelcc {
 				: m_expression(std::move(expr)) {}
 
 			const expression* get_expression() const noexcept { return m_expression.get(); }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_expression->accept(v);
+			}
 		};
 
 		class assignment_statement final : public statement {
@@ -297,6 +424,12 @@ namespace michaelcc {
 
 			const expression* destination() const noexcept { return m_destination.get(); }
 			const expression* value() const noexcept { return m_value.get(); }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_destination->accept(v);
+				m_value->accept(v);
+			}
 		};
 
 		class local_declaration final : public statement {
@@ -309,6 +442,14 @@ namespace michaelcc {
 
 			const std::shared_ptr<variable>& get_variable() const noexcept { return m_variable; }
 			const expression* initializer() const noexcept { return m_initializer.get(); }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_variable->accept(v);
+				if (m_initializer) {
+					m_initializer->accept(v);
+				}
+			}
 		};
 
 		class return_statement final : public statement {
@@ -319,6 +460,13 @@ namespace michaelcc {
 				: m_value(std::move(value)) {}
 
 			const expression* value() const noexcept { return m_value.get(); }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				if (m_value) {
+					m_value->accept(v);
+				}
+			}
 		};
 
 		class if_statement final : public statement {
@@ -337,6 +485,15 @@ namespace michaelcc {
 			const expression* condition() const noexcept { return m_condition.get(); }
 			const std::shared_ptr<control_block>& then_body() const noexcept { return m_then_body; }
 			const std::shared_ptr<control_block>& else_body() const noexcept { return m_else_body; }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_condition->accept(v);
+				m_then_body->accept(v);
+				if (m_else_body) {
+					m_else_body->accept(v);
+				}
+			}
 		};
 
 		class loop_statement final : public statement {
@@ -355,12 +512,25 @@ namespace michaelcc {
 			const std::shared_ptr<control_block>& body() const noexcept { return m_body; }
 			const expression* condition() const noexcept { return m_condition.get(); }
 			bool check_condition_first() const noexcept { return m_check_condition_first; }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_condition->accept(v);
+				m_body->accept(v);
+			}
 		};
 
-		class break_statement final : public statement {};
-		class continue_statement final : public statement {};
+		class break_statement final : public statement {
+		public:
+			void accept(visitor& v) const override { v.visit(*this); }
+		};
 
-		class function_definition final : public symbol {
+		class continue_statement final : public statement {
+		public:
+			void accept(visitor& v) const override { v.visit(*this); }
+		};
+
+		class function_definition final : public symbol, public visitable_base<visitor> {
 		private:
 			std::vector<std::shared_ptr<variable>> m_parameters;
 			std::shared_ptr<control_block> m_body;
@@ -390,6 +560,16 @@ namespace michaelcc {
             std::string to_string() const noexcept override {
                 return std::format("function {}", name());
             }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				for (const auto& param : m_parameters) {
+					param->accept(v);
+				}
+				if (m_body) {
+					m_body->accept(v);
+				}
+			}
 		};
 
 		class translation_unit {
@@ -453,6 +633,21 @@ namespace michaelcc {
             }
 
             const std::shared_ptr<symbol_context>& global_context() const noexcept { return m_global_context; }
+
+			void accept(visitor& v) const {
+				v.visit(*this);
+				for (const auto& sym : m_global_context->symbols()) {
+					auto* var = dynamic_cast<variable*>(sym.get());
+					if (var) {
+						var->accept(v);
+						continue;
+					}
+					auto* func = dynamic_cast<function_definition*>(sym.get());
+					if (func) {
+						func->accept(v);
+					}
+				}
+			}
 		};
 	}
 }
