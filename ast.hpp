@@ -14,6 +14,7 @@
 
 namespace michaelcc {
 	namespace ast {
+        class ast_element;
         class type_specifier;
         class qualified_type;
         class derived_type;
@@ -85,6 +86,17 @@ namespace michaelcc {
             function_prototype,
             function_declaration
         >;
+
+        template<typename ReturnType>
+        class type_dispatcher : public generic_dispatcher<ReturnType, ast_element, 
+            type_specifier,
+            qualified_type,
+            derived_type,
+            function_type,
+            struct_declaration,
+            union_declaration,
+            enum_declaration
+        > { };
 
 		class ast_element : public visitable_base<visitor> {
 		private:

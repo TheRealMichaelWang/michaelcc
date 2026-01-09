@@ -155,3 +155,19 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(cons
     m_declared_info.emplace(&type, type_layout_info{.size=size, .alignment=max_alignment });
     return m_declared_info.at(&type);
 }
+
+std::shared_ptr<typing::type> compiler::type_resolver::dispatch(const ast::type_specifier& type) {
+    if (type.type_keywords().size() == 1) {
+        switch (type.type_keywords()[0]) {
+            case MICHAELCC_TOKEN_VOID:
+                return std::make_shared<typing::void_type>();
+            case MICHAELCC_TOKEN_FLOAT:
+                return std::make_shared<typing::float_type>(typing::FLOAT_FLOAT_CLASS);
+            case MICHAELCC_TOKEN_DOUBLE:
+                return std::make_shared<typing::float_type>(typing::DOUBLE_FLOAT_CLASS);
+            default:
+                return resolve_int_type(type);
+        }
+    }
+    return resolve_int_type(type);
+}
