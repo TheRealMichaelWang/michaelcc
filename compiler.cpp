@@ -132,3 +132,26 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(cons
     m_declared_info.emplace(&mutable_type, type_layout_info{.size=size, .alignment=alignment });
     return m_declared_info.at(&mutable_type);
 }
+
+const compiler::type_layout_info compiler::type_layout_calculator::dispatch(const typing::union_type& type) {
+    if (m_declared_info.contains(&type)) {
+        return m_declared_info.at(&type);
+    }
+
+    size_t max_size = 0;
+    size_t max_alignment = 1;
+
+    for (const auto& member : type.members()) {
+        const type_layout_info member_layout = (*this)(*member.member_type.lock());
+        max_size = std::max(max_size, member_layout.size);
+        max_alignment = std::max(max_alignment, member_layout.alignment);
+    }
+
+    max_alignment = std::min<size_t>(max_alignment, m_platform_info.m_max_alignment);
+    
+    // Pad size to alignment
+    size_t size = max_size + (max_alignment - (max_size % max_alignment)) % max_alignment;
+    
+    m_declared_info.emplace(&type, type_layout_info{.size=size, .alignment=max_alignment });
+    return m_declared_info.at(&type);
+}
