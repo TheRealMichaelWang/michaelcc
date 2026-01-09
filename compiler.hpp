@@ -169,6 +169,27 @@ namespace michaelcc {
             const type_layout_info dispatch(const typing::union_type& type) override;
         };
 
+        
+
+        class type_resolver final : public ast::type_dispatcher<std::shared_ptr<typing::type>> {
+        private:
+            logical_ir::translation_unit& m_translation_unit;
+
+        public:
+            type_resolver(logical_ir::translation_unit& translation_unit) : m_translation_unit(translation_unit) { }
+
+            std::shared_ptr<typing::int_type> resolve_int_type(const ast::type_specifier& type);
+
+        protected:
+            std::shared_ptr<typing::type> dispatch(const ast::type_specifier& type) override;
+            std::shared_ptr<typing::type> dispatch(const ast::qualified_type& type) override;
+            std::shared_ptr<typing::type> dispatch(const ast::derived_type& type) override;
+            std::shared_ptr<typing::type> dispatch(const ast::function_type& type) override;
+            std::shared_ptr<typing::type> dispatch(const ast::struct_declaration& type) override;
+            std::shared_ptr<typing::type> dispatch(const ast::union_declaration& type) override;
+            std::shared_ptr<typing::type> dispatch(const ast::enum_declaration& type) override;
+        };
+
         compilation_error panic(const std::string& msg, const source_location& location) {
             return compilation_error(msg, location);
         }
