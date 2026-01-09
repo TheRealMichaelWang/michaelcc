@@ -16,7 +16,7 @@ void compiler::forward_declare_types::visit(const ast::struct_declaration& node)
     for (const ast::variable_declaration& feild : node.feilds()) {
         fields.emplace_back(typing::struct_type::field{
             feild.identifier(),
-            std::weak_ptr<typing::type>()
+            typing::weak_qual_type(typing::primitives::void_t)
         });
     }
 
@@ -35,7 +35,7 @@ void compiler::forward_declare_types::visit(const ast::union_declaration& node) 
     for (const ast::union_declaration::member& member : node.members()) {
         members.emplace_back(typing::union_type::member{
             member.member_name,
-            std::weak_ptr<typing::type>()
+            typing::weak_qual_type(typing::primitives::void_t)
         });
     }
     m_compiler.m_translation_unit.declare_union(std::make_unique<typing::union_type>(node.union_name().value(), std::move(members)));
@@ -71,13 +71,13 @@ void compiler::implement_type_declarations::visit(const ast::struct_declaration&
     if (struct_type == nullptr) {
         throw m_compiler.panic("Undefined struct " + node.struct_name().value(), node.location());
     }
-    if (struct_type->implemented()) {
+    if (struct_type->is_implemented()) {
         throw m_compiler.panic("Struct " + node.struct_name().value() + " already implemented", node.location());
     }
 
     if (node.feilds().empty()) { return; } // skip structs with no implementation
 
-    std::vector<std::shared_ptr<typing::type>> field_types;
+    std::vector<typing::weak_qual_type> field_types;
     field_types.reserve(node.feilds().size());
     for (const ast::variable_declaration& field : node.feilds()) {
         field_types.emplace_back(m_compiler.resolve_type(*field.type()));
@@ -94,13 +94,13 @@ void compiler::implement_type_declarations::visit(const ast::union_declaration& 
     if (union_type == nullptr) {
         throw m_compiler.panic("Undefined union " + node.union_name().value(), node.location());
     }
-    if (union_type->implemented()) {
+    if (union_type->is_implemented()) {
         throw m_compiler.panic("Union " + node.union_name().value() + " already implemented", node.location());
     }
 
     if (node.members().empty()) { return; } // skip unions with no implementation
 
-    std::vector<std::shared_ptr<typing::type>> member_types;
+    std::vector<typing::weak_qual_type> member_types;
     member_types.reserve(node.members().size());
     for (const ast::union_declaration::member& member : node.members()) {
         member_types.emplace_back(m_compiler.resolve_type(*member.member_type));
@@ -116,7 +116,7 @@ void compiler::forward_declare_functions::forward_declare_function(const std::st
     for (const ast::function_parameter& parameter : parameters) {
         logical_parameters.emplace_back(std::make_shared<logical_ir::variable>(
             std::string(parameter.param_name),
-            m_compiler.resolve_type(*parameter.param_type),
+            m_compiler.resolve_type(*parameter.param_type).to_shared(),
             false,
             std::weak_ptr<logical_ir::symbol_context>()
         ));
@@ -145,12 +145,12 @@ void compiler::forward_declare_functions::forward_declare_function(const std::st
         }
 
         for (size_t i = 0; i < parameters.size(); i++) {
-            if (!typing::are_quivalent(*existing_function_definition->parameters()[i]->get_type(), *m_compiler.resolve_type(*parameters[i].param_type))) {
+            if (existing_function_definition->parameters()[i]->get_type() != m_compiler.resolve_type(*parameters[i].param_type)) {
                 throw m_compiler.panic(std::format(
                     "Parameter type mismatch for function {}; Function originally declared with parameter type {}, but now declared with parameter type {}.", 
                     function_name,
-                    existing_function_definition->parameters()[i]->get_type()->to_string(),
-                    logical_parameters[i]->get_type()->to_string()
+                    existing_function_definition->parameters()[i]->get_type().to_string(),
+                    logical_parameters[i]->get_type().to_string()
                 ), location);
             }
         }
