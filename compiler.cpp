@@ -6,9 +6,7 @@
 
 using namespace michaelcc;
 
-void compiler::resolve_layout_dependencies(std::shared_ptr<typing::type>& type) const {
-    layout_dependency_getter resolver(m_translation_unit);
-    
+void compiler::check_layout_dependencies(std::shared_ptr<typing::type>& type) {
     std::map<std::shared_ptr<typing::type>, std::shared_ptr<typing::type>> last_seen_parent;
 
     std::queue<std::shared_ptr<typing::type>> type_to_resolve;
@@ -49,10 +47,82 @@ void compiler::resolve_layout_dependencies(std::shared_ptr<typing::type>& type) 
         }
         type_to_resolve.pop();
 
-        const std::vector<std::shared_ptr<typing::type>> dependencies = resolver.dispatch_dynamic(*type);
+        const std::vector<std::shared_ptr<typing::type>> dependencies = m_layout_dependency_getter(*type);
         for (const auto& dependency : dependencies) {
             type_to_resolve.push(dependency);
             last_seen_parent[dependency] = type;
         }
     }
+}
+
+const compiler::type_layout_info compiler::type_layout_calculator::dispatch(const typing::int_type& type) {
+    size_t size;
+    switch (type.type_class()) {
+        case typing::CHAR_INT_CLASS:
+            size = 1;
+            break;
+        case typing::SHORT_INT_CLASS:
+            size = m_platform_info.m_short_size;
+            break;
+        case typing::INT_INT_CLASS:
+            size = (type.qualifiers() & typing::LONG_INT_QUALIFIER)
+                ? m_platform_info.m_long_size
+                : m_platform_info.m_int_size;
+            break;
+        case typing::LONG_INT_CLASS:
+            size = m_platform_info.m_long_long_size;
+            break;
+    }
+    return { size, std::min<size_t>(size, m_platform_info.m_max_alignment) };
+}
+
+const compiler::type_layout_info compiler::type_layout_calculator::dispatch(const typing::float_type& type) {
+    switch (type.type_class()) {
+        case typing::FLOAT_FLOAT_CLASS:
+            return { 4, std::min<size_t>(4, m_platform_info.m_max_alignment) };
+        case typing::DOUBLE_FLOAT_CLASS:
+            return { 8, std::min<size_t>(8, m_platform_info.m_max_alignment) };
+    }
+    throw std::runtime_error("Invalid float type class");
+}
+
+const compiler::type_layout_info compiler::type_layout_calculator::dispatch(const typing::struct_type& type) {
+    if (m_declared_info.contains(&type)) {
+        return m_declared_info.at(&type);
+    }
+
+    std::vector<size_t> field_offsets;
+    field_offsets.reserve(type.fields().size());
+
+    size_t size = 0;
+    size_t alignment = 1;
+    if (m_platform_info.optimize_struct_layout) {
+        
+    }
+    else {
+        size_t offset = 0;
+        size_t max_alignment = 1;
+
+        for (const auto& field : type.fields()) {
+            const type_layout_info field_layout = (*this)(*field.field_type.lock());
+
+            // Pad to field alignment
+            size_t padding = (field_layout.alignment - (offset % field_layout.alignment)) % field_layout.alignment;
+            offset += padding;
+            field_offsets.push_back(offset);
+            offset += field_layout.size;
+            
+            max_alignment = std::max(max_alignment, field_layout.alignment);
+        }
+
+        // Pad final size to struct alignment
+        size_t final_padding = (max_alignment - (offset % max_alignment)) % max_alignment;
+        size = offset + final_padding;
+        alignment = max_alignment;
+    }
+
+    auto& mutable_type = const_cast<typing::struct_type&>(type);
+    mutable_type.implement_field_offsets(field_offsets);
+    m_declared_info.emplace(&mutable_type, type_layout_info{.size=size, .alignment=alignment });
+    return m_declared_info.at(&mutable_type);
 }

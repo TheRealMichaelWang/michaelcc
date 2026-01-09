@@ -37,30 +37,30 @@ namespace michaelcc {
         virtual ~generic_dispatcher() = default;
 
         template<typename BaseType>
-        ReturnType dispatch_dynamic(const BaseType&) const {
+        ReturnType operator()(const BaseType&) {
             return ReturnType{};
         }
 
     protected:
         // Sentinel for the using declaration chain - never called
-        void dispatch() const {}
+        void dispatch() {}
     };
 
     template<typename ReturnType, typename NodeType, typename... Rest>
     class generic_dispatcher<ReturnType, NodeType, Rest...> : public generic_dispatcher<ReturnType, Rest...> {
     protected:
         using generic_dispatcher<ReturnType, Rest...>::dispatch;
-        virtual ReturnType dispatch(const NodeType& node) const = 0;
+        virtual ReturnType dispatch(const NodeType& node) = 0;
 
     public:
         template<typename BaseType>
-        ReturnType dispatch_dynamic(const BaseType& node) const {
+        ReturnType operator()(const BaseType& node) {
             static_assert(std::is_base_of_v<BaseType, NodeType>, 
                 "BaseType must be a base class of NodeType");
             if (auto* p = dynamic_cast<const NodeType*>(&node)) {
                 return dispatch(*p);
             }
-            return generic_dispatcher<ReturnType, Rest...>::dispatch_dynamic(node);
+            return generic_dispatcher<ReturnType, Rest...>::operator()(node);
         }
     };
 }
