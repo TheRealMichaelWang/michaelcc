@@ -80,6 +80,7 @@ std::unique_ptr<ast::ast_element> parser::parse_int_type() {
     
     bool has_char = false, has_short = false;
     int long_count = 0;
+    int int_count = 0;
 
     for(;;) {
         switch (current_token().type()) {
@@ -104,6 +105,7 @@ std::unique_ptr<ast::ast_element> parser::parse_int_type() {
             next_token();
             continue;
         case MICHAELCC_TOKEN_INT:
+            int_count++;
             type_keywords.push_back(current_token().type());
             next_token();
             continue;
@@ -121,6 +123,9 @@ std::unique_ptr<ast::ast_element> parser::parse_int_type() {
     }
     if (has_short && long_count > 0) {
         throw panic("Invalid combination: 'short' and 'long' cannot be combined");
+    }
+    if (int_count > 1) {
+        throw panic("Invalid combination: 'int' cannot be combined with 'int'");
     }
 
     return std::make_unique<ast::type_specifier>(std::move(type_keywords), std::move(location));

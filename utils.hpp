@@ -2,6 +2,8 @@
 #define MICHAELCC_UTILS_HPP
 
 #include <concepts>
+#include <stdexcept>
+#include <typeinfo>
 
 namespace michaelcc {
     template<typename... NodeTypes>
@@ -37,7 +39,7 @@ namespace michaelcc {
         virtual ~generic_dispatcher() = default;
 
         ReturnType operator()(const BaseType&) {
-            return ReturnType{};
+            throw std::runtime_error("No dispatch method for type " + std::string(typeid(BaseType).name()));
         }
 
     protected:
