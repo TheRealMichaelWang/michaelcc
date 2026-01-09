@@ -94,32 +94,38 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(cons
     std::vector<size_t> field_offsets;
     field_offsets.reserve(type.fields().size());
 
+
+    std::vector<typing::struct_type::field> fields = std::vector<typing::struct_type::field>(type.fields());
+    if (m_platform_info.optimize_struct_layout) {
+        // Sort by alignment (descending) to minimize padding
+        std::sort(fields.begin(), fields.end(), [this](const typing::struct_type::field& a, const typing::struct_type::field& b) {
+            const type_layout_info a_layout = (*this)(*a.field_type.lock());
+            const type_layout_info b_layout = (*this)(*b.field_type.lock());
+            return a_layout.alignment > b_layout.alignment;
+        });
+    }
+    
     size_t size = 0;
     size_t alignment = 1;
-    if (m_platform_info.optimize_struct_layout) {
+    size_t offset = 0;
+    size_t max_alignment = 1;
+
+    for (const auto& field : fields) {
+        const type_layout_info field_layout = (*this)(*field.field_type.lock());
+
+        // Pad to field alignment
+        size_t padding = (field_layout.alignment - (offset % field_layout.alignment)) % field_layout.alignment;
+        offset += padding;
+        field_offsets.push_back(offset);
+        offset += field_layout.size;
         
+        max_alignment = std::max(max_alignment, field_layout.alignment);
     }
-    else {
-        size_t offset = 0;
-        size_t max_alignment = 1;
 
-        for (const auto& field : type.fields()) {
-            const type_layout_info field_layout = (*this)(*field.field_type.lock());
-
-            // Pad to field alignment
-            size_t padding = (field_layout.alignment - (offset % field_layout.alignment)) % field_layout.alignment;
-            offset += padding;
-            field_offsets.push_back(offset);
-            offset += field_layout.size;
-            
-            max_alignment = std::max(max_alignment, field_layout.alignment);
-        }
-
-        // Pad final size to struct alignment
-        size_t final_padding = (max_alignment - (offset % max_alignment)) % max_alignment;
-        size = offset + final_padding;
-        alignment = max_alignment;
-    }
+    // Pad final size to struct alignment
+    size_t final_padding = (max_alignment - (offset % max_alignment)) % max_alignment;
+    size = offset + final_padding;
+    alignment = max_alignment;
 
     auto& mutable_type = const_cast<typing::struct_type&>(type);
     mutable_type.implement_field_offsets(field_offsets);
