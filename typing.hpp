@@ -48,6 +48,7 @@ namespace michaelcc {
 			DOUBLE_FLOAT_CLASS
 		};
 
+        class type;
         class void_type;
         class int_type;
         class float_type;
@@ -59,7 +60,7 @@ namespace michaelcc {
         class union_type;
 
         template<typename ReturnType>
-        class type_dispatcher : public generic_dispatcher<ReturnType, 
+        class type_dispatcher : public generic_dispatcher<ReturnType, type, 
             void_type, 
             int_type, 
             float_type, 

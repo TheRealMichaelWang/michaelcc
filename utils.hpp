@@ -1,7 +1,7 @@
 #ifndef MICHAELCC_UTILS_HPP
 #define MICHAELCC_UTILS_HPP
 
-#include <type_traits>
+#include <concepts>
 
 namespace michaelcc {
     template<typename... NodeTypes>
@@ -28,15 +28,14 @@ namespace michaelcc {
         virtual void accept(Visitor& v) const = 0;
     };
 
-    template<typename ReturnType, typename... NodeTypes>
+    template<typename ReturnType, typename BaseType, typename... NodeTypes>
     class generic_dispatcher;
 
-    template<typename ReturnType>
-    class generic_dispatcher<ReturnType> {
+    template<typename ReturnType, typename BaseType>
+    class generic_dispatcher<ReturnType, BaseType> {
     public:
         virtual ~generic_dispatcher() = default;
 
-        template<typename BaseType>
         ReturnType operator()(const BaseType&) {
             return ReturnType{};
         }
@@ -46,21 +45,20 @@ namespace michaelcc {
         void dispatch() {}
     };
 
-    template<typename ReturnType, typename NodeType, typename... Rest>
-    class generic_dispatcher<ReturnType, NodeType, Rest...> : public generic_dispatcher<ReturnType, Rest...> {
+    template<typename ReturnType, typename BaseType, typename NodeType, typename... Rest>
+    requires std::derived_from<NodeType, BaseType>
+    class generic_dispatcher<ReturnType, BaseType, NodeType, Rest...> : public generic_dispatcher<ReturnType, BaseType, Rest...> {
     protected:
-        using generic_dispatcher<ReturnType, Rest...>::dispatch;
+
+        using generic_dispatcher<ReturnType, BaseType, Rest...>::dispatch;
         virtual ReturnType dispatch(const NodeType& node) = 0;
 
     public:
-        template<typename BaseType>
         ReturnType operator()(const BaseType& node) {
-            static_assert(std::is_base_of_v<BaseType, NodeType>, 
-                "BaseType must be a base class of NodeType");
             if (auto* p = dynamic_cast<const NodeType*>(&node)) {
                 return dispatch(*p);
             }
-            return generic_dispatcher<ReturnType, Rest...>::operator()(node);
+            return generic_dispatcher<ReturnType, BaseType, Rest...>::operator()(node);
         }
     };
 }
