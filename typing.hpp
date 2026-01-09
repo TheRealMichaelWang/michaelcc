@@ -8,6 +8,7 @@
 #include <sstream>
 #include <map>
 #include <typeinfo>
+#include "utils.hpp"
 
 namespace michaelcc {
     namespace typing {
@@ -54,6 +55,20 @@ namespace michaelcc {
         class array_type;
         class enum_type;
         class function_pointer_type;
+        class struct_type;
+        class union_type;
+
+        template<typename ReturnType>
+        class type_dispatcher : public generic_dispatcher<ReturnType, 
+            void_type, 
+            int_type, 
+            float_type, 
+            pointer_type, 
+            array_type, 
+            enum_type, 
+            function_pointer_type,
+            struct_type,
+            union_type> {};
 
         class type {
         public:

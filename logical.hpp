@@ -632,6 +632,10 @@ namespace michaelcc {
                 return m_global_context->symbols();
             }
 
+            const std::unordered_map<std::string, std::shared_ptr<typing::struct_type>>& structs() const noexcept { return m_structs; }
+            const std::unordered_map<std::string, std::shared_ptr<typing::union_type>>& unions() const noexcept { return m_unions; }
+            const std::unordered_map<std::string, std::shared_ptr<typing::enum_type>>& enums() const noexcept { return m_enums; }
+
             const std::shared_ptr<symbol_context>& global_context() const noexcept { return m_global_context; }
 
 			void accept(visitor& v) const {
