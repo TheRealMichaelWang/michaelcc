@@ -6,14 +6,14 @@
 
 using namespace michaelcc;
 
-void compiler::check_layout_dependencies(std::shared_ptr<typing::type>& type) {
-    std::map<std::shared_ptr<typing::type>, std::shared_ptr<typing::type>> last_seen_parent;
+void compiler::check_layout_dependencies(std::shared_ptr<typing::base_type>& type) {
+    std::map<std::shared_ptr<typing::base_type>, std::shared_ptr<typing::base_type>> last_seen_parent;
 
-    std::queue<std::shared_ptr<typing::type>> type_to_resolve;
+    std::queue<std::shared_ptr<typing::base_type>> type_to_resolve;
     type_to_resolve.push(type);
 
     while (!type_to_resolve.empty()) {
-        std::shared_ptr<typing::type> type = type_to_resolve.front();
+        std::shared_ptr<typing::base_type> type = type_to_resolve.front();
         if (last_seen_parent.contains(type)) { //check for circular dependencies
             std::ostringstream ss;
 
@@ -22,8 +22,8 @@ void compiler::check_layout_dependencies(std::shared_ptr<typing::type>& type) {
                 ss << "(at " << m_type_declaration_locations.at(type).to_string() << ')';
             }
 
-            std::vector<std::shared_ptr<typing::type>> path;
-            std::shared_ptr<typing::type> current = last_seen_parent[type];
+            std::vector<std::shared_ptr<typing::base_type>> path;
+            std::shared_ptr<typing::base_type> current = last_seen_parent[type];
             while (current != type) {
                 path.push_back(current);
                 current = last_seen_parent[current];
@@ -47,7 +47,7 @@ void compiler::check_layout_dependencies(std::shared_ptr<typing::type>& type) {
         }
         type_to_resolve.pop();
 
-        const std::vector<std::shared_ptr<typing::type>> dependencies = m_layout_dependency_getter(*type);
+        const std::vector<std::shared_ptr<typing::base_type>> dependencies = m_layout_dependency_getter(*type);
         for (const auto& dependency : dependencies) {
             type_to_resolve.push(dependency);
             last_seen_parent[dependency] = type;
@@ -156,7 +156,7 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(cons
     return m_declared_info.at(&type);
 }
 
-std::shared_ptr<typing::type> compiler::type_resolver::dispatch(const ast::type_specifier& type) {
+std::shared_ptr<typing::base_type> compiler::type_resolver::dispatch(const ast::type_specifier& type) {
     if (type.type_keywords().size() == 1) {
         switch (type.type_keywords()[0]) {
             case MICHAELCC_TOKEN_VOID:
