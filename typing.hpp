@@ -263,6 +263,8 @@ namespace michaelcc {
             struct field {
                 std::string name;
                 std::weak_ptr<type> field_type = std::weak_ptr<type>();
+
+                size_t offset;
             };
         private:
             std::optional<std::string> m_name;
@@ -318,6 +320,12 @@ namespace michaelcc {
                     m_fields[i].field_type = std::weak_ptr<type>(field_types[i]);
                 }
                 return true;
+            }
+
+            void implement_field_offsets(const std::vector<size_t>& field_offsets) {
+                for (size_t i = 0; i < m_fields.size(); i++) {
+                    m_fields[i].offset = field_offsets[i];
+                }
             }
 
             std::string to_string() const override {
