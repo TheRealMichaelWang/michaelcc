@@ -58,6 +58,7 @@ namespace michaelcc {
 				{ "int", MICHAELCC_TOKEN_INT },
 				{ "long", MICHAELCC_TOKEN_LONG },
 				{ "register", MICHAELCC_TOKEN_REGISTER },
+				{ "restrict", MICHAELCC_TOKEN_RESTRICT },
 				{ "return", MICHAELCC_TOKEN_RETURN },
 				{ "short", MICHAELCC_TOKEN_SHORT },
 				{ "signed", MICHAELCC_TOKEN_SIGNED },
