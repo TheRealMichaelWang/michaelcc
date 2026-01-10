@@ -80,6 +80,7 @@ uint8_t michaelcc::parser::parse_type_qualifiers()
         switch (current_token().type()) {
         case MICHAELCC_TOKEN_CONST: qualifiers |= typing::CONST_TYPE_QUALIFIER; next_token(); continue;
         case MICHAELCC_TOKEN_VOLATILE: qualifiers |= typing::VOLATILE_TYPE_QUALIFIER; next_token(); continue;
+        case MICHAELCC_TOKEN_RESTRICT: qualifiers |= typing::RESTRICT_TYPE_QUALIFIER; next_token(); continue;
         default:
             return qualifiers;
         }
