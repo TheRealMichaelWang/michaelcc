@@ -78,35 +78,35 @@ namespace michaelcc {
             layout_dependency_getter(const logical_ir::translation_unit& translation_unit) : m_translation_unit(translation_unit) { }
 
         protected:
-            const std::vector<std::shared_ptr<typing::base_type>> dispatch(const typing::void_type& type) override { 
+            const std::vector<std::shared_ptr<typing::base_type>> dispatch(typing::void_type& type) override { 
                 return std::vector<std::shared_ptr<typing::base_type>>(); 
             }
 
-            const std::vector<std::shared_ptr<typing::base_type>> dispatch(const typing::int_type& type) override { 
+            const std::vector<std::shared_ptr<typing::base_type>> dispatch(typing::int_type& type) override { 
                 return std::vector<std::shared_ptr<typing::base_type>>(); 
             }
 
-            const std::vector<std::shared_ptr<typing::base_type>> dispatch(const typing::float_type& type) override { 
+            const std::vector<std::shared_ptr<typing::base_type>> dispatch(typing::float_type& type) override { 
                 return std::vector<std::shared_ptr<typing::base_type>>(); 
             }
 
-            const std::vector<std::shared_ptr<typing::base_type>> dispatch(const typing::pointer_type& type) override { 
+            const std::vector<std::shared_ptr<typing::base_type>> dispatch(typing::pointer_type& type) override { 
                 return std::vector<std::shared_ptr<typing::base_type>>(); 
             }
 
-            const std::vector<std::shared_ptr<typing::base_type>> dispatch(const typing::array_type& type) override { 
+            const std::vector<std::shared_ptr<typing::base_type>> dispatch(typing::array_type& type) override { 
                 return { type.element_type().type() };
             } 
 
-            const std::vector<std::shared_ptr<typing::base_type>> dispatch(const typing::enum_type& type) override { 
+            const std::vector<std::shared_ptr<typing::base_type>> dispatch(typing::enum_type& type) override { 
                 return std::vector<std::shared_ptr<typing::base_type>>(); 
             }
 
-            const std::vector<std::shared_ptr<typing::base_type>> dispatch(const typing::function_pointer_type& type) override { 
+            const std::vector<std::shared_ptr<typing::base_type>> dispatch(typing::function_pointer_type& type) override { 
                 return { };
             }
 
-            const std::vector<std::shared_ptr<typing::base_type>> dispatch(const typing::struct_type& type) override { 
+            const std::vector<std::shared_ptr<typing::base_type>> dispatch(typing::struct_type& type) override { 
                 std::vector<std::shared_ptr<typing::base_type>> types;
                 types.reserve(type.fields().size());
                 for (const auto& field : type.fields()) {
@@ -115,7 +115,7 @@ namespace michaelcc {
                 return types;
             }
 
-            const std::vector<std::shared_ptr<typing::base_type>> dispatch(const typing::union_type& type) override { 
+            const std::vector<std::shared_ptr<typing::base_type>> dispatch(typing::union_type& type) override { 
                 std::vector<std::shared_ptr<typing::base_type>> types;
                 types.reserve(type.members().size());
                 for (const auto& member : type.members()) {
@@ -149,24 +149,24 @@ namespace michaelcc {
             type_layout_calculator(const platform_info& platform_info) : m_platform_info(platform_info) { }
 
         protected:
-            const type_layout_info dispatch(const typing::void_type& type) override {
+            const type_layout_info dispatch(typing::void_type& type) override {
                 throw std::runtime_error("Void type is not a valid type for layout calculation");
             }
 
-            const type_layout_info dispatch(const typing::int_type& type) override;
+            const type_layout_info dispatch(typing::int_type& type) override;
 
-            const type_layout_info dispatch(const typing::float_type& type) override;
+            const type_layout_info dispatch(typing::float_type& type) override;
 
-            const type_layout_info dispatch(const typing::pointer_type& type) override { return pointer_layout; }
+            const type_layout_info dispatch(typing::pointer_type& type) override { return pointer_layout; }
 
-            const type_layout_info dispatch(const typing::array_type& type) override { return pointer_layout; }
+            const type_layout_info dispatch(typing::array_type& type) override { return pointer_layout; }
 
-            const type_layout_info dispatch(const typing::enum_type& type) override { return int_layout; }
+            const type_layout_info dispatch(typing::enum_type& type) override { return int_layout; }
 
-            const type_layout_info dispatch(const typing::function_pointer_type& type) override { return pointer_layout; }
+            const type_layout_info dispatch(typing::function_pointer_type& type) override { return pointer_layout; }
 
-            const type_layout_info dispatch(const typing::struct_type& type) override;
-            const type_layout_info dispatch(const typing::union_type& type) override;
+            const type_layout_info dispatch(typing::struct_type& type) override;
+            const type_layout_info dispatch(typing::union_type& type) override;
         };
 
 
@@ -181,13 +181,13 @@ namespace michaelcc {
             std::shared_ptr<typing::int_type> resolve_int_type(const ast::type_specifier& type);
 
         protected:
-            std::shared_ptr<typing::base_type> dispatch(const ast::type_specifier& type) override;
-            std::shared_ptr<typing::base_type> dispatch(const ast::qualified_type& type) override;
-            std::shared_ptr<typing::base_type> dispatch(const ast::derived_type& type) override;
-            std::shared_ptr<typing::base_type> dispatch(const ast::function_type& type) override;
-            std::shared_ptr<typing::base_type> dispatch(const ast::struct_declaration& type) override;
-            std::shared_ptr<typing::base_type> dispatch(const ast::union_declaration& type) override;
-            std::shared_ptr<typing::base_type> dispatch(const ast::enum_declaration& type) override;
+            std::shared_ptr<typing::base_type> dispatch(ast::type_specifier& type) override;
+            std::shared_ptr<typing::base_type> dispatch(ast::qualified_type& type) override;
+            std::shared_ptr<typing::base_type> dispatch(ast::derived_type& type) override;
+            std::shared_ptr<typing::base_type> dispatch(ast::function_type& type) override;
+            std::shared_ptr<typing::base_type> dispatch(ast::struct_declaration& type) override;
+            std::shared_ptr<typing::base_type> dispatch(ast::union_declaration& type) override;
+            std::shared_ptr<typing::base_type> dispatch(ast::enum_declaration& type) override;
         };
 
         compilation_error panic(const std::string& msg, const source_location& location) {

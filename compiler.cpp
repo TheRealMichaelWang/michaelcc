@@ -57,7 +57,7 @@ void compiler::check_layout_dependencies(std::shared_ptr<typing::base_type>& typ
     }
 }
 
-const compiler::type_layout_info compiler::type_layout_calculator::dispatch(const typing::int_type& type) {
+const compiler::type_layout_info compiler::type_layout_calculator::dispatch(typing::int_type& type) {
     size_t size;
     switch (type.type_class()) {
         case typing::CHAR_INT_CLASS:
@@ -80,7 +80,7 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(cons
     return { size, std::min<size_t>(size, m_platform_info.m_max_alignment) };
 }
 
-const compiler::type_layout_info compiler::type_layout_calculator::dispatch(const typing::float_type& type) {
+const compiler::type_layout_info compiler::type_layout_calculator::dispatch(typing::float_type& type) {
     switch (type.type_class()) {
         case typing::FLOAT_FLOAT_CLASS:
             return { 4, std::min<size_t>(4, m_platform_info.m_max_alignment) };
@@ -90,7 +90,7 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(cons
     throw std::runtime_error("Invalid float type class");
 }
 
-const compiler::type_layout_info compiler::type_layout_calculator::dispatch(const typing::struct_type& type) {
+const compiler::type_layout_info compiler::type_layout_calculator::dispatch(typing::struct_type& type) {
     if (m_declared_info.contains(&type)) {
         return m_declared_info.at(&type);
     }
@@ -130,13 +130,12 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(cons
     size = offset + final_padding;
     alignment = max_alignment;
 
-    auto& mutable_type = const_cast<typing::struct_type&>(type);
-    mutable_type.implement_field_offsets(field_offsets);
-    m_declared_info.emplace(&mutable_type, type_layout_info{.size=size, .alignment=alignment });
-    return m_declared_info.at(&mutable_type);
+    type.implement_field_offsets(field_offsets);
+    m_declared_info.emplace(&type, type_layout_info{.size=size, .alignment=alignment });
+    return m_declared_info.at(&type);
 }
 
-const compiler::type_layout_info compiler::type_layout_calculator::dispatch(const typing::union_type& type) {
+const compiler::type_layout_info compiler::type_layout_calculator::dispatch(typing::union_type& type) {
     if (m_declared_info.contains(&type)) {
         return m_declared_info.at(&type);
     }
@@ -159,7 +158,7 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(cons
     return m_declared_info.at(&type);
 }
 
-std::shared_ptr<typing::base_type> compiler::type_resolver::dispatch(const ast::type_specifier& type) {
+std::shared_ptr<typing::base_type> compiler::type_resolver::dispatch(ast::type_specifier& type) {
     if (type.type_keywords().size() == 1) {
         switch (type.type_keywords()[0]) {
             case MICHAELCC_TOKEN_VOID:
