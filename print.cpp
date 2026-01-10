@@ -56,6 +56,7 @@ const std::string michaelcc::token_to_str(token_type type) {
         "int",
         "long",
         "register",
+        "restrict",
         "return",
         "short",
         "signed",
