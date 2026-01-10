@@ -1,4 +1,5 @@
 #include "parser.hpp"
+#include "typing.hpp"
 #include <cstdint>
 #include <sstream>
 
@@ -57,19 +58,30 @@ void michaelcc::parser::match_token(token_type type) const
 	}
 }
 
-uint8_t michaelcc::parser::parse_storage_qualifiers()
+uint8_t michaelcc::parser::parse_storage_class()
 {    
     uint8_t storage = 0;
-    uint8_t type_quals = 0;
     for (;;) {
         switch (current_token().type()) {
-        case MICHAELCC_TOKEN_CONST: type_quals |= typing::CONST_TYPE_QUALIFIER; next_token(); continue;
-        case MICHAELCC_TOKEN_VOLATILE: type_quals |= typing::VOLATILE_TYPE_QUALIFIER; next_token(); continue;
         case MICHAELCC_TOKEN_EXTERN: storage |= typing::EXTERN_STORAGE_CLASS; next_token(); continue;
         case MICHAELCC_TOKEN_STATIC: storage |= typing::STATIC_STORAGE_CLASS; next_token(); continue;
         case MICHAELCC_TOKEN_REGISTER: storage |= typing::REGISTER_STORAGE_CLASS; next_token(); continue;
+        case MICHAELCC_TOKEN_AUTO: storage |= typing::AUTO_STORAGE_CLASS; next_token(); continue;
         default:
-            return storage | (type_quals << 4);
+            return storage;
+        }
+    }
+}
+
+uint8_t michaelcc::parser::parse_type_qualifiers()
+{
+    uint8_t qualifiers = 0;
+    for (;;) {
+        switch (current_token().type()) {
+        case MICHAELCC_TOKEN_CONST: qualifiers |= typing::CONST_TYPE_QUALIFIER; next_token(); continue;
+        case MICHAELCC_TOKEN_VOLATILE: qualifiers |= typing::VOLATILE_TYPE_QUALIFIER; next_token(); continue;
+        default:
+            return qualifiers;
         }
     }
 }
@@ -134,6 +146,7 @@ std::unique_ptr<ast::ast_element> parser::parse_int_type() {
 std::unique_ptr<ast::ast_element> michaelcc::parser::parse_type(const bool parse_pointer)
 {
     source_location location = current_loc;
+    uint8_t qualifiers = parse_type_qualifiers();
     std::unique_ptr<ast::ast_element> base_type;
 
     if (current_token().type() == MICHAELCC_TOKEN_FLOAT ||
@@ -170,10 +183,20 @@ std::unique_ptr<ast::ast_element> michaelcc::parser::parse_type(const bool parse
         base_type = parse_int_type();
     }
 
+    if (qualifiers != typing::NO_TYPE_QUALIFIER) {
+        base_type = std::make_unique<ast::qualified_type>(
+            qualifiers, std::move(base_type), source_location(location));
+    }
+
     while (parse_pointer) {
         if (current_token().type() == MICHAELCC_TOKEN_ASTERISK) {
             next_token();
             base_type = std::make_unique<ast::derived_type>(std::move(base_type), source_location(location));
+            uint8_t pointer_qualifiers = parse_type_qualifiers();
+            if (pointer_qualifiers != 0) {
+                base_type = std::make_unique<ast::qualified_type>(
+                    pointer_qualifiers, std::move(base_type), source_location(location));
+            }
         }
         else {
             break;
@@ -190,6 +213,11 @@ parser::declarator parser::parse_declarator() {
     while (current_token().type() == MICHAELCC_TOKEN_ASTERISK) {
         next_token();
         current_type = std::make_unique<ast::derived_type>(std::move(current_type), source_location(location));
+        uint8_t pointer_qualifiers = parse_type_qualifiers();
+        if (pointer_qualifiers != 0) {
+            current_type = std::make_unique<ast::qualified_type>(
+                pointer_qualifiers, std::move(current_type), source_location(location));
+        }
     }
 
     if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
@@ -610,7 +638,7 @@ ast::context_block parser::parse_block() {
 
 ast::variable_declaration parser::parse_variable_declaration() {
     source_location location = current_loc;
-    uint8_t qualifiers = parse_storage_qualifiers();
+    uint8_t storage_class = parse_storage_class();
     declarator decl = parse_declarator();
     std::optional<std::unique_ptr<ast::ast_element>> initializer;
     if (current_token().type() == MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR) {
@@ -620,7 +648,7 @@ ast::variable_declaration parser::parse_variable_declaration() {
     match_token(MICHAELCC_TOKEN_SEMICOLON);
     next_token();
     return ast::variable_declaration(
-        qualifiers, std::move(decl.type), decl.identifier, std::move(location), std::move(initializer)
+        storage_class, std::move(decl.type), decl.identifier, std::move(location), std::move(initializer)
     );
 }
 
@@ -752,11 +780,11 @@ std::vector<ast::function_parameter> parser::parse_parameter_list() {
     match_token(MICHAELCC_TOKEN_OPEN_PAREN);
     next_token();
     while (current_token().type() != MICHAELCC_TOKEN_CLOSE_PAREN) {
-        uint8_t qualifiers = parse_storage_qualifiers();
+        uint8_t storage_class = parse_storage_class();
         
         declarator decl = parse_declarator();
 
-        params.emplace_back(std::move(decl.type), std::move(decl.identifier), qualifiers);
+        params.emplace_back(std::move(decl.type), std::move(decl.identifier), storage_class);
 
         if (current_token().type() != MICHAELCC_TOKEN_CLOSE_PAREN) {
             match_token(MICHAELCC_TOKEN_COMMA);
