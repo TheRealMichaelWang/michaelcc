@@ -3,6 +3,7 @@
 #include <memory>
 #include <queue>
 #include <sstream>
+#include <numeric>
 
 using namespace michaelcc;
 
@@ -17,7 +18,8 @@ void compiler::check_layout_dependencies(std::shared_ptr<typing::base_type>& typ
         if (last_seen_parent.contains(type)) { //check for circular dependencies
             std::ostringstream ss;
 
-            ss << "Circular memory layout dependency detected with type " << type->to_string();
+            ss << "Circular memory layout dependency detected with type ";
+            type->to_string(ss);
             if (m_type_declaration_locations.contains(type)) {
                 ss << "(at " << m_type_declaration_locations.at(type).to_string() << ')';
             }
@@ -33,7 +35,7 @@ void compiler::check_layout_dependencies(std::shared_ptr<typing::base_type>& typ
             ss << " in the following path: ";
 
             for (const auto& path_type : path) {
-                ss << path_type->to_string();
+                path_type->to_string(ss);
                 if (m_type_declaration_locations.contains(path_type)) {
                     ss << " (at " << m_type_declaration_locations.at(path_type).to_string() << ')';
                 }
@@ -65,13 +67,15 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(cons
             size = m_platform_info.m_short_size;
             break;
         case typing::INT_INT_CLASS:
-            size = (type.qualifiers() & typing::LONG_INT_QUALIFIER)
+            size = (type.int_qualifiers() & typing::LONG_INT_QUALIFIER)
                 ? m_platform_info.m_long_size
                 : m_platform_info.m_int_size;
             break;
         case typing::LONG_INT_CLASS:
             size = m_platform_info.m_long_long_size;
             break;
+        default:
+            throw std::runtime_error("Invalid int type class");
     }
     return { size, std::min<size_t>(size, m_platform_info.m_max_alignment) };
 }
@@ -91,16 +95,13 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(cons
         return m_declared_info.at(&type);
     }
 
-    std::vector<size_t> field_offsets;
-    field_offsets.reserve(type.fields().size());
-
-
-    std::vector<typing::struct_type::field> fields = std::vector<typing::struct_type::field>(type.fields());
+    std::vector<size_t> original_indices(type.fields().size());
+    std::iota(original_indices.begin(), original_indices.end(), 0);
     if (m_platform_info.optimize_struct_layout) {
         // Sort by alignment (descending) to minimize padding
-        std::sort(fields.begin(), fields.end(), [this](const typing::struct_type::field& a, const typing::struct_type::field& b) {
-            const type_layout_info a_layout = (*this)(*a.field_type.lock());
-            const type_layout_info b_layout = (*this)(*b.field_type.lock());
+        std::sort(original_indices.begin(), original_indices.end(), [this, &type](size_t a, size_t b) {
+            const type_layout_info a_layout = (*this)(*type.fields().at(a).field_type.type());
+            const type_layout_info b_layout = (*this)(*type.fields().at(b).field_type.type());
             return a_layout.alignment > b_layout.alignment;
         });
     }
@@ -110,13 +111,15 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(cons
     size_t offset = 0;
     size_t max_alignment = 1;
 
-    for (const auto& field : fields) {
-        const type_layout_info field_layout = (*this)(*field.field_type.lock());
+    std::vector<size_t> field_offsets(type.fields().size());
+    for (const auto& index : original_indices) {
+        const auto& field = type.fields().at(index);
+        const type_layout_info field_layout = (*this)(*field.field_type.type());
 
         // Pad to field alignment
         size_t padding = (field_layout.alignment - (offset % field_layout.alignment)) % field_layout.alignment;
         offset += padding;
-        field_offsets.push_back(offset);
+        field_offsets[index] = offset;
         offset += field_layout.size;
         
         max_alignment = std::max(max_alignment, field_layout.alignment);
@@ -142,7 +145,7 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(cons
     size_t max_alignment = 1;
 
     for (const auto& member : type.members()) {
-        const type_layout_info member_layout = (*this)(*member.member_type.lock());
+        const type_layout_info member_layout = (*this)(*member.member_type.type());
         max_size = std::max(max_size, member_layout.size);
         max_alignment = std::max(max_alignment, member_layout.alignment);
     }
