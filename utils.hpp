@@ -38,7 +38,7 @@ namespace michaelcc {
     public:
         virtual ~generic_dispatcher() = default;
 
-        ReturnType operator()(const BaseType&) {
+        ReturnType operator()(BaseType&) {
             throw std::runtime_error("No dispatch method for type " + std::string(typeid(BaseType).name()));
         }
 
@@ -53,10 +53,10 @@ namespace michaelcc {
     protected:
 
         using generic_dispatcher<ReturnType, BaseType, Rest...>::dispatch;
-        virtual ReturnType dispatch(const NodeType& node) = 0;
+        virtual ReturnType dispatch(NodeType& node) = 0;
 
     public:
-        ReturnType operator()(const BaseType& node) {
+        ReturnType operator()(BaseType& node) {
             if (auto* p = dynamic_cast<const NodeType*>(&node)) {
                 return dispatch(*p);
             }
