@@ -98,6 +98,17 @@ namespace michaelcc {
             enum_declaration
         > { };
 
+        template<typename ReturnType>
+        class const_type_dispatcher : public generic_dispatcher<ReturnType, ast_element, 
+            const type_specifier,
+            const qualified_type,
+            const derived_type,
+            const function_type,
+            const struct_declaration,
+            const union_declaration,
+            const enum_declaration
+        > { };
+
 		class ast_element : public visitable_base<visitor> {
 		private:
 			source_location m_location;
@@ -147,7 +158,7 @@ namespace michaelcc {
                 : ast_element(std::move(location)), m_qualifiers(qualifiers), m_inner_type(std::move(inner_type)) {}
 
             uint8_t qualifiers() const noexcept { return m_qualifiers; }
-            const ast_element* inner_type() const noexcept { return m_inner_type.get(); }
+            const std::unique_ptr<ast_element>& inner_type() const noexcept { return m_inner_type; }
             bool is_const() const noexcept { return m_qualifiers & typing::CONST_TYPE_QUALIFIER; }
             bool is_volatile() const noexcept { return m_qualifiers & typing::VOLATILE_TYPE_QUALIFIER; }
             bool is_restrict() const noexcept { return m_qualifiers & typing::RESTRICT_TYPE_QUALIFIER; }
@@ -185,10 +196,8 @@ namespace michaelcc {
             kind type_kind() const noexcept { return m_kind; }
             bool is_pointer() const noexcept { return m_kind == kind::POINTER; }
             bool is_array() const noexcept { return m_kind == kind::ARRAY; }
-            const ast_element* inner_type() const noexcept { return m_inner_type.get(); }
-            const ast_element* array_size() const noexcept { 
-                return m_array_size.has_value() ? m_array_size.value().get() : nullptr; 
-            }
+            const std::unique_ptr<ast_element>& inner_type() const noexcept { return m_inner_type; }
+            const std::optional<std::unique_ptr<ast_element>>& array_size() const noexcept { return m_array_size; }
 
             std::unique_ptr<ast_element> clone() const override {
                 if (m_kind == kind::POINTER) {
