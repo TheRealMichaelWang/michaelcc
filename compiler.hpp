@@ -169,9 +169,7 @@ namespace michaelcc {
             const type_layout_info dispatch(typing::union_type& type) override;
         };
 
-
-
-        class type_resolver final : public ast::type_dispatcher<typing::qual_type> {
+        class type_resolver final : public ast::const_type_dispatcher<typing::qual_type> {
         private:
             logical_ir::translation_unit& m_translation_unit;
 
@@ -181,13 +179,13 @@ namespace michaelcc {
             typing::qual_type resolve_int_type(const ast::type_specifier& type);
 
         protected:
-            typing::qual_type dispatch(ast::type_specifier& type) override;
-            typing::qual_type dispatch(ast::qualified_type& type) override;
-            typing::qual_type dispatch(ast::derived_type& type) override;
-            typing::qual_type dispatch(ast::function_type& type) override;
-            typing::qual_type dispatch(ast::struct_declaration& type) override;
-            typing::qual_type dispatch(ast::union_declaration& type) override;
-            typing::qual_type dispatch(ast::enum_declaration& type) override;
+            typing::qual_type dispatch(const ast::type_specifier& type) override;
+            typing::qual_type dispatch(const ast::qualified_type& type) override;
+            typing::qual_type dispatch(const ast::derived_type& type) override;
+            typing::qual_type dispatch(const ast::function_type& type) override;
+            typing::qual_type dispatch(const ast::struct_declaration& type) override;
+            typing::qual_type dispatch(const ast::union_declaration& type) override;
+            typing::qual_type dispatch(const ast::enum_declaration& type) override;
         };
 
         compilation_error panic(const std::string& msg, const source_location& location) {
