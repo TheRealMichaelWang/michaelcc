@@ -210,7 +210,7 @@ typing::qual_type compiler::type_resolver::resolve_int_type(const ast::type_spec
     return typing::qual_type(std::make_shared<typing::int_type>(int_qualifiers, int_class));
 }
 
-typing::qual_type compiler::type_resolver::dispatch(ast::type_specifier& type) {
+typing::qual_type compiler::type_resolver::dispatch(const ast::type_specifier& type) {
     if (type.type_keywords().size() == 1) {
         switch (type.type_keywords()[0]) {
             case MICHAELCC_TOKEN_VOID:
@@ -224,4 +224,24 @@ typing::qual_type compiler::type_resolver::dispatch(ast::type_specifier& type) {
         }
     }
     return resolve_int_type(type);
+}
+
+typing::qual_type compiler::type_resolver::dispatch(const ast::qualified_type& type) {
+    auto inner_qual = (*this)(*type.inner_type());
+    return typing::qual_type(inner_qual.type(), inner_qual.qualifiers() | type.qualifiers());
+}
+
+typing::qual_type compiler::type_resolver::dispatch(const ast::derived_type& type) {
+    switch (type.type_kind()) {
+        case ast::derived_type::kind::POINTER:
+            return typing::qual_type(std::make_shared<typing::pointer_type>(
+                (*this)(*type.inner_type()).to_weak()
+            ));
+        case ast::derived_type::kind::ARRAY:
+            return typing::qual_type(std::make_shared<typing::array_type>(
+                (*this)(*type.inner_type()).to_weak()
+            ));
+        default:
+            throw std::runtime_error("Invalid derived type kind");
+    }
 }
