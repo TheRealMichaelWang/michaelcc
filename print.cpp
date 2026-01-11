@@ -163,17 +163,16 @@ private:
     }
 
     // Prints a type with a declarator name (handles complex C declarator syntax)
-    void print_declarator(const ast_element* type, const std::string& identifier);
+    void print_declarator(const ast_element& type, const std::string& identifier);
 
 public:
     ast_print_visitor(std::stringstream& out, int indent = 0)
         : m_out(out), m_indent(indent) {}
 
     // Main entry point - uses accept() for type dispatch to the correct visit() override
-    void print(const ast_element* elem) {
-        if (!elem) return;
+    void print(const ast_element& elem) {
         m_print_requested = true;
-        elem->accept(*this);
+        elem.accept(*this);
     }
 
     // === Type AST visitors ===
@@ -191,20 +190,21 @@ public:
         if (!m_print_requested) return;
         m_print_requested = false;
         print_type_qualifiers(node.qualifiers());
-        print(node.inner_type());
+        print(*node.inner_type());
     }
 
     void visit(const derived_type& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
+
         if (node.is_pointer()) {
-            print(node.inner_type());
+            print(*node.inner_type());
             m_out << "*";
         } else {
-            print(node.inner_type());
+            print(*node.inner_type());
             m_out << "[";
             if (node.array_size()) {
-                print(node.array_size());
+                print(*node.array_size().value());
             }
             m_out << "]";
         }
@@ -213,11 +213,11 @@ public:
     void visit(const function_type& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
-        print(node.return_type());
+        print(*node.return_type());
         m_out << " (*)(";
         for (size_t i = 0; i < node.parameters().size(); ++i) {
             if (i > 0) m_out << ", ";
-            print(node.parameters()[i].param_type.get());
+            print(*node.parameters()[i].param_type);
         }
         m_out << ")";
     }
@@ -231,7 +231,7 @@ public:
         m_indent++;
         for (const auto& stmt : node.statements()) {
             m_out << indent_str();
-            print(stmt.get());
+            print(*stmt);
             // Add semicolon for statements that need it
             if (!dynamic_cast<const for_loop*>(stmt.get()) &&
                 !dynamic_cast<const while_block*>(stmt.get()) &&
@@ -251,22 +251,22 @@ public:
         if (!m_print_requested) return;
         m_print_requested = false;
         m_out << "for (";
-        if (node.initial_statement()) print(node.initial_statement());
+        if (node.initial_statement()) print(*node.initial_statement());
         m_out << "; ";
-        if (node.condition()) print(node.condition());
+        if (node.condition()) print(*node.condition());
         m_out << "; ";
-        if (node.increment_statement()) print(node.increment_statement());
+        if (node.increment_statement()) print(*node.increment_statement());
         m_out << ") ";
-        print(&node.body());
+        print(node.body());
     }
 
     void visit(const do_block& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
         m_out << "do ";
-        print(&node.body());
+        print(node.body());
         m_out << " while (";
-        if (node.condition()) print(node.condition());
+        if (node.condition()) print(*node.condition());
         m_out << ");";
     }
 
@@ -274,29 +274,29 @@ public:
         if (!m_print_requested) return;
         m_print_requested = false;
         m_out << "while (";
-        if (node.condition()) print(node.condition());
+        if (node.condition()) print(*node.condition());
         m_out << ") ";
-        print(&node.body());
+        print(node.body());
     }
 
     void visit(const if_block& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
         m_out << "if (";
-        if (node.condition()) print(node.condition());
+        if (node.condition()) print(*node.condition());
         m_out << ") ";
-        print(&node.body());
+        print(node.body());
     }
 
     void visit(const if_else_block& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
         m_out << "if (";
-        if (node.condition()) print(node.condition());
+        if (node.condition()) print(*node.condition());
         m_out << ") ";
-        print(&node.true_body());
+        print(node.true_body());
         m_out << " else ";
-        print(&node.false_body());
+        print(node.false_body());
     }
 
     void visit(const return_statement& node) override {
@@ -305,7 +305,7 @@ public:
         m_out << "return";
         if (node.value()) {
             m_out << " ";
-            print(node.value());
+            print(*node.value());
         }
     }
 
@@ -366,16 +366,16 @@ public:
     void visit(const get_index& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
-        print(node.pointer());
+        print(*node.pointer());
         m_out << "[";
-        print(node.index());
+        print(*node.index());
         m_out << "]";
     }
 
     void visit(const get_property& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
-        print(node.struct_expr());
+        print(*node.struct_expr());
         m_out << (node.is_pointer_dereference() ? "->" : ".");
         m_out << node.property_name();
     }
@@ -383,23 +383,23 @@ public:
     void visit(const set_operator& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
-        print(node.destination());
+        print(*node.destination());
         m_out << " = ";
-        print(node.value());
+        print(*node.value());
     }
 
     void visit(const dereference_operator& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
         m_out << "*";
-        print(node.pointer());
+        print(*node.pointer());
     }
 
     void visit(const get_reference& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
         m_out << "&";
-        print(node.item());
+        print(*node.item());
     }
 
     void visit(const arithmetic_operator& node) override {
@@ -413,9 +413,9 @@ public:
         if (need_parens) m_out << "(";
         int saved_prec = m_parent_precedence;
         m_parent_precedence = prec;
-        print(node.left());
+        print(*node.left());
         m_out << " " << token_to_str(node.operation()) << " ";
-        print(node.right());
+        print(*node.right());
         m_parent_precedence = saved_prec;
         if (need_parens) m_out << ")";
     }
@@ -431,11 +431,11 @@ public:
         int saved_prec = m_parent_precedence;
         m_parent_precedence = TERNARY_PREC;
         m_out << "(";
-        print(node.condition());
+        print(*node.condition());
         m_out << ") ? ";
-        print(node.true_expr());
+        print(*node.true_expr());
         m_out << " : ";
-        print(node.false_expr());
+        print(*node.false_expr());
         m_parent_precedence = saved_prec;
         if (need_parens) m_out << ")";
     }
@@ -443,11 +443,11 @@ public:
     void visit(const function_call& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
-        print(node.callee());
+        print(*node.callee());
         m_out << "(";
         for (size_t i = 0; i < node.arguments().size(); ++i) {
             if (i > 0) m_out << ", ";
-            print(node.arguments()[i].get());
+            print(*node.arguments()[i]);
         }
         m_out << ")";
     }
@@ -458,7 +458,7 @@ public:
         m_out << "{";
         for (size_t i = 0; i < node.initializers().size(); ++i) {
             if (i > 0) m_out << ", ";
-            print(node.initializers()[i].get());
+            print(*node.initializers()[i]);
         }
         m_out << "}";
     }
@@ -475,10 +475,10 @@ public:
         if (storage & EXTERN_STORAGE_CLASS) m_out << "extern ";
         if (storage & STATIC_STORAGE_CLASS) m_out << "static ";
         if (storage & REGISTER_STORAGE_CLASS) m_out << "register ";
-        print_declarator(node.type(), node.identifier());
+        print_declarator(*node.type(), node.identifier());
         if (node.set_value()) {
             m_out << " = ";
-            print(node.set_value());
+            print(*node.set_value());
         }
     }
 
@@ -486,7 +486,7 @@ public:
         if (!m_print_requested) return;
         m_print_requested = false;
         m_out << "typedef ";
-        print_declarator(node.type(), node.name());
+        print_declarator(*node.type(), node.name());
         m_out << ';';
     }
 
@@ -504,7 +504,7 @@ public:
         m_indent++;
         for (const auto& field : node.feilds()) {
             m_out << indent_str();
-            print(&field);
+            print(field);
             m_out << ";\n";
         }
         m_indent--;
@@ -542,7 +542,7 @@ public:
         m_out << " {\n";
         for (const auto& member : node.members()) {
             m_out << "  ";
-            print(member.member_type.get());
+            print(*member.member_type);
             m_out << " " << member.member_name << ";\n";
         }
         m_out << "}";
@@ -551,10 +551,10 @@ public:
     void visit(const function_prototype& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
-        print(node.return_type());
+        print(*node.return_type());
         m_out << " " << node.function_name() << "(";
         for (size_t i = 0; i < node.parameters().size(); ++i) {
-            print(node.parameters()[i].param_type.get());
+            print(*node.parameters()[i].param_type);
             m_out << " " << node.parameters()[i].param_name;
             if (i + 1 < node.parameters().size()) m_out << ", ";
         }
@@ -564,33 +564,33 @@ public:
     void visit(const function_declaration& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
-        print(node.return_type());
+        print(*node.return_type());
         m_out << " " << node.function_name() << "(";
         for (size_t i = 0; i < node.parameters().size(); ++i) {
-            print(node.parameters()[i].param_type.get());
+            print(*node.parameters()[i].param_type);
             m_out << " " << node.parameters()[i].param_name;
             if (i + 1 < node.parameters().size()) m_out << ", ";
         }
         m_out << ')';
-        print(&node.function_body());
+        print(node.function_body());
     }
 };
 
 // Helper for complex C declarator syntax (pointers to arrays, function pointers, etc.)
 // This needs special handling because C declarators are "inside-out"
-void ast_print_visitor::print_declarator(const ast_element* type, const std::string& identifier) {
-    if (auto* derived = dynamic_cast<const derived_type*>(type)) {
+void ast_print_visitor::print_declarator(const ast_element& type, const std::string& identifier) {
+    if (auto* derived = dynamic_cast<const derived_type*>(&type)) {
         if (derived->is_pointer()) {
             // Check if pointee is array or function - needs parentheses
-            auto* inner = derived->inner_type();
+            const ast_element* inner = derived->inner_type().get();
             if (auto* inner_derived = dynamic_cast<const derived_type*>(inner)) {
                 if (inner_derived->is_array()) {
-                    print_declarator(inner, "(*" + identifier + ")");
+                    print_declarator(*inner, "(*" + identifier + ")");
                     return;
                 }
             }
             if (dynamic_cast<const function_type*>(inner)) {
-                print_declarator(inner, "(*" + identifier + ")");
+                print_declarator(*inner, "(*" + identifier + ")");
                 return;
             }
             // Simple pointer
@@ -601,25 +601,25 @@ void ast_print_visitor::print_declarator(const ast_element* type, const std::str
             std::stringstream length_ss;
             if (derived->array_size()) {
                 ast_print_visitor len_printer(length_ss, 0);
-                len_printer.print(derived->array_size());
+                len_printer.print(*derived->array_size().value());
             }
-            print_declarator(derived->inner_type(), identifier + "[" + length_ss.str() + "]");
+            print_declarator(*derived->inner_type(), identifier + "[" + length_ss.str() + "]");
         }
     }
-    else if (auto* func = dynamic_cast<const function_type*>(type)) {
+    else if (auto* func = dynamic_cast<const function_type*>(&type)) {
         // Build parameter list and recurse on return type
         std::stringstream params_ss;
         ast_print_visitor params_printer(params_ss, 0);
         for (size_t i = 0; i < func->parameters().size(); ++i) {
             if (i > 0) params_ss << ", ";
-            params_printer.print(func->parameters()[i].param_type.get());
+            params_printer.print(*func->parameters()[i].param_type);
         }
-        print_declarator(func->return_type(), identifier + "(" + params_ss.str() + ")");
+        print_declarator(*func->return_type(), identifier + "(" + params_ss.str() + ")");
     }
-    else if (auto* qualified = dynamic_cast<const qualified_type*>(type)) {
+    else if (auto* qualified = dynamic_cast<const qualified_type*>(&type)) {
         // Print qualifiers then recurse
         print_type_qualifiers(qualified->qualifiers());
-        print_declarator(qualified->inner_type(), identifier);
+        print_declarator(*qualified->inner_type(), identifier);
     }
     else {
         // Simple types (type_specifier, struct_declaration, etc.)
@@ -634,7 +634,7 @@ namespace ast {
     std::string to_c_string(const ast_element* elem, int indent) {
         std::stringstream ss;
         ast_print_visitor visitor(ss, indent);
-        visitor.print(elem);
+        visitor.print(*elem);
         
         // Add semicolon for top-level declarations that need them
         if (dynamic_cast<const variable_declaration*>(elem) ||

@@ -200,7 +200,7 @@ namespace michaelcc {
 
         std::map<std::shared_ptr<typing::base_type>, const source_location> m_type_declaration_locations;
 
-        typing::weak_qual_type resolve_type(const ast::ast_element& type);
+        typing::qual_type resolve_type(const ast::ast_element& type);
 
         void check_layout_dependencies(std::shared_ptr<typing::base_type>& type);
         void calculate_type_sizes(std::shared_ptr<typing::base_type>& type);
