@@ -8,6 +8,8 @@
 #include <string>
 #include <sstream>
 #include <map>
+#include <variant>
+#include <type_traits>
 #include "utils.hpp"
 
 namespace michaelcc {
@@ -80,66 +82,99 @@ namespace michaelcc {
             virtual void to_string(std::ostringstream& ss) const = 0;
         };
 
-        template<typename Ptr>
-        struct base_type_ptr_access {
-            static std::shared_ptr<base_type> get(const Ptr& p) { return p; }
-        };
-
-        template<>
-        struct base_type_ptr_access<std::weak_ptr<base_type>> {
-            static std::shared_ptr<base_type> get(const std::weak_ptr<base_type>& p) { return p.lock(); }
-        };
-
-        template<typename Ptr = std::shared_ptr<base_type>>
-        class basic_qualified_type {
+        class qual_type {
         private:
-            Ptr m_type;
+            std::variant<std::shared_ptr<base_type>, std::weak_ptr<base_type>> m_type;
             uint8_t m_qualifiers;
 
         public:
-            basic_qualified_type() : m_type(), m_qualifiers(NO_TYPE_QUALIFIER) {}
+            qual_type() : m_type(std::shared_ptr<base_type>()), m_qualifiers(NO_TYPE_QUALIFIER) {}
             
-            basic_qualified_type(Ptr type, uint8_t qualifiers = NO_TYPE_QUALIFIER)
+            // Template constructor for any shared_ptr<T> where T is derived from base_type.
+            // This is preferred over the weak_ptr constructor for shared_ptr arguments
+            // because template argument deduction provides an exact match.
+            template<typename T, std::enable_if_t<std::is_base_of_v<base_type, T>, int> = 0>
+            qual_type(std::shared_ptr<T> type, uint8_t qualifiers = NO_TYPE_QUALIFIER)
+                : m_type(std::shared_ptr<base_type>(std::move(type))), m_qualifiers(qualifiers) {}
+            
+            // Weak reference constructor
+            qual_type(std::weak_ptr<base_type> type, uint8_t qualifiers = NO_TYPE_QUALIFIER)
                 : m_type(std::move(type)), m_qualifiers(qualifiers) {}
 
-            template<typename Ptr2>
-            bool operator == (const basic_qualified_type<Ptr2>& other) const {
-                auto base_type1 = base_type_ptr_access<Ptr>::get(m_type);
-                auto base_type2 = base_type_ptr_access<Ptr2>::get(other.type_ptr());
-                return base_type1->is_assignable_from(*base_type2) && base_type2->is_assignable_from(*base_type1)
+            // Factory methods for clarity
+            static qual_type owning(std::shared_ptr<base_type> type, uint8_t qualifiers = NO_TYPE_QUALIFIER) {
+                return qual_type(std::move(type), qualifiers);
+            }
+            
+            static qual_type weak(std::weak_ptr<base_type> type, uint8_t qualifiers = NO_TYPE_QUALIFIER) {
+                return qual_type(std::move(type), qualifiers);
+            }
+            
+            static qual_type weak(std::shared_ptr<base_type> type, uint8_t qualifiers = NO_TYPE_QUALIFIER) {
+                return qual_type(std::weak_ptr<base_type>(type), qualifiers);
+            }
+
+            bool operator==(const qual_type& other) const {
+                auto t1 = type();
+                auto t2 = other.type();
+                if (!t1 || !t2) return false;
+                return t1->is_assignable_from(*t2) && t2->is_assignable_from(*t1)
                     && m_qualifiers == other.qualifiers();
+            }
+            
+            bool operator!=(const qual_type& other) const {
+                return !(*this == other);
             }
 
             std::shared_ptr<base_type> type() const noexcept { 
-                return base_type_ptr_access<Ptr>::get(m_type); 
+                return std::visit([](auto&& ptr) -> std::shared_ptr<base_type> {
+                    using T = std::decay_t<decltype(ptr)>;
+                    if constexpr (std::is_same_v<T, std::shared_ptr<base_type>>) {
+                        return ptr;
+                    } else {
+                        return ptr.lock();
+                    }
+                }, m_type);
             }
 
-            const Ptr& type_ptr() const noexcept { return m_type; }
+            bool is_owning() const noexcept {
+                return std::holds_alternative<std::shared_ptr<base_type>>(m_type);
+            }
+            
+            bool is_weak() const noexcept {
+                return std::holds_alternative<std::weak_ptr<base_type>>(m_type);
+            }
+            
+            // Check if weak reference has expired (always false for owning references)
+            bool is_expired() const noexcept {
+                if (is_owning()) return false;
+                return std::get<std::weak_ptr<base_type>>(m_type).expired();
+            }
 
             uint8_t qualifiers() const noexcept { return m_qualifiers; }
             bool is_const() const noexcept { return m_qualifiers & CONST_TYPE_QUALIFIER; }
             bool is_volatile() const noexcept { return m_qualifiers & VOLATILE_TYPE_QUALIFIER; }
             bool is_restrict() const noexcept { return m_qualifiers & RESTRICT_TYPE_QUALIFIER; }
 
-            basic_qualified_type<std::weak_ptr<base_type>> to_weak() const {
-                return basic_qualified_type<std::weak_ptr<base_type>>(
-                    std::weak_ptr<base_type>(base_type_ptr_access<Ptr>::get(m_type)), 
-                    m_qualifiers
-                );
+            // Convert to a weak reference (keeps qualifiers)
+            qual_type to_weak() const {
+                auto t = type();
+                if (!t) return qual_type();
+                return qual_type(std::weak_ptr<base_type>(t), m_qualifiers);
             }
 
-            basic_qualified_type<std::shared_ptr<base_type>> to_shared() const {
-                return basic_qualified_type<std::shared_ptr<base_type>>(
-                    base_type_ptr_access<Ptr>::get(m_type), 
-                    m_qualifiers
-                );
+            // Convert to an owning reference (keeps qualifiers)
+            qual_type to_owning() const {
+                return qual_type(type(), m_qualifiers);
             }
 
             void to_string(std::ostringstream& ss) const {
                 if (is_const()) ss << "const ";
                 if (is_volatile()) ss << "volatile ";
                 if (is_restrict()) ss << "restrict ";
-                type()->to_string(ss);
+                auto t = type();
+                if (t) t->to_string(ss);
+                else ss << "<expired>";
             }
 
             std::string to_string() const {
@@ -148,9 +183,6 @@ namespace michaelcc {
                 return ss.str();
             }
         };
-
-        using qual_type = basic_qualified_type<std::shared_ptr<base_type>>;
-        using weak_qual_type = basic_qualified_type<std::weak_ptr<base_type>>;
 
         class void_type : public base_type {
         public:
@@ -230,13 +262,13 @@ namespace michaelcc {
 
         class array_type : public base_type {
         private:
-            weak_qual_type m_element_type;
+            qual_type m_element_type;
 
         public:
-            array_type(weak_qual_type element_type)
+            array_type(qual_type element_type)
                 : m_element_type(std::move(element_type)) {}
 
-            const weak_qual_type& element_type() const noexcept { return m_element_type; }
+            const qual_type& element_type() const noexcept { return m_element_type; }
 
             bool is_assignable_from(const base_type& other) const override {
                 if (typeid(other) != typeid(*this)) {
@@ -255,15 +287,15 @@ namespace michaelcc {
 
         class function_pointer_type : public base_type {
         private:
-            weak_qual_type m_return_type;
-            std::vector<weak_qual_type> m_parameter_types;
+            qual_type m_return_type;
+            std::vector<qual_type> m_parameter_types;
 
         public:
-            function_pointer_type(weak_qual_type return_type, std::vector<weak_qual_type> parameter_types)
+            function_pointer_type(qual_type return_type, std::vector<qual_type> parameter_types)
                 : m_return_type(std::move(return_type)), m_parameter_types(std::move(parameter_types)) {}
 
-            const weak_qual_type& return_type() const noexcept { return m_return_type; }
-            const std::vector<weak_qual_type>& parameter_types() const noexcept { return m_parameter_types; }
+            const qual_type& return_type() const noexcept { return m_return_type; }
+            const std::vector<qual_type>& parameter_types() const noexcept { return m_parameter_types; }
 
             bool is_assignable_from(const base_type& other) const override {
                 if (typeid(other) != typeid(*this)) {
@@ -297,13 +329,13 @@ namespace michaelcc {
 
         class pointer_type : public base_type {
         private:
-            weak_qual_type m_pointee_type;
+            qual_type m_pointee_type;
 
         public:
-            pointer_type(weak_qual_type pointee_type)
+            pointer_type(qual_type pointee_type)
                 : m_pointee_type(std::move(pointee_type)) {}
 
-            const weak_qual_type& pointee_type() const noexcept { return m_pointee_type; }
+            const qual_type& pointee_type() const noexcept { return m_pointee_type; }
 
             bool is_assignable_from(const base_type& other) const override {
                 if (typeid(other) != typeid(*this)) {
@@ -335,10 +367,10 @@ namespace michaelcc {
         public:
             struct field {
                 std::string name;
-                weak_qual_type field_type;
+                qual_type field_type;
                 size_t offset = 0;
 
-                field(std::string n, weak_qual_type t) 
+                field(std::string n, qual_type t) 
                     : name(std::move(n)), field_type(std::move(t)) {}
             };
 
@@ -390,7 +422,7 @@ namespace michaelcc {
                 return true;
             }
 
-            bool implement_field_types(std::vector<weak_qual_type>&& field_types) {
+            bool implement_field_types(std::vector<qual_type>&& field_types) {
                 if (field_types.size() != m_fields.size()) {
                     return false;
                 }
@@ -424,9 +456,9 @@ namespace michaelcc {
         public:
             struct member {
                 std::string name;
-                weak_qual_type member_type;
+                qual_type member_type;
 
-                member(std::string n, weak_qual_type t)
+                member(std::string n, qual_type t)
                     : name(std::move(n)), member_type(std::move(t)) {}
             };
 
@@ -460,7 +492,7 @@ namespace michaelcc {
                     return false;
                 }
 
-                std::map<std::string, weak_qual_type> member_types;
+                std::map<std::string, qual_type> member_types;
                 for (const auto& m : m_members) {
                     member_types[m.name] = m.member_type;
                 }
@@ -483,7 +515,7 @@ namespace michaelcc {
                 return true;
             }
 
-            bool implement_member_types(std::vector<weak_qual_type>&& member_types) {
+            bool implement_member_types(std::vector<qual_type>&& member_types) {
                 if (member_types.size() != m_members.size()) {
                     return false;
                 }
@@ -562,50 +594,6 @@ namespace michaelcc {
                 }
                 ss << " }";
             }
-        };
-
-        // Static singleton instances of primitive types
-        struct primitives {
-            // void
-            inline static const std::shared_ptr<void_type> void_t = std::make_shared<void_type>();
-
-            // char variants
-            inline static const std::shared_ptr<int_type> char_t = 
-                std::make_shared<int_type>(NO_INT_QUALIFIER, CHAR_INT_CLASS);
-            inline static const std::shared_ptr<int_type> signed_char_t = 
-                std::make_shared<int_type>(SIGNED_INT_QUALIFIER, CHAR_INT_CLASS);
-            inline static const std::shared_ptr<int_type> unsigned_char_t = 
-                std::make_shared<int_type>(UNSIGNED_INT_QUALIFIER, CHAR_INT_CLASS);
-
-            // short variants
-            inline static const std::shared_ptr<int_type> short_t = 
-                std::make_shared<int_type>(NO_INT_QUALIFIER, SHORT_INT_CLASS);
-            inline static const std::shared_ptr<int_type> unsigned_short_t = 
-                std::make_shared<int_type>(UNSIGNED_INT_QUALIFIER, SHORT_INT_CLASS);
-
-            // int variants
-            inline static const std::shared_ptr<int_type> int_t = 
-                std::make_shared<int_type>(NO_INT_QUALIFIER, INT_INT_CLASS);
-            inline static const std::shared_ptr<int_type> unsigned_int_t = 
-                std::make_shared<int_type>(UNSIGNED_INT_QUALIFIER, INT_INT_CLASS);
-
-            // long variants
-            inline static const std::shared_ptr<int_type> long_t = 
-                std::make_shared<int_type>(LONG_INT_QUALIFIER, INT_INT_CLASS);
-            inline static const std::shared_ptr<int_type> unsigned_long_t = 
-                std::make_shared<int_type>(LONG_INT_QUALIFIER | UNSIGNED_INT_QUALIFIER, INT_INT_CLASS);
-
-            // long long variants
-            inline static const std::shared_ptr<int_type> long_long_t = 
-                std::make_shared<int_type>(NO_INT_QUALIFIER, LONG_INT_CLASS);
-            inline static const std::shared_ptr<int_type> unsigned_long_long_t = 
-                std::make_shared<int_type>(UNSIGNED_INT_QUALIFIER, LONG_INT_CLASS);
-
-            // float variants
-            inline static const std::shared_ptr<float_type> float_t = 
-                std::make_shared<float_type>(FLOAT_FLOAT_CLASS);
-            inline static const std::shared_ptr<float_type> double_t = 
-                std::make_shared<float_type>(DOUBLE_FLOAT_CLASS);
         };
     }
 }
