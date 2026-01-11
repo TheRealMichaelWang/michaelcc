@@ -158,17 +158,69 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(typi
     return m_declared_info.at(&type);
 }
 
-std::shared_ptr<typing::base_type> compiler::type_resolver::dispatch(ast::type_specifier& type) {
+typing::qual_type compiler::type_resolver::resolve_int_type(const ast::type_specifier& type) {
+    uint8_t int_qualifiers = typing::NO_INT_QUALIFIER;
+    typing::int_class int_class = typing::INT_INT_CLASS;
+    
+    bool has_char = false, has_short = false, has_int = false;
+    int long_count = 0;
+    
+    for (token_type keyword : type.type_keywords()) {
+        switch (keyword) {
+            case MICHAELCC_TOKEN_SIGNED:
+                int_qualifiers |= typing::SIGNED_INT_QUALIFIER;
+                break;
+            case MICHAELCC_TOKEN_UNSIGNED:
+                int_qualifiers |= typing::UNSIGNED_INT_QUALIFIER;
+                break;
+            case MICHAELCC_TOKEN_CHAR:
+                has_char = true;
+                break;
+            case MICHAELCC_TOKEN_SHORT:
+                has_short = true;
+                break;
+            case MICHAELCC_TOKEN_INT:
+                has_int = true;
+                break;
+            case MICHAELCC_TOKEN_LONG:
+                long_count++;
+                break;
+            default:
+                break;
+        }
+    }
+    
+    if (has_char) {
+        int_class = typing::CHAR_INT_CLASS;
+    }
+    else if (has_short) {
+        int_class = typing::SHORT_INT_CLASS;
+    }
+    else if (long_count >= 2) {
+        int_class = typing::LONG_INT_CLASS;
+    }
+    else if (long_count == 1) {
+        int_class = typing::INT_INT_CLASS;
+        int_qualifiers |= typing::LONG_INT_QUALIFIER;
+    }
+    else {
+        int_class = typing::INT_INT_CLASS;
+    }
+    
+    return typing::qual_type(std::make_shared<typing::int_type>(int_qualifiers, int_class));
+}
+
+typing::qual_type compiler::type_resolver::dispatch(ast::type_specifier& type) {
     if (type.type_keywords().size() == 1) {
         switch (type.type_keywords()[0]) {
             case MICHAELCC_TOKEN_VOID:
-                return std::make_shared<typing::void_type>();
+                return typing::qual_type(std::make_shared<typing::void_type>());
             case MICHAELCC_TOKEN_FLOAT:
-                return std::make_shared<typing::float_type>(typing::FLOAT_FLOAT_CLASS);
+                return typing::qual_type(std::make_shared<typing::float_type>(typing::FLOAT_FLOAT_CLASS));
             case MICHAELCC_TOKEN_DOUBLE:
-                return std::make_shared<typing::float_type>(typing::DOUBLE_FLOAT_CLASS);
+                return typing::qual_type(std::make_shared<typing::float_type>(typing::DOUBLE_FLOAT_CLASS));
             default:
-                return resolve_int_type(type);
+                return typing::qual_type(resolve_int_type(type));
         }
     }
     return resolve_int_type(type);
