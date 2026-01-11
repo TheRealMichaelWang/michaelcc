@@ -135,8 +135,10 @@ namespace michaelcc {
 
 			size_t index() const noexcept { return m_index; }
 			const typing::qual_type get_type() const override { 
-                return typing::qual_type(std::make_shared<typing::pointer_type>(
-                    typing::weak_qual_type( typing::primitives::char_t)
+                return typing::qual_type::owning(std::make_shared<typing::pointer_type>(
+                    typing::qual_type::owning(
+                        std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::CHAR_INT_CLASS)
+                    )
                 ));     
             }
 
@@ -260,7 +262,7 @@ namespace michaelcc {
                 if (ptr_type == nullptr) {
                     throw std::runtime_error("Operand is not a pointer");
                 }
-				return ptr_type->pointee_type().to_shared();
+				return ptr_type->pointee_type().to_owning();
 			}
 
 			void accept(visitor& v) const override {
@@ -305,7 +307,7 @@ namespace michaelcc {
 				if (arr_type == nullptr) {
                     throw std::runtime_error("Base is not an array");
                 }
-				return arr_type->element_type().to_shared();
+				return arr_type->element_type().to_owning();
             }
 
 			void accept(visitor& v) const override {
@@ -333,7 +335,7 @@ namespace michaelcc {
 				if (fn_type == nullptr) {
                     throw std::runtime_error("Callee is not a function pointer");
                 }
-				return fn_type->return_type().to_shared();
+				return fn_type->return_type().to_owning();
 			}
 
 			void accept(visitor& v) const override {

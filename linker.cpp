@@ -16,7 +16,7 @@ void compiler::forward_declare_types::visit(const ast::struct_declaration& node)
     for (const ast::variable_declaration& feild : node.feilds()) {
         fields.emplace_back(typing::struct_type::field{
             feild.identifier(),
-            typing::weak_qual_type(typing::primitives::void_t)
+            typing::qual_type::owning(std::make_shared<typing::void_type>())
         });
     }
 
@@ -35,7 +35,7 @@ void compiler::forward_declare_types::visit(const ast::union_declaration& node) 
     for (const ast::union_declaration::member& member : node.members()) {
         members.emplace_back(typing::union_type::member{
             member.member_name,
-            typing::weak_qual_type(typing::primitives::void_t)
+            typing::qual_type::owning(std::make_shared<typing::void_type>())
         });
     }
     m_compiler.m_translation_unit.declare_union(std::make_unique<typing::union_type>(node.union_name().value(), std::move(members)));
@@ -77,7 +77,7 @@ void compiler::implement_type_declarations::visit(const ast::struct_declaration&
 
     if (node.feilds().empty()) { return; } // skip structs with no implementation
 
-    std::vector<typing::weak_qual_type> field_types;
+    std::vector<typing::qual_type> field_types;
     field_types.reserve(node.feilds().size());
     for (const ast::variable_declaration& field : node.feilds()) {
         field_types.emplace_back(m_compiler.resolve_type(*field.type()));
@@ -100,7 +100,7 @@ void compiler::implement_type_declarations::visit(const ast::union_declaration& 
 
     if (node.members().empty()) { return; } // skip unions with no implementation
 
-    std::vector<typing::weak_qual_type> member_types;
+    std::vector<typing::qual_type> member_types;
     member_types.reserve(node.members().size());
     for (const ast::union_declaration::member& member : node.members()) {
         member_types.emplace_back(m_compiler.resolve_type(*member.member_type));
@@ -116,7 +116,7 @@ void compiler::forward_declare_functions::forward_declare_function(const std::st
     for (const ast::function_parameter& parameter : parameters) {
         logical_parameters.emplace_back(std::make_shared<logical_ir::variable>(
             std::string(parameter.param_name),
-            m_compiler.resolve_type(*parameter.param_type).to_shared(),
+            m_compiler.resolve_type(*parameter.param_type).to_owning(),
             false,
             std::weak_ptr<logical_ir::symbol_context>()
         ));
