@@ -246,7 +246,7 @@ namespace michaelcc {
             : m_translation_unit(), m_platform_info(platform_info), 
             m_layout_dependency_getter(m_translation_unit), 
             m_type_layout_calculator(m_platform_info),
-            m_type_resolver(m_translation_unit) { }
+            m_type_resolver(*this) { }
     };
 }
 #endif
