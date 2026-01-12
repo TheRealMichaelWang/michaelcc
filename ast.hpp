@@ -99,7 +99,7 @@ namespace michaelcc {
         >;
 
         template<typename ReturnType>
-        using const_type_dispatcher = generic_dispatcher<ReturnType, ast_element, 
+        using const_type_dispatcher = generic_dispatcher<ReturnType, const ast_element, 
             const type_specifier,
             const qualified_type,
             const derived_type,
@@ -128,7 +128,7 @@ namespace michaelcc {
         >;
 
         template<typename ReturnType>
-        using const_expression_dispatcher = generic_dispatcher<ReturnType, ast_element, 
+        using const_expression_dispatcher = generic_dispatcher<ReturnType, const ast_element, 
             const int_literal,
             const float_literal,
             const double_literal,

@@ -73,6 +73,24 @@ namespace michaelcc {
 			symbol_explorer& explorer() noexcept { return m_explorer; }
 		};
 
+		template<typename ReturnType>
+		using symbol_dispatcher = generic_dispatcher<ReturnType, symbol, 
+			variable,
+			function_definition,
+			typing::struct_type,
+			typing::union_type,
+			typing::enum_type
+		>;
+
+		template<typename ReturnType>
+		using const_symbol_dispatcher = generic_dispatcher<ReturnType, symbol, 
+			const variable,
+			const function_definition,
+			const typing::struct_type,
+			const typing::union_type,
+			const typing::enum_type
+		>;
+
 		class variable final : public symbol, public visitable_base<visitor> {
 		private:
             uint8_t m_qualifiers;
@@ -323,36 +341,6 @@ namespace michaelcc {
 			}
 		};
 
-		class function_call final : public expression {
-		private:
-			std::unique_ptr<expression> m_callee;
-			std::vector<std::unique_ptr<expression>> m_arguments;
-		public:
-			function_call(std::unique_ptr<expression>&& callee,
-				std::vector<std::unique_ptr<expression>>&& arguments)
-				: m_callee(std::move(callee)), m_arguments(std::move(arguments)) {}
-
-			const expression* callee() const noexcept { return m_callee.get(); }
-			const std::vector<std::unique_ptr<expression>>& arguments() const noexcept { return m_arguments; }
-
-			const typing::qual_type get_type() const override {
-				auto callee_type = m_callee->get_type();
-				auto* fn_type = dynamic_cast<const typing::function_pointer_type*>(callee_type.type().get());
-				if (fn_type == nullptr) {
-                    throw std::runtime_error("Callee is not a function pointer");
-                }
-				return fn_type->return_type().to_owning();
-			}
-
-			void accept(visitor& v) const override {
-				v.visit(*this);
-				m_callee->accept(v);
-				for (const auto& arg : m_arguments) {
-					arg->accept(v);
-				}
-			}
-		};
-
 		class conditional_expression final : public expression {
 		private:
 			std::unique_ptr<expression> m_condition;
@@ -549,13 +537,15 @@ namespace michaelcc {
 
 		class function_definition final : public symbol, public visitable_base<visitor> {
 		private:
+			typing::qual_type m_return_type;
 			std::vector<std::shared_ptr<variable>> m_parameters;
 			std::shared_ptr<control_block> m_body;
 
 		public:
-			explicit function_definition(std::string&& name, std::vector<std::shared_ptr<variable>>&& parameters, std::weak_ptr<symbol_context>&& context)
-				: symbol(std::move(name), std::move(context)), m_parameters(std::move(parameters)), m_body(nullptr) {}
+			explicit function_definition(std::string&& name, typing::qual_type&& return_type, std::vector<std::shared_ptr<variable>>&& parameters, std::weak_ptr<symbol_context>&& context)
+				: symbol(std::move(name), std::move(context)), m_return_type(std::move(return_type)), m_parameters(std::move(parameters)), m_body(nullptr) {}
 
+			const typing::qual_type& return_type() const noexcept { return m_return_type; }
 			const std::vector<std::shared_ptr<variable>>& parameters() const noexcept { return m_parameters; }
 			const std::shared_ptr<control_block>& body() const { return m_body; }
 
@@ -587,6 +577,46 @@ namespace michaelcc {
 					v.explorer().visit(m_body);
 					m_body->accept(v);
 					v.explorer().exit();
+				}
+			}
+		};
+
+		class function_call final : public expression {
+		public:
+			using callable = std::variant<std::shared_ptr<function_definition>, std::shared_ptr<expression>>;
+		private:
+			callable m_callee;
+			std::vector<std::unique_ptr<expression>> m_arguments;
+		public:
+			function_call(callable&& callee,
+				std::vector<std::unique_ptr<expression>>&& arguments)
+				: m_callee(std::move(callee)), m_arguments(std::move(arguments)) {}
+
+			const callable& callee() const noexcept { return m_callee; }
+			const std::vector<std::unique_ptr<expression>>& arguments() const noexcept { return m_arguments; }
+
+			const typing::qual_type get_type() const override {
+				auto callee_type = std::visit(overloaded { 
+					[](const std::shared_ptr<function_definition>& function) {
+						return function->return_type();
+					}, [](const std::shared_ptr<expression>& expression) {
+						return expression->get_type();
+					}
+				}, m_callee);
+				auto* fn_type = dynamic_cast<const typing::function_pointer_type*>(callee_type.type().get());
+				if (fn_type == nullptr) {
+                    throw std::runtime_error("Callee is not a function pointer");
+                }
+				return fn_type->return_type().to_owning();
+			}
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				if (std::holds_alternative<std::shared_ptr<expression>>(m_callee)) {
+					std::get<std::shared_ptr<expression>>(m_callee)->accept(v);
+				} 
+				for (const auto& arg : m_arguments) {
+					arg->accept(v);
 				}
 			}
 		};

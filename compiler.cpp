@@ -351,3 +351,9 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     size_t index = m_compiler.m_translation_unit.add_string(std::string(node.value()));
     return std::make_unique<logical_ir::string_constant>(index);
 }
+
+std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::variable_reference& node) {
+    auto symbol = m_compiler.m_translation_unit.lookup_global(node.identifier());
+
+    return nullptr; // TODO: Implement variable reference
+}

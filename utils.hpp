@@ -66,6 +66,8 @@ namespace michaelcc {
             return generic_dispatcher<ReturnType, BaseType, Rest...>::operator()(node);
         }
     };
+
+    template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 }
 
 #endif

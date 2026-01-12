@@ -1,3 +1,4 @@
+#include "ast.hpp"
 #include "compiler.hpp"
 #include "logical.hpp"
 #include <memory>
@@ -110,7 +111,7 @@ void compiler::implement_type_declarations::visit(const ast::union_declaration& 
     }
 }
 
-void compiler::forward_declare_functions::forward_declare_function(const std::string& function_name, const std::vector<ast::function_parameter>& parameters, const source_location& location) {
+void compiler::forward_declare_functions::forward_declare_function(const std::string& function_name, const ast::ast_element& return_type, const std::vector<ast::function_parameter>& parameters, const source_location& location) {
     std::vector<std::shared_ptr<logical_ir::variable>> logical_parameters;
     logical_parameters.reserve(parameters.size());
     for (const ast::function_parameter& parameter : parameters) {
@@ -124,6 +125,7 @@ void compiler::forward_declare_functions::forward_declare_function(const std::st
 
     auto function_definition = std::make_shared<logical_ir::function_definition>(
         std::string(function_name),
+        m_compiler.m_type_resolver(return_type).to_owning(),
         std::move(logical_parameters),
         std::weak_ptr<logical_ir::symbol_context>(m_compiler.m_translation_unit.global_context())
     );
