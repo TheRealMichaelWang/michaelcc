@@ -1,5 +1,6 @@
 #include "compiler.hpp"
 #include "ast.hpp"
+#include "logical.hpp"
 #include "typing.hpp"
 #include <memory>
 #include <queue>
@@ -317,4 +318,36 @@ void compiler::type_resolver::handle_default(const ast::ast_element& node) {
     std::ostringstream ss;
     ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid type.";
     throw panic(ss.str(), node.location());
+}
+
+std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::int_literal& node) {
+    if (typeid(m_target_type.type()) == typeid(typing::int_type)) {
+        return std::make_unique<logical_ir::integer_constant>(node.value(), typing::qual_type(m_target_type));
+    };
+    return std::make_unique<logical_ir::integer_constant>(node.value(), 
+    typing::qual_type::owning(std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS))
+    );
+}
+
+std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::float_literal& node) {
+    if (typeid(m_target_type.type()) == typeid(typing::float_type)) {
+        return std::make_unique<logical_ir::floating_constant>(node.value(), typing::qual_type(m_target_type));
+    };
+    return std::make_unique<logical_ir::floating_constant>(node.value(), 
+    typing::qual_type::owning(std::make_shared<typing::float_type>(typing::FLOAT_FLOAT_CLASS))
+    );
+}
+
+std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::double_literal& node) {
+    if (typeid(m_target_type.type()) == typeid(typing::float_type)) {
+        return std::make_unique<logical_ir::floating_constant>(node.value(), typing::qual_type(m_target_type));
+    };
+    return std::make_unique<logical_ir::floating_constant>(node.value(), 
+    typing::qual_type::owning(std::make_shared<typing::float_type>(typing::FLOAT_FLOAT_CLASS))
+    );
+}
+
+std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::string_literal& node) {
+    size_t index = m_compiler.m_translation_unit.add_string(std::string(node.value()));
+    return std::make_unique<logical_ir::string_constant>(index);
 }

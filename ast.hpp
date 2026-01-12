@@ -604,14 +604,14 @@ namespace michaelcc {
 
         class float_literal final : public ast_element {
         private:
-            float m_value;
+            double m_value;
 
         public:
-            explicit float_literal(float value, source_location&& location)
+            explicit float_literal(double value, source_location&& location)
                 : ast_element(std::move(location)),
                 m_value(value) {}
 
-            float value() const noexcept { return m_value; }
+            double value() const noexcept { return m_value; }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<float_literal>(m_value, source_location(location()));
