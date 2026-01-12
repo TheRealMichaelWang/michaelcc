@@ -797,7 +797,7 @@ public:
     void visit(const logical_ir::member_access& node) override {
         before_print();
         print_indent();
-        m_out << "member_access: [field " << node.field_index() << "]\n";
+        m_out << "member_access: [field " << node.member().name << "]\n";
         after_print(1);
     }
 
