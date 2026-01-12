@@ -103,8 +103,8 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(typi
     if (m_platform_info.optimize_struct_layout) {
         // Sort by alignment (descending) to minimize padding
         std::sort(original_indices.begin(), original_indices.end(), [this, &type](size_t a, size_t b) {
-            const type_layout_info a_layout = (*this)(*type.fields().at(a).field_type.type());
-            const type_layout_info b_layout = (*this)(*type.fields().at(b).field_type.type());
+            const type_layout_info a_layout = (*this)(*type.fields().at(a).member_type.type());
+            const type_layout_info b_layout = (*this)(*type.fields().at(b).member_type.type());
             return a_layout.alignment > b_layout.alignment;
         });
     }
@@ -117,7 +117,7 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(typi
     std::vector<size_t> field_offsets(type.fields().size());
     for (const auto& index : original_indices) {
         const auto& field = type.fields().at(index);
-        const type_layout_info field_layout = (*this)(*field.field_type.type());
+        const type_layout_info field_layout = (*this)(*field.member_type.type());
 
         // Pad to field alignment
         size_t padding = (field_layout.alignment - (offset % field_layout.alignment)) % field_layout.alignment;
@@ -261,41 +261,46 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::function_type& ty
 }
 
 typing::qual_type compiler::type_resolver::dispatch(const ast::struct_declaration& type) {
-    auto struct_type = m_translation_unit.lookup_struct(type.struct_name().value());
+    auto struct_type = m_compiler.m_translation_unit.lookup_struct(type.struct_name().value());
     if (struct_type != nullptr) {
         return typing::qual_type(struct_type);
     }
 
-    std::vector<typing::struct_type::field> fields;
+    std::vector<typing::member> fields;
     fields.reserve(type.fields().size());
     for (const auto& field : type.fields()) {
-        fields.emplace_back(typing::struct_type::field{
+        fields.emplace_back(typing::member{
             field.identifier(),
             (*this)(*field.type())
         });
     }
-    return typing::qual_type(std::make_shared<typing::struct_type>(type.struct_name().value(), std::move(fields)));
+
+    auto my_struct_type = std::make_shared<typing::struct_type>(type.struct_name().value(), std::move(fields));
+    m_compiler.m_type_layout_calculator(*my_struct_type); //implement layout
+
+    return typing::qual_type();
 }
 
 typing::qual_type compiler::type_resolver::dispatch(const ast::union_declaration& type) {
-    auto union_type = m_translation_unit.lookup_union(type.union_name().value());
+    auto union_type = m_compiler.m_translation_unit.lookup_union(type.union_name().value());
     if (union_type != nullptr) {
         return typing::qual_type::weak(union_type);
     }
 
-    std::vector<typing::union_type::member> members;
+    std::vector<typing::member> members;
     members.reserve(type.members().size());
     for (const auto& member : type.members()) {
-        members.emplace_back(typing::union_type::member{
+        members.emplace_back(typing::member{
             member.member_name,
-            (*this)(*member.member_type)
+            (*this)(*member.member_type),
+            0
         });
     }
     return typing::qual_type(std::make_shared<typing::union_type>(type.union_name().value(), std::move(members)));
 }
 
 typing::qual_type compiler::type_resolver::dispatch(const ast::enum_declaration& type) {
-    auto enum_type = m_translation_unit.lookup_enum(type.enum_name().value());
+    auto enum_type = m_compiler.m_translation_unit.lookup_enum(type.enum_name().value());
     if (enum_type != nullptr) {
         return typing::qual_type::weak(enum_type);
     }
@@ -393,4 +398,42 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     }
 
     return std::make_unique<logical_ir::array_index>(std::move(pointer), std::move(index));
+}
+
+std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::get_property& node) {
+    std::unique_ptr<logical_ir::expression> base = m_compiler.compile_expression(*node.struct_expr());
+    typing::qual_type base_type = base->get_type();
+
+    std::shared_ptr<typing::struct_type> struct_type = std::dynamic_pointer_cast<typing::struct_type>(base_type.type());
+    if (struct_type) {
+        std::vector<typing::member> fields = struct_type->fields();
+        auto field = std::find_if(fields.begin(), fields.end(), [name = node.property_name()](const typing::member& member) {
+            return member.name == name;
+        });
+        if (field == fields.end()) {
+            std::ostringstream ss;
+            ss << "Struct \"" << struct_type->name().value() << "\" does not have a member named \"" << node.property_name() << "\".";
+            throw panic(ss.str(), node.location());
+        }
+
+        return std::make_unique<logical_ir::member_access>(std::move(base), *field);
+    }
+
+    std::shared_ptr<typing::union_type> union_type = std::dynamic_pointer_cast<typing::union_type>(base_type.type());
+    if (union_type) {
+        std::vector<typing::member> members = union_type->members();
+        auto member = std::find_if(members.begin(), members.end(), [name = node.property_name()](const typing::member& member) {
+            return member.name == name;
+        });
+        if (member == members.end()) {
+            std::ostringstream ss;
+            ss << "Union \"" << union_type->name().value() << "\" does not have a member named \"" << node.property_name() << "\".";
+            throw panic(ss.str(), node.location());
+        }
+        return std::make_unique<logical_ir::member_access>(std::move(base), *member);
+    }
+
+    std::ostringstream ss;
+    ss << "Expression \"" << ast::to_c_string(node) << "\" is not a struct or union.";
+    throw panic(ss.str(), node.location());
 }
