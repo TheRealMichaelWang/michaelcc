@@ -20,6 +20,7 @@ namespace michaelcc {
 		class floating_constant;
 		class string_constant;
 		class variable_reference;
+		class function_reference;
 		class binary_operation;
 		class unary_operation;
 		class type_cast;
@@ -47,6 +48,7 @@ namespace michaelcc {
 			floating_constant,
 			string_constant,
 			variable_reference,
+			function_reference,
 			binary_operation,
 			unary_operation,
 			type_cast,
@@ -76,19 +78,13 @@ namespace michaelcc {
 		template<typename ReturnType>
 		using symbol_dispatcher = generic_dispatcher<ReturnType, symbol, 
 			variable,
-			function_definition,
-			typing::struct_type,
-			typing::union_type,
-			typing::enum_type
+			function_definition
 		>;
 
 		template<typename ReturnType>
-		using const_symbol_dispatcher = generic_dispatcher<ReturnType, symbol, 
+		using const_symbol_dispatcher = generic_dispatcher<ReturnType, const symbol, 
 			const variable,
-			const function_definition,
-			const typing::struct_type,
-			const typing::union_type,
-			const typing::enum_type
+			const function_definition
 		>;
 
 		class variable final : public symbol, public visitable_base<visitor> {
@@ -579,6 +575,30 @@ namespace michaelcc {
 					v.explorer().exit();
 				}
 			}
+		};
+
+		class function_reference final : public expression {
+		private:
+			std::shared_ptr<function_definition> m_function;
+		public:
+			explicit function_reference(std::shared_ptr<function_definition>&& func) : m_function(std::move(func)) {}
+
+			const std::shared_ptr<function_definition>& get_function() const noexcept { return m_function; }
+
+			const typing::qual_type get_type() const override {
+				std::vector<typing::qual_type> param_types;
+				for (const auto& param : m_function->parameters()) {
+					param_types.push_back(param->get_type());
+				}
+				return typing::qual_type::owning(
+					std::make_shared<typing::function_pointer_type>(
+						m_function->return_type(),
+						std::move(param_types)
+					)
+				);
+			}
+
+			void accept(visitor& v) const override { v.visit(*this); }
 		};
 
 		class function_call final : public expression {

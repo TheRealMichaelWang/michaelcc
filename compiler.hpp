@@ -6,6 +6,7 @@
 #include "logical.hpp"
 #include "typing.hpp"
 #include <memory>
+#include <vector>
 
 namespace michaelcc {
     class compiler {
@@ -192,11 +193,11 @@ namespace michaelcc {
 
         class expression_compiler : public ast::const_expression_dispatcher<std::unique_ptr<logical_ir::expression>> {
         private:
-            typing::qual_type m_target_type;
+            std::optional<typing::qual_type> m_target_type;
             compiler& m_compiler;
 
         public:
-            expression_compiler(compiler& compiler, typing::qual_type target_type) : m_target_type(target_type), m_compiler(compiler) { }
+            expression_compiler(compiler& compiler, std::optional<typing::qual_type> target_type = std::nullopt) : m_target_type(target_type), m_compiler(compiler) { }
 
             std::unique_ptr<logical_ir::expression> dispatch(const ast::int_literal& node) override;
             std::unique_ptr<logical_ir::expression> dispatch(const ast::float_literal& node) override;
@@ -231,6 +232,16 @@ namespace michaelcc {
 
         void check_layout_dependencies(std::shared_ptr<typing::base_type>& type);
         void calculate_type_sizes(std::shared_ptr<typing::base_type>& type);
+
+        bool is_index_type(const typing::qual_type& type) const noexcept {
+            return typeid(type.type()) == typeid(typing::int_type);
+        }
+
+        bool is_indexable_type(const typing::qual_type& type) const noexcept {
+            return typeid(type.type()) == typeid(typing::array_type) || typeid(type.type()) == typeid(typing::pointer_type);
+        }
+
+        std::unique_ptr<logical_ir::expression> compile_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type = std::nullopt);
     public:
         compiler(const platform_info platform_info) 
             : m_translation_unit(), m_platform_info(platform_info), 
