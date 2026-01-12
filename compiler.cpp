@@ -321,8 +321,8 @@ void compiler::type_resolver::handle_default(const ast::ast_element& node) {
 }
 
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::int_literal& node) {
-    if (typeid(m_target_type.type()) == typeid(typing::int_type)) {
-        return std::make_unique<logical_ir::integer_constant>(node.value(), typing::qual_type(m_target_type));
+    if (m_target_type && typeid(m_target_type->type()) == typeid(typing::int_type)) {
+        return std::make_unique<logical_ir::integer_constant>(node.value(), typing::qual_type(m_target_type.value()));
     };
     return std::make_unique<logical_ir::integer_constant>(node.value(), 
     typing::qual_type::owning(std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS))
@@ -330,8 +330,8 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
 }
 
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::float_literal& node) {
-    if (typeid(m_target_type.type()) == typeid(typing::float_type)) {
-        return std::make_unique<logical_ir::floating_constant>(node.value(), typing::qual_type(m_target_type));
+    if (m_target_type && typeid(m_target_type->type()) == typeid(typing::float_type)) {
+        return std::make_unique<logical_ir::floating_constant>(node.value(), typing::qual_type(m_target_type.value()));
     };
     return std::make_unique<logical_ir::floating_constant>(node.value(), 
     typing::qual_type::owning(std::make_shared<typing::float_type>(typing::FLOAT_FLOAT_CLASS))
@@ -339,8 +339,8 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
 }
 
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::double_literal& node) {
-    if (typeid(m_target_type.type()) == typeid(typing::float_type)) {
-        return std::make_unique<logical_ir::floating_constant>(node.value(), typing::qual_type(m_target_type));
+    if (m_target_type && typeid(m_target_type->type()) == typeid(typing::float_type)) {
+        return std::make_unique<logical_ir::floating_constant>(node.value(), typing::qual_type(m_target_type.value()));
     };
     return std::make_unique<logical_ir::floating_constant>(node.value(), 
     typing::qual_type::owning(std::make_shared<typing::float_type>(typing::FLOAT_FLOAT_CLASS))
@@ -355,5 +355,42 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::variable_reference& node) {
     auto symbol = m_compiler.m_translation_unit.lookup_global(node.identifier());
 
-    return nullptr; // TODO: Implement variable reference
+    if (symbol == nullptr) {
+        std::ostringstream ss;
+        ss << "Symbol \"" << node.identifier() << "\" not found.";
+        throw panic(ss.str(), node.location());
+    }
+
+    std::shared_ptr<logical_ir::variable> variable = std::dynamic_pointer_cast<logical_ir::variable>(symbol);
+    if (variable) {
+        return std::make_unique<logical_ir::variable_reference>(std::move(variable));
+    }
+
+    std::shared_ptr<logical_ir::function_definition> function = std::dynamic_pointer_cast<logical_ir::function_definition>(symbol);
+    if (function) {
+        return std::make_unique<logical_ir::function_reference>(std::move(function));
+    }
+
+    std::ostringstream ss;
+    ss << "Symbol \"" << node.identifier() << "\" is not a variable or function that can be captured as an expression.";
+    throw panic(ss.str(), node.location());
+}
+
+std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::get_index& node) {
+    std::unique_ptr<logical_ir::expression> pointer = m_compiler.compile_expression(*node.pointer());
+    std::unique_ptr<logical_ir::expression> index = m_compiler.compile_expression(*node.index(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS));
+
+    if (!m_compiler.is_indexable_type(pointer->get_type())) {
+        std::ostringstream ss;
+        ss << "Expression \"" << ast::to_c_string(node) << "\" is not an indexable type.";
+        throw panic(ss.str(), node.location());
+    }
+
+    if (!m_compiler.is_index_type(index->get_type())) {
+        std::ostringstream ss;
+        ss << "Expression \"" << ast::to_c_string(node) << "\" is not an index type.";
+        throw panic(ss.str(), node.location());
+    }
+
+    return std::make_unique<logical_ir::array_index>(std::move(pointer), std::move(index));
 }
