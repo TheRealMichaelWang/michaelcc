@@ -1,4 +1,5 @@
 #include <fstream>
+#include <sstream>
 #include "preprocessor.hpp"
 
 using namespace michaelcc;
