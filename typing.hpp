@@ -359,29 +359,28 @@ namespace michaelcc {
             }
         };
 
+        struct member {
+            std::string name;
+            qual_type member_type;
+            size_t offset;
+
+            member(std::string n, qual_type t, size_t offset = 0) 
+                : name(std::move(n)), member_type(std::move(t)), offset(offset) {}
+        };
+        
         class struct_type final : public base_type {
-        public:
-            struct field {
-                std::string name;
-                qual_type field_type;
-                size_t offset = 0;
-
-                field(std::string n, qual_type t) 
-                    : name(std::move(n)), field_type(std::move(t)) {}
-            };
-
         private:
             std::optional<std::string> m_name;
-            std::vector<field> m_fields;
+            std::vector<member> m_fields;
         
             friend class type_context;
 
         public:
-            struct_type(std::optional<std::string> name, std::vector<field> fields)
+            struct_type(std::optional<std::string> name, std::vector<member> fields)
                 : m_name(std::move(name)), m_fields(std::move(fields)) {}
 
             const std::optional<std::string>& name() const noexcept { return m_name; }
-            const std::vector<field>& fields() const noexcept { return m_fields; }
+            const std::vector<member>& fields() const noexcept { return m_fields; }
 
             bool is_assignable_from(const base_type& other) const override {
                 if (typeid(other) != typeid(*this)) {
@@ -401,7 +400,7 @@ namespace michaelcc {
                 }
 
                 for (size_t i = 0; i < m_fields.size(); i++) {
-                    if (m_fields[i].field_type != other_struct.fields()[i].field_type) {
+                    if (m_fields[i].member_type != other_struct.fields()[i].member_type) {
                         return false;
                     }
                 }
@@ -411,7 +410,7 @@ namespace michaelcc {
 
             bool is_implemented() const noexcept { 
                 for (const auto& field : m_fields) {
-                    if (field.field_type.type()->is_assignable_from(void_type())) {
+                    if (field.member_type.type()->is_assignable_from(void_type())) {
                         return false;
                     }
                 }
@@ -423,7 +422,7 @@ namespace michaelcc {
                     return false;
                 }
                 for (size_t i = 0; i < m_fields.size(); i++) {
-                    m_fields[i].field_type = std::move(field_types[i]);
+                    m_fields[i].member_type = std::move(field_types[i]);
                 }
                 return true;
             }
@@ -441,7 +440,7 @@ namespace michaelcc {
                 }
                 ss << "struct { ";
                 for (const auto& f : m_fields) {
-                    f.field_type.to_string(ss);
+                    f.member_type.to_string(ss);
                     ss << " " << f.name << "; ";
                 }
                 ss << "}";
@@ -449,15 +448,6 @@ namespace michaelcc {
         };
 
         class union_type final : public base_type {
-        public:
-            struct member {
-                std::string name;
-                qual_type member_type;
-
-                member(std::string n, qual_type t)
-                    : name(std::move(n)), member_type(std::move(t)) {}
-            };
-
         private:
             std::optional<std::string> m_name;
             std::vector<member> m_members;

@@ -111,7 +111,7 @@ namespace michaelcc {
                 std::vector<std::shared_ptr<typing::base_type>> types;
                 types.reserve(type.fields().size());
                 for (const auto& field : type.fields()) {
-                    types.emplace_back(field.field_type.type());
+                    types.emplace_back(field.member_type.type());
                 }
                 return types;
             }
@@ -172,10 +172,10 @@ namespace michaelcc {
 
         class type_resolver final : public ast::const_type_dispatcher<typing::qual_type> {
         private:
-            logical_ir::translation_unit& m_translation_unit;
+            compiler& m_compiler;
 
         public:
-            type_resolver(logical_ir::translation_unit& translation_unit) : m_translation_unit(translation_unit) { }
+            type_resolver(compiler& compiler) : m_compiler(compiler) { }
 
             typing::qual_type resolve_int_type(const ast::type_specifier& type);
 
@@ -231,7 +231,6 @@ namespace michaelcc {
         std::map<std::shared_ptr<typing::base_type>, const source_location> m_type_declaration_locations;
 
         void check_layout_dependencies(std::shared_ptr<typing::base_type>& type);
-        void calculate_type_sizes(std::shared_ptr<typing::base_type>& type);
 
         bool is_index_type(const typing::qual_type& type) const noexcept {
             return typeid(type.type()) == typeid(typing::int_type);

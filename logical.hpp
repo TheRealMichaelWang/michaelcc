@@ -294,15 +294,14 @@ namespace michaelcc {
 		class member_access final : public expression {
 		private:
 			std::unique_ptr<expression> m_base;
-			size_t m_field_index;
-			typing::qual_type m_field_type; 
+			const typing::member& m_member;
 		public:
-			member_access(std::unique_ptr<expression>&& base, size_t field_index, typing::qual_type&& field_type)
-				: m_base(std::move(base)), m_field_index(field_index), m_field_type(std::move(field_type)) {}
+			member_access(std::unique_ptr<expression>&& base, const typing::member& member)
+				: m_base(std::move(base)), m_member(member) {}
 
-			const expression* base() const noexcept { return m_base.get(); }
-			size_t field_index() const noexcept { return m_field_index; }
-			const typing::qual_type get_type() const override { return m_field_type; }
+			const std::unique_ptr<expression>& base() const noexcept { return m_base; }
+			const typing::member& member() const noexcept { return m_member; }
+			const typing::qual_type get_type() const override { return m_member.member_type; }
 
 			void accept(visitor& v) const override {
 				v.visit(*this);
@@ -318,8 +317,8 @@ namespace michaelcc {
 			array_index(std::unique_ptr<expression>&& base, std::unique_ptr<expression>&& index)
 				: m_base(std::move(base)), m_index(std::move(index)) {}
 
-			const expression* base() const noexcept { return m_base.get(); }
-			const expression* index() const noexcept { return m_index.get(); }
+			const std::unique_ptr<expression>& base() const noexcept { return m_base; }
+			const std::unique_ptr<expression>& index() const noexcept { return m_index; }
 
 			const typing::qual_type get_type() const override {
 				auto base_type = m_base->get_type();
@@ -353,9 +352,9 @@ namespace michaelcc {
 				m_else_expression(std::move(else_expression)),
 				m_result_type(std::move(result_type)) {}
 
-			const expression* condition() const noexcept { return m_condition.get(); }
-			const expression* then_expression() const noexcept { return m_then_expression.get(); }
-			const expression* else_expression() const noexcept { return m_else_expression.get(); }
+			const std::unique_ptr<expression>& condition() const noexcept { return m_condition; }
+			const std::unique_ptr<expression>& then_expression() const noexcept { return m_then_expression; }
+			const std::unique_ptr<expression>& else_expression() const noexcept { return m_else_expression; }
 			
             const typing::qual_type get_type() const override { 
                 return m_result_type; 
@@ -400,7 +399,7 @@ namespace michaelcc {
 			explicit expression_statement(std::unique_ptr<expression>&& expr)
 				: m_expression(std::move(expr)) {}
 
-			const expression* get_expression() const noexcept { return m_expression.get(); }
+			const std::unique_ptr<expression>& get_expression() const noexcept { return m_expression; }
 
 			void accept(visitor& v) const override {
 				v.visit(*this);
@@ -417,8 +416,8 @@ namespace michaelcc {
 				std::unique_ptr<expression>&& value)
 				: m_destination(std::move(destination)), m_value(std::move(value)) {}
 
-			const expression* destination() const noexcept { return m_destination.get(); }
-			const expression* value() const noexcept { return m_value.get(); }
+			const std::unique_ptr<expression>& destination() const noexcept { return m_destination; }
+			const std::unique_ptr<expression>& value() const noexcept { return m_value; }
 
 			void accept(visitor& v) const override {
 				v.visit(*this);
@@ -436,7 +435,7 @@ namespace michaelcc {
 				: m_variable(std::move(var)), m_initializer(std::move(initializer)) {}
 
 			const std::shared_ptr<variable>& get_variable() const noexcept { return m_variable; }
-			const expression* initializer() const noexcept { return m_initializer.get(); }
+			const std::unique_ptr<expression>& initializer() const noexcept { return m_initializer; }
 
 			void accept(visitor& v) const override {
 				v.visit(*this);
@@ -454,7 +453,7 @@ namespace michaelcc {
 			explicit return_statement(std::unique_ptr<expression>&& value = nullptr)
 				: m_value(std::move(value)) {}
 
-			const expression* value() const noexcept { return m_value.get(); }
+			const std::unique_ptr<expression>& value() const noexcept { return m_value; }
 
 			void accept(visitor& v) const override {
 				v.visit(*this);
@@ -477,7 +476,7 @@ namespace michaelcc {
 				m_then_body(std::move(then_body)),
 				m_else_body(std::move(else_body)) {}
 
-			const expression* condition() const noexcept { return m_condition.get(); }
+			const std::unique_ptr<expression>& condition() const noexcept { return m_condition; }
 			const std::shared_ptr<control_block>& then_body() const noexcept { return m_then_body; }
 			const std::shared_ptr<control_block>& else_body() const noexcept { return m_else_body; }
 
@@ -509,7 +508,7 @@ namespace michaelcc {
 				m_check_condition_first(check_condition_first) {}
 
 			const std::shared_ptr<control_block>& body() const noexcept { return m_body; }
-			const expression* condition() const noexcept { return m_condition.get(); }
+			const std::unique_ptr<expression>& condition() const noexcept { return m_condition; }
 			bool check_condition_first() const noexcept { return m_check_condition_first; }
 
 			void accept(visitor& v) const override {

@@ -12,10 +12,10 @@ void compiler::forward_declare_types::visit(const ast::struct_declaration& node)
         throw m_compiler.panic("Redeclaration of struct " + node.struct_name().value(), node.location());
     }
 
-    std::vector<typing::struct_type::field> fields;
+    std::vector<typing::member> fields;
     fields.reserve(node.fields().size());
     for (const ast::variable_declaration& field : node.fields()) {
-        fields.emplace_back(typing::struct_type::field{
+        fields.emplace_back(typing::member{
             field.identifier(),
             typing::qual_type::owning(std::make_shared<typing::void_type>())
         });
@@ -31,12 +31,13 @@ void compiler::forward_declare_types::visit(const ast::union_declaration& node) 
         throw m_compiler.panic("Redeclaration of union " + node.union_name().value(), node.location());
     }
 
-    std::vector<typing::union_type::member> members;
+    std::vector<typing::member> members;
     members.reserve(node.members().size());
     for (const ast::union_declaration::member& member : node.members()) {
-        members.emplace_back(typing::union_type::member{
+        members.emplace_back(typing::member{
             member.member_name,
-            typing::qual_type::owning(std::make_shared<typing::void_type>())
+            typing::qual_type::owning(std::make_shared<typing::void_type>()),
+            0
         });
     }
     m_compiler.m_translation_unit.declare_union(std::make_unique<typing::union_type>(node.union_name().value(), std::move(members)));
