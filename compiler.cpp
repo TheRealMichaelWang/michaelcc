@@ -437,3 +437,13 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     ss << "Expression \"" << ast::to_c_string(node) << "\" is not a struct or union.";
     throw panic(ss.str(), node.location());
 }
+
+std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::dereference_operator& node) {
+    std::unique_ptr<logical_ir::expression> pointer = m_compiler.compile_expression(*node.pointer());
+    if (typeid(pointer->get_type().type()) != typeid(typing::pointer_type)) {
+        std::ostringstream ss;
+        ss << "Expression \"" << ast::to_c_string(node) << "\" is not a pointer.";
+        throw panic(ss.str(), node.location());
+    }
+    return std::make_unique<logical_ir::dereference>(std::move(pointer));
+}
