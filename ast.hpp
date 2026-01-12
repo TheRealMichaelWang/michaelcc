@@ -904,9 +904,9 @@ namespace michaelcc {
                 m_set_value(set_value ? std::make_optional<std::unique_ptr<ast_element>>(std::move(set_value.value())) : std::nullopt) {}
 
             uint8_t qualifiers() const noexcept { return m_qualifiers; }
-            const ast_element* type() const noexcept { return m_type.get(); }
+            const std::unique_ptr<ast_element>& type() const noexcept { return m_type; }
             const std::string& identifier() const noexcept { return m_identifier; }
-            const ast_element* set_value() const noexcept { return m_set_value.has_value() ? m_set_value.value().get() : nullptr; }
+            const std::optional<std::unique_ptr<ast_element>>& set_value() const noexcept { return m_set_value; }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<variable_declaration>(
@@ -961,7 +961,7 @@ namespace michaelcc {
                 m_struct_name(std::move(struct_name)), m_fields(std::move(feilds)) {}
 
             const std::optional<std::string>& struct_name() const noexcept { return m_struct_name; }
-            const std::vector<variable_declaration>& feilds() const noexcept { return m_fields; }
+            const std::vector<variable_declaration>& fields() const noexcept { return m_fields; }
 
             std::unique_ptr<ast_element> clone() const override {
                 if (m_struct_name.has_value()) {
@@ -976,7 +976,7 @@ namespace michaelcc {
                         feild.type()->clone(),
                         std::string(feild.identifier()),
                         source_location(feild.location()),
-                        feild.set_value() != nullptr ? std::make_optional(feild.set_value()->clone()) : std::nullopt
+                        feild.set_value() != nullptr ? std::make_optional(feild.set_value().value()->clone()) : std::nullopt
                     ));
                 }
                 return std::make_unique<struct_declaration>(std::optional<std::string>(m_struct_name), std::move(cloned_feilds), source_location(location()));

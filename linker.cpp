@@ -5,17 +5,17 @@
 using namespace michaelcc;
 
 void compiler::forward_declare_types::visit(const ast::struct_declaration& node) {
-    if (node.feilds().empty()) return; // skip structs with no implementation
+    if (node.fields().empty()) return; // skip structs with no implementation
 
     if (m_compiler.m_translation_unit.lookup_struct(node.struct_name().value()) != nullptr) {
         throw m_compiler.panic("Redeclaration of struct " + node.struct_name().value(), node.location());
     }
 
     std::vector<typing::struct_type::field> fields;
-    fields.reserve(node.feilds().size());
-    for (const ast::variable_declaration& feild : node.feilds()) {
+    fields.reserve(node.fields().size());
+    for (const ast::variable_declaration& field : node.fields()) {
         fields.emplace_back(typing::struct_type::field{
-            feild.identifier(),
+            field.identifier(),
             typing::qual_type::owning(std::make_shared<typing::void_type>())
         });
     }
@@ -75,12 +75,12 @@ void compiler::implement_type_declarations::visit(const ast::struct_declaration&
         throw m_compiler.panic("Struct " + node.struct_name().value() + " already implemented", node.location());
     }
 
-    if (node.feilds().empty()) { return; } // skip structs with no implementation
+    if (node.fields().empty()) { return; } // skip structs with no implementation
 
     std::vector<typing::qual_type> field_types;
-    field_types.reserve(node.feilds().size());
-    for (const ast::variable_declaration& field : node.feilds()) {
-        field_types.emplace_back(m_compiler.resolve_type(*field.type()));
+    field_types.reserve(node.fields().size());
+    for (const ast::variable_declaration& field : node.fields()) {
+        field_types.emplace_back(m_compiler.m_type_resolver(*field.type()));
     }
 
     if (!struct_type->implement_field_types(std::move(field_types))) {
@@ -103,7 +103,7 @@ void compiler::implement_type_declarations::visit(const ast::union_declaration& 
     std::vector<typing::qual_type> member_types;
     member_types.reserve(node.members().size());
     for (const ast::union_declaration::member& member : node.members()) {
-        member_types.emplace_back(m_compiler.resolve_type(*member.member_type));
+        member_types.emplace_back(m_compiler.m_type_resolver(*member.member_type));
     }
     if (!union_type->implement_member_types(std::move(member_types))) {
         throw m_compiler.panic("Invalid number of member types for union " + node.union_name().value(), node.location());
@@ -116,7 +116,7 @@ void compiler::forward_declare_functions::forward_declare_function(const std::st
     for (const ast::function_parameter& parameter : parameters) {
         logical_parameters.emplace_back(std::make_shared<logical_ir::variable>(
             std::string(parameter.param_name),
-            m_compiler.resolve_type(*parameter.param_type).to_owning(),
+            m_compiler.m_type_resolver(*parameter.param_type).to_owning(),
             false,
             std::weak_ptr<logical_ir::symbol_context>()
         ));
@@ -145,7 +145,7 @@ void compiler::forward_declare_functions::forward_declare_function(const std::st
         }
 
         for (size_t i = 0; i < parameters.size(); i++) {
-            if (existing_function_definition->parameters()[i]->get_type() != m_compiler.resolve_type(*parameters[i].param_type)) {
+            if (existing_function_definition->parameters()[i]->get_type() != m_compiler.m_type_resolver(*parameters[i].param_type).to_owning()) {
                 throw m_compiler.panic(std::format(
                     "Parameter type mismatch for function {}; Function originally declared with parameter type {}, but now declared with parameter type {}.", 
                     function_name,

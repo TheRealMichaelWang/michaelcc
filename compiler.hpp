@@ -197,10 +197,9 @@ namespace michaelcc {
 
         layout_dependency_getter m_layout_dependency_getter;
         type_layout_calculator m_type_layout_calculator;
+        type_resolver m_type_resolver;
 
         std::map<std::shared_ptr<typing::base_type>, const source_location> m_type_declaration_locations;
-
-        typing::qual_type resolve_type(const ast::ast_element& type);
 
         void check_layout_dependencies(std::shared_ptr<typing::base_type>& type);
         void calculate_type_sizes(std::shared_ptr<typing::base_type>& type);
@@ -208,7 +207,8 @@ namespace michaelcc {
         compiler(const platform_info platform_info) 
             : m_translation_unit(), m_platform_info(platform_info), 
             m_layout_dependency_getter(m_translation_unit), 
-            m_type_layout_calculator(m_platform_info) { }
+            m_type_layout_calculator(m_platform_info),
+            m_type_resolver(m_translation_unit) { }
     };
 }
 #endif

@@ -258,3 +258,57 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::function_type& ty
         (*this)(*type.return_type()), param_types
     ));
 }
+
+typing::qual_type compiler::type_resolver::dispatch(const ast::struct_declaration& type) {
+    auto struct_type = m_translation_unit.lookup_struct(type.struct_name().value());
+    if (struct_type != nullptr) {
+        return typing::qual_type(struct_type);
+    }
+
+    std::vector<typing::struct_type::field> fields;
+    fields.reserve(type.fields().size());
+    for (const auto& field : type.fields()) {
+        fields.emplace_back(typing::struct_type::field{
+            field.identifier(),
+            (*this)(*field.type())
+        });
+    }
+    return typing::qual_type(std::make_shared<typing::struct_type>(type.struct_name().value(), std::move(fields)));
+}
+
+typing::qual_type compiler::type_resolver::dispatch(const ast::union_declaration& type) {
+    auto union_type = m_translation_unit.lookup_union(type.union_name().value());
+    if (union_type != nullptr) {
+        return typing::qual_type::weak(union_type);
+    }
+
+    std::vector<typing::union_type::member> members;
+    members.reserve(type.members().size());
+    for (const auto& member : type.members()) {
+        members.emplace_back(typing::union_type::member{
+            member.member_name,
+            (*this)(*member.member_type)
+        });
+    }
+    return typing::qual_type(std::make_shared<typing::union_type>(type.union_name().value(), std::move(members)));
+}
+
+typing::qual_type compiler::type_resolver::dispatch(const ast::enum_declaration& type) {
+    auto enum_type = m_translation_unit.lookup_enum(type.enum_name().value());
+    if (enum_type != nullptr) {
+        return typing::qual_type::weak(enum_type);
+    }
+    std::vector<typing::enum_type::enumerator> enumerators;
+    enumerators.reserve(type.enumerators().size());
+
+    int64_t max_value = 0;
+    for (const auto& enumerator : type.enumerators()) {
+        enumerators.emplace_back(typing::enum_type::enumerator{
+            enumerator.name,
+            enumerator.value.value_or(max_value)
+        });
+        max_value = std::max(max_value, enumerator.value.value_or(max_value));
+        max_value++;
+    }
+    return typing::qual_type(std::make_shared<typing::enum_type>(type.enum_name().value(), std::move(enumerators)));
+}

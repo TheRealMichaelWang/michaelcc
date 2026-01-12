@@ -106,10 +106,6 @@ namespace michaelcc {
                 return qual_type(std::move(type), qualifiers);
             }
             
-            static qual_type weak(std::weak_ptr<base_type> type, uint8_t qualifiers = NO_TYPE_QUALIFIER) {
-                return qual_type(std::move(type), qualifiers);
-            }
-            
             static qual_type weak(std::shared_ptr<base_type> type, uint8_t qualifiers = NO_TYPE_QUALIFIER) {
                 return qual_type(std::weak_ptr<base_type>(type), qualifiers);
             }
