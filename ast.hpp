@@ -98,8 +98,6 @@ namespace michaelcc {
             enum_declaration
         >;
 
-        
-
         template<typename ReturnType>
         using const_type_dispatcher = generic_dispatcher<ReturnType, ast_element, 
             const type_specifier,
@@ -109,6 +107,42 @@ namespace michaelcc {
             const struct_declaration,
             const union_declaration,
             const enum_declaration
+        >;
+
+        template<typename ReturnType>
+        using expression_dispatcher = generic_dispatcher<ReturnType, ast_element, 
+            int_literal,
+            float_literal,
+            double_literal,
+            string_literal,
+            variable_reference,
+            get_index,
+            get_property,
+            set_operator,
+            dereference_operator,
+            get_reference,
+            arithmetic_operator,
+            conditional_expression,
+            function_call,
+            initializer_list_expression
+        >;
+
+        template<typename ReturnType>
+        using const_expression_dispatcher = generic_dispatcher<ReturnType, ast_element, 
+            const int_literal,
+            const float_literal,
+            const double_literal,
+            const string_literal,
+            const variable_reference,
+            const get_index,
+            const get_property,
+            const set_operator,
+            const dereference_operator,
+            const get_reference,
+            const arithmetic_operator,
+            const conditional_expression,
+            const function_call,
+            const initializer_list_expression
         >;
 
 		class ast_element : public visitable_base<visitor> {

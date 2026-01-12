@@ -186,13 +186,37 @@ namespace michaelcc {
             typing::qual_type dispatch(const ast::struct_declaration& type) override;
             typing::qual_type dispatch(const ast::union_declaration& type) override;
             typing::qual_type dispatch(const ast::enum_declaration& type) override;
+
+            void handle_default(const ast::ast_element& node) override;
         };
 
-        class expression_compiler : public ast::type_dispatcher<logical_ir::expression> {
+        class expression_compiler : public ast::const_expression_dispatcher<std::unique_ptr<logical_ir::expression>> {
+        private:
+            typing::qual_type m_target_type;
+            compiler& m_compiler;
 
+        public:
+            expression_compiler(compiler& compiler, typing::qual_type target_type) : m_target_type(target_type), m_compiler(compiler) { }
+
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::int_literal& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::float_literal& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::double_literal& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::string_literal& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::variable_reference& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::get_index& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::get_property& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::set_operator& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::dereference_operator& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::get_reference& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::arithmetic_operator& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::conditional_expression& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::function_call& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::initializer_list_expression& node) override;
+
+            void handle_default(const ast::ast_element& node) override;
         };
 
-        compilation_error panic(const std::string& msg, const source_location& location) {
+        static compilation_error panic(const std::string& msg, const source_location& location) noexcept {
             return compilation_error(msg, location);
         }
 

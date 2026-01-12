@@ -38,11 +38,14 @@ namespace michaelcc {
     public:
         virtual ~generic_dispatcher() = default;
 
-        ReturnType operator()(BaseType&) {
-            throw std::runtime_error("No dispatch method for type " + std::string(typeid(BaseType).name()));
+        ReturnType operator()(BaseType& node) {
+            handle_default(node);
         }
 
     protected:
+        virtual void handle_default(const BaseType& node) {
+            throw std::runtime_error("No dispatch method for type " + std::string(typeid(BaseType).name()));
+        }
         // Sentinel for the using declaration chain - never called
         void dispatch() {}
     };

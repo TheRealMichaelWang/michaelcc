@@ -312,3 +312,9 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::enum_declaration&
     }
     return typing::qual_type(std::make_shared<typing::enum_type>(type.enum_name().value(), std::move(enumerators)));
 }
+
+void compiler::type_resolver::handle_default(const ast::ast_element& node) {
+    std::ostringstream ss;
+    ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid type.";
+    throw panic(ss.str(), node.location());
+}
