@@ -88,7 +88,7 @@ namespace michaelcc {
         >;
 
         template<typename ReturnType>
-        class type_dispatcher : public generic_dispatcher<ReturnType, ast_element, 
+        using type_dispatcher = generic_dispatcher<ReturnType, ast_element, 
             type_specifier,
             qualified_type,
             derived_type,
@@ -96,10 +96,12 @@ namespace michaelcc {
             struct_declaration,
             union_declaration,
             enum_declaration
-        > { };
+        >;
+
+        
 
         template<typename ReturnType>
-        class const_type_dispatcher : public generic_dispatcher<ReturnType, ast_element, 
+        using const_type_dispatcher = generic_dispatcher<ReturnType, ast_element, 
             const type_specifier,
             const qualified_type,
             const derived_type,
@@ -107,7 +109,7 @@ namespace michaelcc {
             const struct_declaration,
             const union_declaration,
             const enum_declaration
-        > { };
+        >;
 
 		class ast_element : public visitable_base<visitor> {
 		private:
@@ -1171,7 +1173,7 @@ namespace michaelcc {
         };
 
         // Utility function to convert any AST element to a C string representation
-        std::string to_c_string(const ast_element* elem, int indent = 0);
+        std::string to_c_string(const ast_element& elem, int indent = 0);
 	}
 }
 

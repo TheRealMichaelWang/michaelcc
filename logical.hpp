@@ -39,7 +39,7 @@ namespace michaelcc {
 		class continue_statement;
 		class translation_unit;
 
-		using visitor = generic_visitor<
+		class visitor : public generic_visitor<
 			variable,
 			control_block,
 			function_definition,
@@ -65,7 +65,13 @@ namespace michaelcc {
 			break_statement,
 			continue_statement,
 			translation_unit
-		>;
+		> { 
+		private:
+			symbol_explorer m_explorer;
+
+		public:
+			symbol_explorer& explorer() noexcept { return m_explorer; }
+		};
 
 		class variable final : public symbol, public visitable_base<visitor> {
 		private:
@@ -390,8 +396,8 @@ namespace michaelcc {
 			std::vector<std::unique_ptr<statement>> m_statements;
 
 		public:
-			control_block(std::vector<std::unique_ptr<statement>>&& statements, std::weak_ptr<symbol_context>&& parent_context)
-				: symbol_context(std::move(parent_context)), m_statements(std::move(statements)) {}
+			control_block(std::vector<std::unique_ptr<statement>>&& statements)
+				: symbol_context(), m_statements(std::move(statements)) {}
 
 			const std::vector<std::unique_ptr<statement>>& statements() const noexcept { return m_statements; }
 
@@ -494,9 +500,13 @@ namespace michaelcc {
 			void accept(visitor& v) const override {
 				v.visit(*this);
 				m_condition->accept(v);
+				v.explorer().visit(m_then_body);
 				m_then_body->accept(v);
+				v.explorer().exit();
 				if (m_else_body) {
+					v.explorer().visit(m_else_body);
 					m_else_body->accept(v);
+					v.explorer().exit();
 				}
 			}
 		};
@@ -521,7 +531,9 @@ namespace michaelcc {
 			void accept(visitor& v) const override {
 				v.visit(*this);
 				m_condition->accept(v);
+				v.explorer().visit(m_body);
 				m_body->accept(v);
+				v.explorer().exit();
 			}
 		};
 
@@ -572,7 +584,9 @@ namespace michaelcc {
 					param->accept(v);
 				}
 				if (m_body) {
+					v.explorer().visit(m_body);
 					m_body->accept(v);
+					v.explorer().exit();
 				}
 			}
 		};
@@ -586,9 +600,7 @@ namespace michaelcc {
             std::unordered_map<std::string, std::shared_ptr<typing::union_type>> m_unions;
             std::unordered_map<std::string, std::shared_ptr<typing::enum_type>> m_enums;
 		public:
-            translation_unit() : m_global_context(
-                std::make_shared<symbol_context>(std::weak_ptr<symbol_context>())
-            ) {}
+            translation_unit() : m_global_context(std::make_shared<symbol_context>()) {}
 
             void declare_struct(std::unique_ptr<typing::struct_type>&& struct_type) {
                 m_structs[struct_type->name().value()] = std::shared_ptr<typing::struct_type>(std::move(struct_type));

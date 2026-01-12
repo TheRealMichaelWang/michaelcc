@@ -478,7 +478,7 @@ public:
         print_declarator(*node.type(), node.identifier());
         if (node.set_value()) {
             m_out << " = ";
-            print(*node.set_value());
+            print(*node.set_value().value());
         }
     }
 
@@ -497,12 +497,12 @@ public:
         if (node.struct_name().has_value()) {
             m_out << " " << node.struct_name().value();
         }
-        if (node.feilds().empty()) {
+        if (node.fields().empty()) {
             return;
         }
         m_out << " {\n";
         m_indent++;
-        for (const auto& field : node.feilds()) {
+        for (const auto& field : node.fields()) {
             m_out << indent_str();
             print(field);
             m_out << ";\n";
@@ -631,14 +631,14 @@ void ast_print_visitor::print_declarator(const ast_element& type, const std::str
 // Public API function
 namespace michaelcc {
 namespace ast {
-    std::string to_c_string(const ast_element* elem, int indent) {
+    std::string to_c_string(const ast_element& elem, int indent) {
         std::stringstream ss;
         ast_print_visitor visitor(ss, indent);
-        visitor.print(*elem);
+        visitor.print(elem);
         
         // Add semicolon for top-level declarations that need them
-        if (dynamic_cast<const variable_declaration*>(elem) ||
-            dynamic_cast<const typedef_declaration*>(elem)) {
+        if (dynamic_cast<const variable_declaration*>(&elem) ||
+            dynamic_cast<const typedef_declaration*>(&elem)) {
             ss << ";";
         }
         

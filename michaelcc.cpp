@@ -31,7 +31,7 @@ int main()
 		
 		// Print all top-level elements
 		for (const auto& element : ast) {
-			cout << michaelcc::ast::to_c_string(element.get()) << endl;
+			cout << michaelcc::ast::to_c_string(*element) << endl;
 		}
 	}
 	catch (const michaelcc::compilation_error& error) {

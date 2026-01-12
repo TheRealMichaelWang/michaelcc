@@ -188,6 +188,10 @@ namespace michaelcc {
             typing::qual_type dispatch(const ast::enum_declaration& type) override;
         };
 
+        class expression_compiler : public ast::type_dispatcher<logical_ir::expression> {
+
+        };
+
         compilation_error panic(const std::string& msg, const source_location& location) {
             return compilation_error(msg, location);
         }

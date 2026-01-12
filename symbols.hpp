@@ -5,6 +5,8 @@
 #include <unordered_map>
 #include <memory>
 #include <stdexcept>
+#include <vector>
+#include <ranges>
 
 namespace michaelcc {
     namespace logical_ir {
@@ -35,14 +37,9 @@ namespace michaelcc {
         class symbol_context {
         private:
             std::unordered_map<std::string, std::shared_ptr<symbol>> m_symbol_table;
-            std::vector<std::shared_ptr<symbol>> m_symbols;
-
-            std::vector<std::shared_ptr<symbol_context>> m_nested_contexts;
-            std::weak_ptr<symbol_context> m_parent_context;
+            std::vector<std::shared_ptr<symbol>> m_symbols; 
 
         public:
-            explicit symbol_context(std::weak_ptr<symbol_context>&& parent_context) : m_parent_context(std::move(parent_context)) {}
-
             std::shared_ptr<symbol> lookup(const std::string& name) const {
                 auto it = m_symbol_table.find(name);
                 
@@ -50,9 +47,6 @@ namespace michaelcc {
                     return it->second;
                 }
 
-                if (auto shared_parent = m_parent_context.lock()) {
-                    return shared_parent->lookup(name);
-                }
                 return nullptr;
             }
 
@@ -67,6 +61,39 @@ namespace michaelcc {
             }
 
             const std::vector<std::shared_ptr<symbol>>& symbols() const noexcept { return m_symbols; }
+        };
+
+        class symbol_explorer {
+        private:
+            std::vector<std::shared_ptr<symbol_context>> m_contexts;
+
+        public:
+            void visit(std::shared_ptr<symbol_context> context) {
+                m_contexts.push_back(context);
+            }
+
+            void exit() {
+                m_contexts.pop_back();
+            }
+
+            std::shared_ptr<symbol> lookup(const std::string& name) const {
+                for (const auto& context : std::views::reverse(m_contexts)) {
+                    auto sym = context->lookup(name);
+                    if (sym) {
+                        return sym;
+                    }
+                }
+                return nullptr;
+            }
+
+            bool add(std::shared_ptr<symbol>&& sym) noexcept {
+                if (lookup(sym->name())) {
+                    return false;
+                }
+                
+                m_contexts.back()->add(std::move(sym));
+                return true;
+            }
         };
     }
 }
