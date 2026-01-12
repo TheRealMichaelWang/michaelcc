@@ -242,7 +242,7 @@ namespace michaelcc {
                 : ast_element(std::move(location)), m_return_type(std::move(return_type)),
                   m_parameters(std::move(parameters)), m_is_variadic(is_variadic) {}
 
-            const ast_element* return_type() const noexcept { return m_return_type.get(); }
+            const std::unique_ptr<ast_element>& return_type() const noexcept { return m_return_type; }
             const std::vector<parameter>& parameters() const noexcept { return m_parameters; }
             bool is_variadic() const noexcept { return m_is_variadic; }
 

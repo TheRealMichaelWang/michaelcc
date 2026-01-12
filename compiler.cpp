@@ -1,9 +1,11 @@
 #include "compiler.hpp"
+#include "ast.hpp"
 #include "typing.hpp"
 #include <memory>
 #include <queue>
 #include <sstream>
 #include <numeric>
+#include <vector>
 
 using namespace michaelcc;
 
@@ -244,4 +246,15 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::derived_type& typ
         default:
             throw std::runtime_error("Invalid derived type kind");
     }
+}
+
+typing::qual_type compiler::type_resolver::dispatch(const ast::function_type& type) {
+    std::vector<typing::qual_type> param_types;
+    param_types.reserve(type.parameters().size());
+    for (const auto& param : type.parameters()) {
+        param_types.push_back((*this)(*param.param_type));
+    }
+    return typing::qual_type(std::make_shared<typing::function_pointer_type>(
+        (*this)(*type.return_type()), param_types
+    ));
 }
