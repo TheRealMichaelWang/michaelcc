@@ -30,6 +30,8 @@ namespace michaelcc {
 		class array_index;
 		class function_call;
 		class conditional_expression;
+		class set_address;
+		class set_variable;
 		class expression_statement;
 		class assignment_statement;
 		class local_declaration;
@@ -58,6 +60,8 @@ namespace michaelcc {
 			array_index,
 			function_call,
 			conditional_expression,
+			set_address,
+			set_variable,
 			expression_statement,
 			assignment_statement,
 			local_declaration,
@@ -365,6 +369,47 @@ namespace michaelcc {
 				m_condition->accept(v);
 				m_then_expression->accept(v);
 				m_else_expression->accept(v);
+			}
+		};
+
+		class set_address final : public expression {
+		private:
+			std::unique_ptr<expression> m_destination;
+			std::unique_ptr<expression> m_value;
+
+		public:
+			set_address(std::unique_ptr<expression>&& destination, std::unique_ptr<expression>&& value)
+				: m_destination(std::move(destination)), m_value(std::move(value)) {}
+
+			const std::unique_ptr<expression>& destination() const noexcept { return m_destination; }
+			const std::unique_ptr<expression>& value() const noexcept { return m_value; }
+
+			const typing::qual_type get_type() const override { return m_destination->get_type(); }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_destination->accept(v);
+				m_value->accept(v);
+			}
+		};
+
+		class set_variable final : public expression {
+		private:
+			std::shared_ptr<variable> m_variable;
+			std::unique_ptr<expression> m_value;
+		public:
+			set_variable(std::shared_ptr<variable>&& variable, std::unique_ptr<expression>&& value)
+				: m_variable(std::move(variable)), m_value(std::move(value)) {}
+
+			const std::shared_ptr<variable>& variable() const noexcept { return m_variable; }
+			const std::unique_ptr<expression>& value() const noexcept { return m_value; }
+
+			const typing::qual_type get_type() const override { return m_variable->get_type(); }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_variable->accept(v);
+				m_value->accept(v);
 			}
 		};
 
