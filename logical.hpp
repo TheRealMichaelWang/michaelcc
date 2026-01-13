@@ -716,11 +716,13 @@ namespace michaelcc {
 		class return_statement final : public statement {
 		private:
 			std::unique_ptr<expression> m_value;
+			std::shared_ptr<function_definition> m_function;
 		public:
-			explicit return_statement(std::unique_ptr<expression>&& value = nullptr)
-				: m_value(std::move(value)) {}
+			explicit return_statement(std::unique_ptr<expression>&& value = nullptr, std::shared_ptr<function_definition> function = nullptr)
+				: m_value(std::move(value)), m_function(std::move(function)) {}
 
 			const std::unique_ptr<expression>& value() const noexcept { return m_value; }
+			const std::shared_ptr<function_definition>& function() const noexcept { return m_function; }
 
 			void mutable_accept(visitor& v) override {
 				v.visit(*this);

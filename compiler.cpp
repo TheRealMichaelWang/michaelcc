@@ -880,9 +880,19 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
 
 std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::return_statement& node) {
     
-    
-    std::unique_ptr<logical_ir::expression> expression = m_compiler.compile_expression(*node.value());
-    return std::make_unique<logical_ir::return_statement>(std::move(expression));
+    std::shared_ptr<logical_ir::function_definition> function = m_compiler.m_symbol_explorer.is_in_context<logical_ir::function_definition>();
+    if (function == nullptr) {
+        std::ostringstream ss;
+        ss << "Return statement is not in a function context.";
+        throw panic(ss.str(), node.location());
+    }
+    std::unique_ptr<logical_ir::expression> expression = m_compiler.compile_expression(*node.value(), function->return_type());
+    if (!expression->get_type().is_assignable_from(function->return_type())) {
+        std::ostringstream ss;
+        ss << "Return expression is not the same type as the function return type.";
+        throw panic(ss.str(), node.location());
+    }
+    return std::make_unique<logical_ir::return_statement>(std::move(expression), function);
 }
 
 void compiler::statement_compiler::handle_default(const ast::ast_element& node) {
