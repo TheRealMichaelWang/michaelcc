@@ -571,6 +571,64 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     );
 }
 
+std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::function_call& node) {
+    std::vector<std::unique_ptr<logical_ir::expression>> arguments;
+    arguments.reserve(node.arguments().size());
+    for (const auto& argument : node.arguments()) {
+        arguments.push_back(m_compiler.compile_expression(*argument));
+    }
+
+    ast::variable_reference* variable_reference = dynamic_cast<ast::variable_reference*>(node.callee().get());
+    if (variable_reference) {
+        auto symbol = m_compiler.m_symbol_explorer.lookup(variable_reference->identifier());
+        if (symbol == nullptr) {
+            std::ostringstream ss;
+            ss << "Symbol \"" << variable_reference->identifier() << "\" not found.";
+            throw panic(ss.str(), node.location());
+        }
+        std::shared_ptr<logical_ir::function_definition> function = std::dynamic_pointer_cast<logical_ir::function_definition>(symbol);
+        if (function) {
+            if (function->parameters().size() != arguments.size()) {
+                std::ostringstream ss;
+                ss << "Function \"" << function->name() << "\" expects " << function->parameters().size() << " arguments, but " << arguments.size() << " were provided.";
+                throw panic(ss.str(), node.location());
+            }
+            for (size_t i = 0; i < function->parameters().size(); i++) {
+                if (!arguments[i]->get_type().type()->is_assignable_from(*function->parameters()[i]->get_type().type())) {
+                    std::ostringstream ss;
+                    ss << "Argument " << i << " is not the same type as the parameter " << function->parameters()[i]->name() << ". ";
+                    ss << "Expected " << function->parameters()[i]->get_type().to_string() << ", but got " << arguments[i]->get_type().to_string() << ".";
+                    throw panic(ss.str(), node.location());
+                }
+            }
+            return std::make_unique<logical_ir::function_call>(std::make_shared<logical_ir::function_reference>(std::move(function)), std::move(arguments));
+        }
+    }
+
+    std::unique_ptr<logical_ir::expression> callee = m_compiler.compile_expression(*node.callee());
+    std::shared_ptr<typing::function_pointer_type> function_pointer = std::dynamic_pointer_cast<typing::function_pointer_type>(callee->get_type().type());
+    if (function_pointer == nullptr) {
+        std::ostringstream ss;
+        ss << "Expression \"" << ast::to_c_string(node) << "\" is not a function pointer and thus cannot be called.";
+        throw panic(ss.str(), node.location());
+    }
+
+    if (function_pointer->parameter_types().size() != arguments.size()) {
+        std::ostringstream ss;
+        ss << "Function pointer expects " << function_pointer->parameter_types().size() << " arguments, but " << arguments.size() << " were provided.";
+        throw panic(ss.str(), node.location());
+    }
+    for (size_t i = 0; i < function_pointer->parameter_types().size(); i++) {
+        if (!arguments[i]->get_type().type()->is_assignable_from(*function_pointer->parameter_types()[i].type())) {
+            std::ostringstream ss;
+            ss << "Argument " << i << " is not the same type as the parameter " << function_pointer->parameter_types()[i].to_string() << ". ";
+            ss << "Expected " << function_pointer->parameter_types()[i].to_string() << ", but got " << arguments[i]->get_type().to_string() << ".";
+            throw panic(ss.str(), node.location());
+        }
+    }
+    return std::make_unique<logical_ir::function_call>(std::move(callee), std::move(arguments));
+}
+
 void compiler::expression_compiler::handle_default(const ast::ast_element& node) {
     std::ostringstream ss;
     ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid expression.";
