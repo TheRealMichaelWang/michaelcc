@@ -878,6 +878,13 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     return std::make_unique<logical_ir::if_statement>(std::move(condition), std::move(then_control_block), std::move(else_control_block));
 }
 
+std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::return_statement& node) {
+    
+    
+    std::unique_ptr<logical_ir::expression> expression = m_compiler.compile_expression(*node.value());
+    return std::make_unique<logical_ir::return_statement>(std::move(expression));
+}
+
 void compiler::statement_compiler::handle_default(const ast::ast_element& node) {
     std::ostringstream ss;
     ss << "\"" << ast::to_c_string(node) << "\" is not a valid statement.";

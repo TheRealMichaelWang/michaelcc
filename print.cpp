@@ -648,7 +648,7 @@ namespace ast {
 }
 
 // Simple tree printer for logical IR using stack-based indent tracking
-class logical_print_visitor : public logical_ir::visitor {
+class logical_print_visitor : public logical_ir::const_visitor {
 private:
     std::ostream& m_out;
     int m_indent = 0;
@@ -681,7 +681,7 @@ public:
     logical_print_visitor(std::ostream& out) : m_out(out) {}
 
     // translation_unit: children = number of global symbols (vars + funcs)
-    void visit(const logical_ir::translation_unit& node) override {
+    void visit(const logical_ir::translation_unit& node) {
         before_print();
         print_indent();
         m_out << "translation_unit\n";
@@ -704,12 +704,12 @@ public:
         after_print(0);
     }
 
-    // function_definition: params.size() + (body ? 1 : 0)
+    // function_definition: params.size() + 1 (for control_block base)
     void visit(const logical_ir::function_definition& node) override {
         before_print();
         print_indent();
         m_out << "function_definition: " << node.name() << "\n";
-        int child_count = static_cast<int>(node.parameters().size()) + (node.body() ? 1 : 0);
+        int child_count = static_cast<int>(node.parameters().size()) + 1;
         after_print(child_count);
     }
 

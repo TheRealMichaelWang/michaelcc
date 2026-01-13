@@ -106,6 +106,10 @@ namespace michaelcc {
                 }
                 return nullptr;
             }
+
+            bool is_in_context(const std::shared_ptr<symbol_context>& context) const {
+                return !m_contexts.empty() && m_contexts.back() == context;
+            }
         };
     }
 }

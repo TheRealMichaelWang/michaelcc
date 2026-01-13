@@ -8,27 +8,52 @@
 
 namespace michaelcc {
     template<typename... NodeTypes>
-    class generic_visitor;
+    class const_generic_visitor;
 
     template<>
-    class generic_visitor<> {
+    class const_generic_visitor<> {
     public:
-        virtual ~generic_visitor() = default;
+        virtual ~const_generic_visitor() = default;
         void visit() const {}
     };
 
     template<typename NodeType, typename... Rest>
-    class generic_visitor<NodeType, Rest...> : public generic_visitor<Rest...> {
+    class const_generic_visitor<NodeType, Rest...> : public const_generic_visitor<Rest...> {
     public:
-        using generic_visitor<Rest...>::visit;
+        using const_generic_visitor<Rest...>::visit;
         virtual void visit(const NodeType& node) {}
     };
 
-    template<typename Visitor>
-    class visitable_base {
+    template<typename... NodeTypes>
+    class mutable_generic_visitor;
+
+    template<>
+    class mutable_generic_visitor<> {
     public:
-        virtual ~visitable_base() = default;
+        virtual ~mutable_generic_visitor() = default;
+        void visit() {}
+    };
+
+    template<typename NodeType, typename... Rest>
+    class mutable_generic_visitor<NodeType, Rest...> : public mutable_generic_visitor<Rest...> {
+    public:
+        using mutable_generic_visitor<Rest...>::visit;
+        virtual void visit(NodeType& node) {}
+    };
+
+
+    template<typename Visitor>
+    class const_visitable_base {
+    public:
+        virtual ~const_visitable_base() = default;
         virtual void accept(Visitor& v) const = 0;
+    };
+
+    template<typename Visitor>
+    class mutable_visitable_base {
+    public:
+        virtual ~mutable_visitable_base() = default;
+        virtual void mutable_accept(Visitor& v) = 0;
     };
 
     template<typename ReturnType, typename BaseType, typename... NodeTypes>

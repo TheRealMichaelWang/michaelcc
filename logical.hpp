@@ -48,7 +48,7 @@ namespace michaelcc {
 		class continue_statement;
 		class translation_unit;
 
-		class visitor : public generic_visitor<
+		class visitor : public mutable_generic_visitor<
 			variable,
 			control_block,
 			statement_block,
@@ -90,6 +90,42 @@ namespace michaelcc {
 			symbol_explorer& explorer() noexcept { return m_explorer; }
 		};
 
+		using const_visitor = const_generic_visitor<
+			variable,
+			control_block,
+			statement_block,
+			function_definition,
+			integer_constant,
+			floating_constant,
+			string_constant,
+			variable_reference,
+			function_reference,
+			var_increment_operator,
+			arithmetic_operator,
+			unary_operation,
+			type_cast,
+			address_of,
+			dereference,
+			member_access,
+			array_index,
+			array_initializer,
+			struct_initializer,
+			union_initializer,
+			function_call,
+			conditional_expression,
+			set_address,
+			set_variable,
+			expression_statement,
+			assignment_statement,
+			local_declaration,
+			return_statement,
+			if_statement,
+			loop_statement,
+			break_statement,
+			continue_statement,
+			translation_unit
+		>;
+
 		template<typename ReturnType>
 		using symbol_dispatcher = generic_dispatcher<ReturnType, symbol, 
 			variable,
@@ -102,7 +138,7 @@ namespace michaelcc {
 			const function_definition
 		>;
 
-		class variable final : public symbol, public visitable_base<visitor> {
+		class variable final : public symbol, public mutable_visitable_base<visitor>, public const_visitable_base<const_visitor> {
 		private:
             uint8_t m_qualifiers;
             typing::qual_type m_type;
@@ -118,14 +154,16 @@ namespace michaelcc {
                 return std::format("{} variable {}", m_is_global ? "global" : "local", name());
             }
 
-			void accept(visitor& v) const override { v.visit(*this); }
+			void mutable_accept(visitor& v) override { v.visit(*this); }
+			void accept(const_visitor& v) const override { v.visit(*this); }
 		};
 
-		class expression : public visitable_base<visitor> {
+		class expression : public mutable_visitable_base<visitor>, public const_visitable_base<const_visitor> {
 		public:
 			virtual ~expression() = default;
 			virtual const typing::qual_type get_type() const = 0;
-			virtual void accept(visitor& v) const override = 0;
+			virtual void mutable_accept(visitor& v) override = 0;
+			virtual void accept(const_visitor& v) const override = 0;
 		};
 
 		class integer_constant final : public expression {
@@ -142,7 +180,8 @@ namespace michaelcc {
                 return m_type; 
             }
 
-			void accept(visitor& v) const override { v.visit(*this); }
+			void mutable_accept(visitor& v) override { v.visit(*this); }
+			void accept(const_visitor& v) const override { v.visit(*this); }
 		};
 
 		class floating_constant final : public expression {
@@ -159,7 +198,8 @@ namespace michaelcc {
                 return m_type; 
             }
 
-			void accept(visitor& v) const override { v.visit(*this); }
+			void mutable_accept(visitor& v) override { v.visit(*this); }
+			void accept(const_visitor& v) const override { v.visit(*this); }
 		};
 
 		class string_constant final : public expression {
@@ -177,7 +217,8 @@ namespace michaelcc {
                 ));     
             }
 
-			void accept(visitor& v) const override { v.visit(*this); }
+			void mutable_accept(visitor& v) override { v.visit(*this); }
+			void accept(const_visitor& v) const override { v.visit(*this); }
 		};
 
 		class variable_reference final : public expression {
@@ -193,7 +234,8 @@ namespace michaelcc {
 				return m_variable->get_type();
 			}
 
-			void accept(visitor& v) const override { v.visit(*this); }
+			void mutable_accept(visitor& v) override { v.visit(*this); }
+			void accept(const_visitor& v) const override { v.visit(*this); }
 		};
 
 
@@ -215,7 +257,8 @@ namespace michaelcc {
 				return destination->get_type();
 			}, m_destination); }
 
-			void accept(visitor& v) const override { v.visit(*this); }
+			void mutable_accept(visitor& v) override { v.visit(*this); }
+			void accept(const_visitor& v) const override { v.visit(*this); }
 		};
 
 		class arithmetic_operator final : public expression {
@@ -241,7 +284,13 @@ namespace michaelcc {
 			
             const typing::qual_type get_type() const override { return m_result_type; }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				m_left->mutable_accept(v);
+				m_right->mutable_accept(v);
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_left->accept(v);
 				m_right->accept(v);
@@ -263,7 +312,12 @@ namespace michaelcc {
 
             const typing::qual_type get_type() const override { return m_operand->get_type(); }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				m_operand->mutable_accept(v);
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_operand->accept(v);
 			}
@@ -280,7 +334,12 @@ namespace michaelcc {
 			const expression* operand() const noexcept { return m_operand.get(); }
 			const typing::qual_type get_type() const override { return m_target_type; }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				m_operand->mutable_accept(v);
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_operand->accept(v);
 			}
@@ -305,7 +364,12 @@ namespace michaelcc {
 				return ptr_type->pointee_type().to_owning();
 			}
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				m_operand->mutable_accept(v);
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_operand->accept(v);
 			}
@@ -323,7 +387,12 @@ namespace michaelcc {
 			const typing::member& member() const noexcept { return m_member; }
 			const typing::qual_type get_type() const override { return m_member.member_type.to_owning(m_base->get_type().propagate_qualifiers()); }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				m_base->mutable_accept(v);
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_base->accept(v);
 			}
@@ -349,7 +418,13 @@ namespace michaelcc {
 				return arr_type->element_type().to_owning(base_type.propagate_qualifiers());
             }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				m_base->mutable_accept(v);
+				m_index->mutable_accept(v);
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_base->accept(v);
 				m_index->accept(v);
@@ -385,7 +460,14 @@ namespace michaelcc {
                 }, m_operand)));
             }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				std::visit([&v](auto&& operand) {
+					operand->mutable_accept(v);
+				}, m_operand);
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				std::visit([&v](auto&& operand) {
 					operand->accept(v);
@@ -417,7 +499,14 @@ namespace michaelcc {
                 return m_result_type; 
             }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				m_condition->mutable_accept(v);
+				m_then_expression->mutable_accept(v);
+				m_else_expression->mutable_accept(v);
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_condition->accept(v);
 				m_then_expression->accept(v);
@@ -439,7 +528,13 @@ namespace michaelcc {
 
 			const typing::qual_type get_type() const override { return m_destination->get_type(); }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				m_destination->mutable_accept(v);
+				m_value->mutable_accept(v);
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_destination->accept(v);
 				m_value->accept(v);
@@ -459,20 +554,27 @@ namespace michaelcc {
 
 			const typing::qual_type get_type() const override { return m_variable->get_type(); }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				m_variable->mutable_accept(v);
+				m_value->mutable_accept(v);
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_variable->accept(v);
 				m_value->accept(v);
 			}
 		};
 
-		class statement : public visitable_base<visitor> {
+		class statement : public mutable_visitable_base<visitor>, public const_visitable_base<const_visitor> {
 		public:
 			virtual ~statement() = default;
-			virtual void accept(visitor& v) const override = 0;
+			virtual void mutable_accept(visitor& v) override = 0;
+			virtual void accept(const_visitor& v) const override = 0;
 		};
 
-		class control_block final : public symbol_context, public visitable_base<visitor> {
+		class control_block : public symbol_context, public mutable_visitable_base<visitor>, public const_visitable_base<const_visitor>, public std::enable_shared_from_this<control_block> {
 		private:
 			std::vector<std::unique_ptr<statement>> m_statements;
 
@@ -492,7 +594,24 @@ namespace michaelcc {
 
 			const std::vector<std::unique_ptr<statement>>& statements() const noexcept { return m_statements; }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				bool is_in_self = v.explorer().is_in_context(shared_from_this());
+
+				if (!is_in_self) {
+					v.explorer().visit(shared_from_this());
+				}
+
+				v.visit(*this);
+				for (const auto& stmt : m_statements) {
+					stmt->mutable_accept(v);
+				}
+
+				if (!is_in_self) {
+					v.explorer().exit();
+				}
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				for (const auto& stmt : m_statements) {
 					stmt->accept(v);
@@ -510,7 +629,12 @@ namespace michaelcc {
 
 			const std::shared_ptr<control_block>& control_block() const noexcept { return m_control_block; }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				m_control_block->mutable_accept(v);
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_control_block->accept(v);
 			}
@@ -525,7 +649,12 @@ namespace michaelcc {
 
 			const std::unique_ptr<expression>& get_expression() const noexcept { return m_expression; }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				m_expression->mutable_accept(v);
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_expression->accept(v);
 			}
@@ -543,7 +672,13 @@ namespace michaelcc {
 			const std::unique_ptr<expression>& destination() const noexcept { return m_destination; }
 			const std::unique_ptr<expression>& value() const noexcept { return m_value; }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				m_destination->mutable_accept(v);
+				m_value->mutable_accept(v);
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_destination->accept(v);
 				m_value->accept(v);
@@ -561,7 +696,15 @@ namespace michaelcc {
 			const std::shared_ptr<variable>& get_variable() const noexcept { return m_variable; }
 			const std::unique_ptr<expression>& initializer() const noexcept { return m_initializer; }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				m_variable->mutable_accept(v);
+				if (m_initializer) {
+					m_initializer->mutable_accept(v);
+				}
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_variable->accept(v);
 				if (m_initializer) {
@@ -579,7 +722,14 @@ namespace michaelcc {
 
 			const std::unique_ptr<expression>& value() const noexcept { return m_value; }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				if (m_value) {
+					m_value->mutable_accept(v);
+				}
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				if (m_value) {
 					m_value->accept(v);
@@ -604,16 +754,21 @@ namespace michaelcc {
 			const std::shared_ptr<control_block>& then_body() const noexcept { return m_then_body; }
 			const std::shared_ptr<control_block>& else_body() const noexcept { return m_else_body; }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				m_condition->mutable_accept(v);
+				m_then_body->mutable_accept(v);
+				if (m_else_body) {
+					m_else_body->mutable_accept(v);
+				}
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_condition->accept(v);
-				v.explorer().visit(m_then_body);
 				m_then_body->accept(v);
-				v.explorer().exit();
 				if (m_else_body) {
-					v.explorer().visit(m_else_body);
 					m_else_body->accept(v);
-					v.explorer().exit();
 				}
 			}
 		};
@@ -635,12 +790,23 @@ namespace michaelcc {
 			const std::unique_ptr<expression>& condition() const noexcept { return m_condition; }
 			bool check_condition_first() const noexcept { return m_check_condition_first; }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
 				v.visit(*this);
-				m_condition->accept(v);
+				if (m_check_condition_first) {
+					m_condition->mutable_accept(v);
+				}
 				v.explorer().visit(m_body);
-				m_body->accept(v);
+				m_body->mutable_accept(v);
+				if (!m_check_condition_first) {
+					m_condition->mutable_accept(v);
+				}
 				v.explorer().exit();
+			}
+
+			void accept(const_visitor& v) const override {
+				v.visit(*this);
+				m_body->accept(v);
+				m_condition->accept(v);
 			}
 		};
 
@@ -653,7 +819,9 @@ namespace michaelcc {
 			int loop_depth() const noexcept { return m_loop_depth; }
 
 		public:
-			void accept(visitor& v) const override { v.visit(*this); }
+			void mutable_accept(visitor& v) override { v.visit(*this); }
+
+			void accept(const_visitor& v) const override { v.visit(*this); }
 		};
 
 		class continue_statement final : public statement {
@@ -665,52 +833,42 @@ namespace michaelcc {
 			int loop_depth() const noexcept { return m_loop_depth; }
 
 		public:
-			void accept(visitor& v) const override { v.visit(*this); }
+			void mutable_accept(visitor& v) override { v.visit(*this); }
+
+			void accept(const_visitor& v) const override { v.visit(*this); }
 		};
 
-		class function_definition final : public symbol, public visitable_base<visitor> {
+		class function_definition final : public symbol, public control_block {
 		private:
 			typing::qual_type m_return_type;
 			std::vector<std::shared_ptr<variable>> m_parameters;
-			std::shared_ptr<control_block> m_body;
 
 		public:
 			explicit function_definition(std::string&& name, typing::qual_type&& return_type, std::vector<std::shared_ptr<variable>>&& parameters, std::weak_ptr<symbol_context>&& context)
-				: symbol(std::move(name), std::move(context)), m_return_type(std::move(return_type)), m_parameters(std::move(parameters)), m_body(nullptr) {}
+				: symbol(std::move(name), std::move(context)), control_block(), m_return_type(std::move(return_type)), m_parameters(std::move(parameters)) {}
 
 			const typing::qual_type& return_type() const noexcept { return m_return_type; }
 			const std::vector<std::shared_ptr<variable>>& parameters() const noexcept { return m_parameters; }
-			const std::shared_ptr<control_block>& body() const { return m_body; }
-
-			bool is_implemented() const noexcept { return m_body != nullptr; }
-
-            void implement_body(std::shared_ptr<control_block>&& body) {
-                if (is_implemented()) {
-                    throw std::runtime_error("Function already implemented");
-                }
-
-                //declare each parameter in the body individually
-                m_body = std::move(body);
-                for (const auto& parameter : m_parameters) {
-                    m_body->add(std::shared_ptr<symbol>(parameter));
-                    parameter->set_context(std::weak_ptr<symbol_context>(m_body));
-                }
-            }
-
             std::string to_string() const noexcept override {
                 return std::format("function {}", name());
             }
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				for (const auto& param : m_parameters) {
+					param->mutable_accept(v);
+				}
+				
+				control_block::mutable_accept(v);
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				for (const auto& param : m_parameters) {
 					param->accept(v);
 				}
-				if (m_body) {
-					v.explorer().visit(m_body);
-					m_body->accept(v);
-					v.explorer().exit();
-				}
+				
+				control_block::accept(v);
 			}
 		};
 
@@ -735,7 +893,9 @@ namespace michaelcc {
 				);
 			}
 
-			void accept(visitor& v) const override { v.visit(*this); }
+			void mutable_accept(visitor& v) override { v.visit(*this); }
+
+			void accept(const_visitor& v) const override { v.visit(*this); }
 		};
 
 		class array_initializer final : public expression {
@@ -752,7 +912,14 @@ namespace michaelcc {
 				return typing::qual_type::owning(std::make_shared<typing::array_type>(m_element_type), m_element_type.propagate_qualifiers()); 
 			}
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				for (const auto& initializer : m_initializers) {
+					initializer->mutable_accept(v);
+				}
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				for (const auto& initializer : m_initializers) {
 					initializer->accept(v);
@@ -779,7 +946,14 @@ namespace michaelcc {
 				return typing::qual_type::weak(m_struct_type);
 			}
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				for (const auto& initializer : m_initializers) {
+					initializer.initializer->mutable_accept(v);
+				}
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				for (const auto& initializer : m_initializers) {
 					initializer.initializer->accept(v);
@@ -805,7 +979,12 @@ namespace michaelcc {
 				return typing::qual_type::weak(m_union_type);
 			}
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				m_initializer->mutable_accept(v);
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_initializer->accept(v);
 			}
@@ -840,11 +1019,21 @@ namespace michaelcc {
 				return fn_type->return_type().to_owning();
 			}
 
-			void accept(visitor& v) const override {
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				if (std::holds_alternative<std::shared_ptr<expression>>(m_callee)) {
+					std::get<std::shared_ptr<expression>>(m_callee)->mutable_accept(v);
+				} 
+				for (const auto& arg : m_arguments) {
+					arg->mutable_accept(v);
+				}
+			}
+
+			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				if (std::holds_alternative<std::shared_ptr<expression>>(m_callee)) {
 					std::get<std::shared_ptr<expression>>(m_callee)->accept(v);
-				} 
+				}
 				for (const auto& arg : m_arguments) {
 					arg->accept(v);
 				}
@@ -915,7 +1104,22 @@ namespace michaelcc {
 
             const std::shared_ptr<symbol_context>& global_context() const noexcept { return m_global_context; }
 
-			void accept(visitor& v) const {
+			void mutable_accept(visitor& v) {
+				v.visit(*this);
+				for (const auto& sym : m_global_context->symbols()) {
+					auto* var = dynamic_cast<variable*>(sym.get());
+					if (var) {
+						var->mutable_accept(v);
+						continue;
+					}
+					auto* func = dynamic_cast<function_definition*>(sym.get());
+					if (func) {
+						func->mutable_accept(v);
+					}
+				}
+			}
+
+			void accept(const_visitor& v) const {
 				v.visit(*this);
 				for (const auto& sym : m_global_context->symbols()) {
 					auto* var = dynamic_cast<variable*>(sym.get());
