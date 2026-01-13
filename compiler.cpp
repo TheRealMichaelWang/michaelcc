@@ -588,13 +588,19 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
         }
         std::shared_ptr<logical_ir::function_definition> function = std::dynamic_pointer_cast<logical_ir::function_definition>(symbol);
         if (function) {
+            if (!function->is_implemented()) {
+                std::ostringstream ss;
+                ss << "Function \"" << function->name() << "\" is not implemented and thus cannot be called.";
+                throw panic(ss.str(), node.location());
+            }
+
             if (function->parameters().size() != arguments.size()) {
                 std::ostringstream ss;
                 ss << "Function \"" << function->name() << "\" expects " << function->parameters().size() << " arguments, but " << arguments.size() << " were provided.";
                 throw panic(ss.str(), node.location());
             }
             for (size_t i = 0; i < function->parameters().size(); i++) {
-                if (!arguments[i]->get_type().type()->is_assignable_from(*function->parameters()[i]->get_type().type())) {
+                if (!arguments[i]->get_type().is_assignable_from(function->parameters()[i]->get_type())) {
                     std::ostringstream ss;
                     ss << "Argument " << i << " is not the same type as the parameter " << function->parameters()[i]->name() << ". ";
                     ss << "Expected " << function->parameters()[i]->get_type().to_string() << ", but got " << arguments[i]->get_type().to_string() << ".";
@@ -619,7 +625,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
         throw panic(ss.str(), node.location());
     }
     for (size_t i = 0; i < function_pointer->parameter_types().size(); i++) {
-        if (!arguments[i]->get_type().type()->is_assignable_from(*function_pointer->parameter_types()[i].type())) {
+        if (!arguments[i]->get_type().is_assignable_from(function_pointer->parameter_types()[i])) {
             std::ostringstream ss;
             ss << "Argument " << i << " is not the same type as the parameter " << function_pointer->parameter_types()[i].to_string() << ". ";
             ss << "Expected " << function_pointer->parameter_types()[i].to_string() << ", but got " << arguments[i]->get_type().to_string() << ".";
@@ -627,6 +633,40 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
         }
     }
     return std::make_unique<logical_ir::function_call>(std::move(callee), std::move(arguments));
+}
+
+std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::initializer_list_expression& node) {
+    std::vector<std::unique_ptr<logical_ir::expression>> initializers;
+    initializers.reserve(node.initializers().size());
+
+    std::shared_ptr<typing::struct_type> struct_type = std::dynamic_pointer_cast<typing::struct_type>(m_target_type->type());
+    if (struct_type) {
+        std::vector<logical_ir::struct_initializer::member_initializer> member_initializers;
+        member_initializers.reserve(node.initializers().size());
+
+        const std::vector<typing::member>& members = struct_type->fields();
+        if (members.size() != node.initializers().size()) {
+            std::ostringstream ss;
+            ss << "Struct \"" << struct_type->name().value() << "\" expects " << members.size() << " initializers, but " << node.initializers().size() << " were provided.";
+            throw panic(ss.str(), node.location());
+        }
+        for (size_t i = 0; i < members.size(); i++) {
+            initializers.push_back(m_compiler.compile_expression(*node.initializers()[i], members[i].member_type));
+        }
+        return std::make_unique<logical_ir::struct_initializer>(std::move(member_initializers), std::move(struct_type));
+    }
+    
+    std::shared_ptr<typing::array_type> array_type = std::dynamic_pointer_cast<typing::array_type>(m_target_type->type());
+    if (array_type) {
+        for (const auto& initializer : node.initializers()) {
+            initializers.push_back(m_compiler.compile_expression(*initializer, array_type->element_type()));
+        }
+        return std::make_unique<logical_ir::array_initializer>(std::move(initializers), typing::qual_type(array_type->element_type()));
+    }
+
+    std::ostringstream ss;
+    ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid initializer list expression.";
+    throw panic(ss.str(), node.location());
 }
 
 void compiler::expression_compiler::handle_default(const ast::ast_element& node) {
