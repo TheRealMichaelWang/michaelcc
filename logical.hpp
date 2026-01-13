@@ -188,6 +188,28 @@ namespace michaelcc {
 			void accept(visitor& v) const override { v.visit(*this); }
 		};
 
+
+		class var_increment_operator final : public expression {
+		public:
+			using destination_type = std::variant<std::unique_ptr<expression>, std::shared_ptr<variable>>;
+		private:
+			destination_type m_destination;
+			std::optional<std::unique_ptr<expression>> m_increment_amount;
+
+		public:
+			var_increment_operator(destination_type&& destination, std::optional<std::unique_ptr<expression>>&& increment_amount = std::nullopt)
+				: m_destination(std::move(destination)), m_increment_amount(std::move(increment_amount)) {}
+
+			const destination_type& destination() const noexcept { return m_destination; }
+			const std::optional<std::unique_ptr<expression>>& increment_amount() const noexcept { return m_increment_amount; }
+
+			const typing::qual_type get_type() const override { return std::visit([](auto&& destination) {
+				return destination->get_type();
+			}, m_destination); }
+
+			void accept(visitor& v) const override { v.visit(*this); }
+		};
+
 		class arithmetic_operator final : public expression {
 		private:
 			token_type m_operator;
