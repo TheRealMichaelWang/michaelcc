@@ -672,26 +672,6 @@ namespace michaelcc {
 			}
 		};
 
-		class union_initializer final : public expression {
-		private:
-			std::unique_ptr<expression> m_initializer;
-			std::shared_ptr<typing::union_type> m_union_type;
-		public:
-			union_initializer(std::unique_ptr<expression>&& initializer, std::shared_ptr<typing::union_type>&& union_type)
-				: m_initializer(std::move(initializer)), m_union_type(std::move(union_type)) {}
-
-			const std::unique_ptr<expression>& initializer() const noexcept { return m_initializer; }
-			const std::shared_ptr<typing::union_type>& union_type() const noexcept { return m_union_type; }
-
-			const typing::qual_type get_type() const override {
-				return typing::qual_type::weak(m_union_type);
-			}
-
-			void accept(visitor& v) const override {
-				v.visit(*this);
-				m_initializer->accept(v);
-			}
-		};
 		class function_reference final : public expression {
 		private:
 			std::shared_ptr<function_definition> m_function;
@@ -762,6 +742,30 @@ namespace michaelcc {
 				for (const auto& initializer : m_initializers) {
 					initializer.initializer->accept(v);
 				}
+			}
+		};
+
+		class union_initializer final : public expression {
+		private:
+			std::unique_ptr<expression> m_initializer;
+			std::shared_ptr<typing::union_type> m_union_type;
+			typing::qual_type m_target_type;
+		public:
+			union_initializer(std::unique_ptr<expression>&& initializer, std::shared_ptr<typing::union_type>&& union_type, typing::qual_type&& type)
+				: m_initializer(std::move(initializer)), m_union_type(std::move(union_type)), m_target_type(std::move(type)) {}
+
+			const std::unique_ptr<expression>& initializer() const noexcept { return m_initializer; }
+			const std::shared_ptr<typing::union_type>& union_type() const noexcept { return m_union_type; }
+
+			const typing::qual_type& target_type() const noexcept { return m_target_type; }
+
+			const typing::qual_type get_type() const override {
+				return typing::qual_type::weak(m_union_type);
+			}
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_initializer->accept(v);
 			}
 		};
 

@@ -5,6 +5,7 @@
 #include "typing.hpp"
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <queue>
 #include <sstream>
 #include <numeric>
@@ -654,6 +655,31 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
             initializers.push_back(m_compiler.compile_expression(*node.initializers()[i], members[i].member_type));
         }
         return std::make_unique<logical_ir::struct_initializer>(std::move(member_initializers), std::move(struct_type));
+    }
+
+    std::shared_ptr<typing::union_type> union_type = std::dynamic_pointer_cast<typing::union_type>(m_target_type->type());
+    if (union_type) {
+        if (node.initializers().size() != 1) {
+            std::ostringstream ss;
+            ss << "Union \"" << union_type->name().value() << "\" expects 1 initializer, but " << node.initializers().size() << " were provided.";
+            throw panic(ss.str(), node.location());
+        }
+
+        std::unique_ptr<logical_ir::expression> initializer = m_compiler.compile_expression(*node.initializers()[0]);
+        std::optional<typing::qual_type> target_type = std::nullopt;
+
+        for (const auto& member : union_type->members()) {
+            if (member.member_type.is_assignable_from(initializer->get_type())) {
+                target_type = member.member_type;
+                break;
+            }
+        }
+        if (!target_type) {
+            std::ostringstream ss;
+            ss << "Union \"" << union_type->name().value() << "\" does not have a member that is assignable from " << initializer->get_type().to_string() << ".";
+            throw panic(ss.str(), node.location());
+        }
+        return std::make_unique<logical_ir::union_initializer>(std::move(initializer), std::move(union_type), std::move(target_type.value()));
     }
     
     std::shared_ptr<typing::array_type> array_type = std::dynamic_pointer_cast<typing::array_type>(m_target_type->type());
