@@ -191,6 +191,32 @@ namespace michaelcc {
             void handle_default(const ast::ast_element& node) override;
         };
 
+
+        class address_of_compiler : public ast::const_expression_dispatcher<std::unique_ptr<logical_ir::expression>> {
+        private:
+            compiler& m_compiler;
+
+        public:
+            address_of_compiler(compiler& compiler) : m_compiler(compiler) { }
+
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::int_literal& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::float_literal& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::double_literal& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::string_literal& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::variable_reference& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::get_index& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::get_property& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::set_operator& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::dereference_operator& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::get_reference& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::arithmetic_operator& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::conditional_expression& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::function_call& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::initializer_list_expression& node) override { handle_default(node); return nullptr; }
+
+            void handle_default(const ast::ast_element& node) override;
+        };
+
         class expression_compiler : public ast::const_expression_dispatcher<std::unique_ptr<logical_ir::expression>> {
         private:
             std::optional<typing::qual_type> m_target_type;
@@ -227,6 +253,9 @@ namespace michaelcc {
         layout_dependency_getter m_layout_dependency_getter;
         type_layout_calculator m_type_layout_calculator;
         type_resolver m_type_resolver;
+        address_of_compiler m_address_of_compiler;
+
+        logical_ir::symbol_explorer m_symbol_explorer;
 
         std::map<std::shared_ptr<typing::base_type>, const source_location> m_type_declaration_locations;
 
@@ -240,13 +269,19 @@ namespace michaelcc {
             return typeid(type.type()) == typeid(typing::array_type) || typeid(type.type()) == typeid(typing::pointer_type);
         }
 
+        bool is_numeric_type(const typing::qual_type& type) const noexcept {
+            return typeid(type.type()) == typeid(typing::int_type) || typeid(type.type()) == typeid(typing::float_type);
+        }
+
         std::unique_ptr<logical_ir::expression> compile_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type = std::nullopt);
     public:
         compiler(const platform_info platform_info) 
             : m_translation_unit(), m_platform_info(platform_info), 
             m_layout_dependency_getter(m_translation_unit), 
             m_type_layout_calculator(m_platform_info),
-            m_type_resolver(*this) { }
+            m_type_resolver(*this),
+            m_address_of_compiler(*this),
+            m_symbol_explorer() { }
     };
 }
 #endif

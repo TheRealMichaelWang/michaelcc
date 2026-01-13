@@ -787,7 +787,7 @@ namespace michaelcc {
                 : ast_element(std::move(location)),
                 m_item(std::move(item)) {}
 
-            const ast_element* item() const noexcept { return m_item.get(); }
+            const std::unique_ptr<ast_element>& item() const noexcept { return m_item; }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<get_reference>(m_item->clone(), source_location(location()));

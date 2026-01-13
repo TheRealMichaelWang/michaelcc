@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <cstdint>
+#include <variant>
 #include "tokens.hpp"
 #include "symbols.hpp"
 #include "typing.hpp"
@@ -21,7 +22,8 @@ namespace michaelcc {
 		class string_constant;
 		class variable_reference;
 		class function_reference;
-		class binary_operation;
+		class var_increment_operator;
+		class arithmetic_operator;
 		class unary_operation;
 		class type_cast;
 		class address_of;
@@ -51,7 +53,8 @@ namespace michaelcc {
 			string_constant,
 			variable_reference,
 			function_reference,
-			binary_operation,
+			var_increment_operator,
+			arithmetic_operator,
 			unary_operation,
 			type_cast,
 			address_of,
@@ -185,7 +188,7 @@ namespace michaelcc {
 			void accept(visitor& v) const override { v.visit(*this); }
 		};
 
-		class binary_operation final : public expression {
+		class arithmetic_operator final : public expression {
 		private:
 			token_type m_operator;
 			std::unique_ptr<expression> m_left;
@@ -193,7 +196,7 @@ namespace michaelcc {
 
             typing::qual_type m_result_type;
 		public:
-			binary_operation(token_type op,
+			arithmetic_operator(token_type op,
 				std::unique_ptr<expression>&& left,
 				std::unique_ptr<expression>&& right,
 				typing::qual_type&& result_type)
@@ -203,8 +206,8 @@ namespace michaelcc {
 				m_result_type(std::move(result_type)) {}
 
 			token_type get_operator() const noexcept { return m_operator; }
-			const expression* left() const noexcept { return m_left.get(); }
-			const expression* right() const noexcept { return m_right.get(); }
+			const std::unique_ptr<expression>& left() const noexcept { return m_left; }
+			const std::unique_ptr<expression>& right() const noexcept { return m_right; }
 			
             const typing::qual_type get_type() const override { return m_result_type; }
 
@@ -253,32 +256,15 @@ namespace michaelcc {
 			}
 		};
 
-		class address_of final : public expression {
-		private:
-			std::unique_ptr<expression> m_operand;
-		public:
-			address_of(std::unique_ptr<expression>&& operand)
-				: m_operand(std::move(operand)) {}
-
-			const expression* operand() const noexcept { return m_operand.get(); }
-
-			const typing::qual_type get_type() const override { 
-                return typing::qual_type(std::make_shared<typing::pointer_type>(m_operand->get_type().to_weak()));
-            }
-
-			void accept(visitor& v) const override {
-				v.visit(*this);
-				m_operand->accept(v);
-			}
-		};
-
 		class dereference final : public expression {
 		private:
 			std::unique_ptr<expression> m_operand;
 		public:
 			explicit dereference(std::unique_ptr<expression>&& operand) : m_operand(std::move(operand)) {}
 
-			const expression* operand() const noexcept { return m_operand.get(); }
+			const std::unique_ptr<expression>& operand() const noexcept { return m_operand; }
+
+			std::unique_ptr<expression>&& release_operand() noexcept { return std::move(m_operand); }
 
 			const typing::qual_type get_type() const override {
                 auto operand_type = m_operand->get_type();
@@ -337,6 +323,43 @@ namespace michaelcc {
 				v.visit(*this);
 				m_base->accept(v);
 				m_index->accept(v);
+			}
+		};
+
+		class address_of final : public expression {
+		private:
+			std::variant<std::shared_ptr<variable>, std::shared_ptr<array_index>, std::shared_ptr<member_access>> m_operand;
+		public:
+			address_of(std::shared_ptr<variable>&& variable)
+				: m_operand(std::move(variable)) {}
+
+			address_of(std::shared_ptr<array_index>&& array_index)
+				: m_operand(std::move(array_index)) {}
+
+			address_of(std::shared_ptr<member_access>&& member_access)
+				: m_operand(std::move(member_access)) {}
+
+			const std::variant<std::shared_ptr<variable>, std::shared_ptr<array_index>, std::shared_ptr<member_access>>& operand() const noexcept { return m_operand; }
+
+			const typing::qual_type get_type() const override { 
+                return typing::qual_type(std::make_shared<typing::pointer_type>(std::visit(overloaded { 
+                    [](const std::shared_ptr<variable>& variable) {
+                        return variable->get_type().to_weak();
+                    },
+                    [](const std::shared_ptr<array_index>& array_index) {
+                        return array_index->base()->get_type().to_weak();
+                    },
+                    [](const std::shared_ptr<member_access>& member_access) {
+                        return member_access->base()->get_type().to_weak();
+                    }
+                }, m_operand)));
+            }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				std::visit([&v](auto&& operand) {
+					operand->accept(v);
+				}, m_operand);
 			}
 		};
 

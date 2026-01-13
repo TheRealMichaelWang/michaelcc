@@ -4,6 +4,7 @@
 #include <concepts>
 #include <stdexcept>
 #include <typeinfo>
+#include <memory>
 
 namespace michaelcc {
     template<typename... NodeTypes>
@@ -68,6 +69,15 @@ namespace michaelcc {
     };
 
     template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
+}
+
+template <typename Derived, typename Base>
+std::unique_ptr<Derived> dynamic_unique_cast(std::unique_ptr<Base>&& base) {
+    if (Derived* d = dynamic_cast<Derived*>(base.get())) {
+        base.release(); // Relinquish ownership from base
+        return std::unique_ptr<Derived>(d); // Take ownership in new type
+    }
+    return nullptr; // Cast failed; base still owns the original object
 }
 
 #endif
