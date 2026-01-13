@@ -325,6 +325,68 @@ void compiler::type_resolver::handle_default(const ast::ast_element& node) {
     throw panic(ss.str(), node.location());
 }
 
+std::unique_ptr<logical_ir::expression> compiler::address_of_compiler::dispatch(const ast::variable_reference& node) {
+    auto symbol = m_compiler.m_symbol_explorer.lookup(node.identifier());
+    if (symbol == nullptr) {
+        std::ostringstream ss;
+        ss << "Symbol \"" << node.identifier() << "\" not found.";
+        throw panic(ss.str(), node.location());
+    }
+    
+    std::shared_ptr<logical_ir::variable> variable = std::dynamic_pointer_cast<logical_ir::variable>(symbol);
+    if (variable) {
+        return std::make_unique<logical_ir::address_of>(std::move(variable));
+    }
+
+    std::shared_ptr<logical_ir::function_definition> function_definition = std::dynamic_pointer_cast<logical_ir::function_definition>(symbol);
+    if (function_definition) {
+        return std::make_unique<logical_ir::function_reference>(std::move(function_definition));
+    }
+
+    std::ostringstream ss;
+    ss << "Symbol \"" << node.identifier() << "\" is not a variable, array index, or member access.";
+    throw panic(ss.str(), node.location());
+}
+
+std::unique_ptr<logical_ir::expression> compiler::address_of_compiler::dispatch(const ast::get_index& node) {
+    std::unique_ptr<logical_ir::array_index> array_index = dynamic_unique_cast<logical_ir::array_index>(m_compiler.compile_expression(node));
+
+    if (array_index == nullptr) {
+        std::ostringstream ss;
+        ss << "Expression \"" << ast::to_c_string(node) << "\" is not an array index.";
+        throw panic(ss.str(), node.location());
+    }
+    return std::make_unique<logical_ir::address_of>(std::move(array_index));
+}
+
+std::unique_ptr<logical_ir::expression> compiler::address_of_compiler::dispatch(const ast::get_property& node) {
+    std::unique_ptr<logical_ir::member_access> member_access = dynamic_unique_cast<logical_ir::member_access>(m_compiler.compile_expression(node));
+    if (member_access == nullptr) {
+        std::ostringstream ss;
+        ss << "Expression \"" << ast::to_c_string(node) << "\" is not a member access.";
+        throw panic(ss.str(), node.location());
+    }
+    return std::make_unique<logical_ir::address_of>(std::move(member_access));
+}
+
+std::unique_ptr<logical_ir::expression> compiler::address_of_compiler::dispatch(const ast::dereference_operator& node) {
+    std::unique_ptr<logical_ir::dereference> dereference = dynamic_unique_cast<logical_ir::dereference>(m_compiler.compile_expression(node));
+    if (dereference == nullptr) {
+        std::ostringstream ss;
+        ss << "Expression \"" << ast::to_c_string(node) << "\" is not a dereference operator.";
+        throw panic(ss.str(), node.location());
+    }
+
+    std::unique_ptr<logical_ir::expression> operand = dereference->release_operand();
+    return operand;
+}
+
+void compiler::address_of_compiler::handle_default(const ast::ast_element& node) {
+    std::ostringstream ss;
+    ss << "Cannot get the address of \"" << ast::to_c_string(node) << "\".";
+    throw panic(ss.str(), node.location());
+}
+
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::int_literal& node) {
     if (m_target_type && typeid(m_target_type->type()) == typeid(typing::int_type)) {
         return std::make_unique<logical_ir::integer_constant>(node.value(), typing::qual_type(m_target_type.value()));
@@ -358,7 +420,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
 }
 
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::variable_reference& node) {
-    auto symbol = m_compiler.m_translation_unit.lookup_global(node.identifier());
+    auto symbol = m_compiler.m_symbol_explorer.lookup(node.identifier());
 
     if (symbol == nullptr) {
         std::ostringstream ss;
@@ -446,4 +508,25 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
         throw panic(ss.str(), node.location());
     }
     return std::make_unique<logical_ir::dereference>(std::move(pointer));
+}
+
+std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::get_reference& node) {
+    return m_compiler.m_address_of_compiler(*node.item());
+}
+
+std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::arithmetic_operator& node) {
+    std::unique_ptr<logical_ir::expression> left = m_compiler.compile_expression(*node.left());
+    std::unique_ptr<logical_ir::expression> right = m_compiler.compile_expression(*node.right());
+
+    if (m_compiler.is_numeric_type(left->get_type()) && m_compiler.is_numeric_type(right->get_type())) {
+        if (typeid(left->get_type().type()) == typeid(typing::int_type) && typeid(right->get_type().type()) == typeid(typing::int_type)) {
+            
+        }
+    }
+}
+
+void compiler::expression_compiler::handle_default(const ast::ast_element& node) {
+    std::ostringstream ss;
+    ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid expression.";
+    throw panic(ss.str(), node.location());
 }
