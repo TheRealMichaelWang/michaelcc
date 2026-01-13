@@ -276,6 +276,7 @@ namespace michaelcc {
 
         logical_ir::translation_unit m_translation_unit;
         const platform_info m_platform_info;
+        int m_current_loop_depth;
 
         layout_dependency_getter m_layout_dependency_getter;
         type_layout_calculator m_type_layout_calculator;
@@ -309,7 +310,8 @@ namespace michaelcc {
             m_type_layout_calculator(m_platform_info),
             m_type_resolver(*this),
             m_address_of_compiler(*this),
-            m_symbol_explorer() { }
+            m_symbol_explorer(),
+            m_current_loop_depth(0) { }
     };
 }
 #endif
