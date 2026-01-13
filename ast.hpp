@@ -874,7 +874,7 @@ namespace michaelcc {
                 m_callee(std::move(callee)),
                 m_arguments(std::move(arguments)) {}
 
-            const ast_element* callee() const noexcept { return m_callee.get(); }
+            const std::unique_ptr<ast_element>& callee() const noexcept { return m_callee; }
             const std::vector<std::unique_ptr<ast_element>>& arguments() const noexcept { return m_arguments; }
 
             std::unique_ptr<ast_element> clone() const override {
