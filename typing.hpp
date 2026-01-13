@@ -80,6 +80,8 @@ namespace michaelcc {
             virtual bool is_assignable_from(const base_type& other) const = 0;
 
             virtual void to_string(std::ostringstream& ss) const = 0;
+
+            virtual bool is_copy_type() const { return true; }
         };
 
         class qual_type {
@@ -160,8 +162,8 @@ namespace michaelcc {
             }
 
             // Convert to an owning reference (keeps qualifiers)
-            qual_type to_owning() const {
-                return qual_type(type(), m_qualifiers);
+            qual_type to_owning(uint8_t extra_qualifiers = NO_TYPE_QUALIFIER) const {
+                return qual_type(type(), m_qualifiers | extra_qualifiers);
             }
 
             void to_string(std::ostringstream& ss) const {
@@ -182,6 +184,22 @@ namespace michaelcc {
             template<typename ChildType, std::enable_if_t<std::is_base_of_v<base_type, ChildType>, int> = 0>
             bool is_same_type() const {
                 return typeid(ChildType) == typeid(type());
+            }
+
+            bool is_assignable_from(const qual_type& other) const {
+                if (!is_const() && other.is_const() && !other.type()->is_copy_type()) {
+                    return false;
+                }
+                if (is_restrict() && other.is_restrict()) {
+                    return false;
+                }
+                return type()->is_assignable_from(*other.type());
+            }
+
+            uint8_t propagate_qualifiers() const {
+                uint8_t qualifiers = NO_TYPE_QUALIFIER;
+                if (is_const()) qualifiers |= CONST_TYPE_QUALIFIER;
+                return qualifiers;
             }
         };
 
@@ -284,6 +302,8 @@ namespace michaelcc {
                 m_element_type.to_string(ss);
                 ss << "[]";
             }
+
+            bool is_copy_type() const override { return false; }
         };
 
         class function_pointer_type : public base_type {
@@ -362,6 +382,9 @@ namespace michaelcc {
                 m_pointee_type.to_string(ss);
                 ss << "*";
             }
+
+            
+            bool is_copy_type() const override { return false; }
         };
 
         struct member {

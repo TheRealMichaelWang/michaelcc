@@ -30,6 +30,8 @@ namespace michaelcc {
 		class dereference;
 		class member_access;
 		class array_index;
+		class array_initializer;
+		class struct_initializer;
 		class function_call;
 		class conditional_expression;
 		class set_address;
@@ -61,6 +63,8 @@ namespace michaelcc {
 			dereference,
 			member_access,
 			array_index,
+			array_initializer,
+			struct_initializer,
 			function_call,
 			conditional_expression,
 			set_address,
@@ -313,7 +317,7 @@ namespace michaelcc {
 
 			const std::unique_ptr<expression>& base() const noexcept { return m_base; }
 			const typing::member& member() const noexcept { return m_member; }
-			const typing::qual_type get_type() const override { return m_member.member_type; }
+			const typing::qual_type get_type() const override { return m_member.member_type.to_owning(m_base->get_type().propagate_qualifiers()); }
 
 			void accept(visitor& v) const override {
 				v.visit(*this);
@@ -338,7 +342,7 @@ namespace michaelcc {
 				if (arr_type == nullptr) {
                     throw std::runtime_error("Base is not an array");
                 }
-				return arr_type->element_type().to_owning();
+				return arr_type->element_type().to_owning(base_type.propagate_qualifiers());
             }
 
 			void accept(visitor& v) const override {
@@ -688,6 +692,55 @@ namespace michaelcc {
 			}
 
 			void accept(visitor& v) const override { v.visit(*this); }
+		};
+
+		class array_initializer final : public expression {
+		private:
+			std::vector<std::unique_ptr<expression>> m_initializers;
+			typing::qual_type m_element_type;
+		public:
+			array_initializer(std::vector<std::unique_ptr<expression>>&& initializers, typing::qual_type&& element_type)
+				: m_initializers(std::move(initializers)), m_element_type(std::move(element_type)) {}
+
+			const std::vector<std::unique_ptr<expression>>& initializers() const noexcept { return m_initializers; }
+
+			const typing::qual_type get_type() const override { 
+				return typing::qual_type::owning(std::make_shared<typing::array_type>(m_element_type), m_element_type.propagate_qualifiers()); 
+			}
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				for (const auto& initializer : m_initializers) {
+					initializer->accept(v);
+				}
+			}
+		};
+		
+		class struct_initializer final : public expression {
+		public:
+			struct member_initializer {
+				std::string member_name;
+				std::unique_ptr<expression> initializer;
+			};
+		private:
+			std::vector<member_initializer> m_initializers;
+			std::shared_ptr<typing::struct_type> m_struct_type;
+		public:
+			struct_initializer(std::vector<member_initializer>&& initializers, std::shared_ptr<typing::struct_type>&& struct_type)
+				: m_initializers(std::move(initializers)), m_struct_type(std::move(struct_type)) {}
+
+			const std::vector<member_initializer>& initializers() const noexcept { return m_initializers; }
+
+			const typing::qual_type get_type() const override {
+				return typing::qual_type::weak(m_struct_type);
+			}
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				for (const auto& initializer : m_initializers) {
+					initializer.initializer->accept(v);
+				}
+			}
 		};
 
 		class function_call final : public expression {
