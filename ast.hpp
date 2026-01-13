@@ -128,6 +128,22 @@ namespace michaelcc {
         >;
 
         template<typename ReturnType>
+        using statement_dispatcher = generic_dispatcher<ReturnType, ast_element, 
+            context_block,
+            for_loop,
+            do_block,
+            while_block,
+            if_block,
+            if_else_block,
+            return_statement,
+            break_statement,
+            continue_statement,
+            set_operator,
+            function_call,
+            variable_declaration
+        >;
+
+        template<typename ReturnType>
         using const_expression_dispatcher = generic_dispatcher<ReturnType, const ast_element, 
             const int_literal,
             const float_literal,
@@ -143,6 +159,22 @@ namespace michaelcc {
             const conditional_expression,
             const function_call,
             const initializer_list_expression
+        >;
+
+        template<typename ReturnType>
+        using const_statement_dispatcher = generic_dispatcher<ReturnType, const ast_element, 
+            const context_block,
+            const for_loop,
+            const do_block,
+            const while_block,
+            const if_block,
+            const if_else_block,
+            const return_statement,
+            const break_statement,
+            const continue_statement,
+            const set_operator,
+            const function_call,
+            const variable_declaration
         >;
 
 		class ast_element : public visitable_base<visitor> {
