@@ -503,6 +503,40 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     throw panic(ss.str(), node.location());
 }
 
+std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::set_operator& node) {
+    const ast::variable_reference* variable_reference = dynamic_cast<const ast::variable_reference*>(node.destination());
+    if (variable_reference) {
+        auto symbol = m_compiler.m_symbol_explorer.lookup(variable_reference->identifier());
+        if (symbol == nullptr) {
+            std::ostringstream ss;
+            ss << "Symbol \"" << variable_reference->identifier() << "\" not found.";
+            throw panic(ss.str(), node.location());
+        }
+        std::shared_ptr<logical_ir::variable> variable = std::dynamic_pointer_cast<logical_ir::variable>(symbol);
+        if (!variable) {
+            std::ostringstream ss;
+            ss << "Symbol \"" << variable_reference->identifier() << "\" is not a variable.";
+            throw panic(ss.str(), node.location());
+        }
+        if (variable->get_type().is_const()) {
+            std::ostringstream ss;
+            ss << "Variable \"" << variable_reference->identifier() << "\" is const and cannot be assigned to.";
+            throw panic(ss.str(), node.location());
+        }
+
+        return std::make_unique<logical_ir::set_variable>(std::move(variable), m_compiler.compile_expression(*node.value(), variable->get_type()));
+    }
+
+    std::unique_ptr<logical_ir::expression> destination = m_compiler.m_address_of_compiler(*node.destination());
+    std::shared_ptr<typing::pointer_type> pointer_type = std::static_pointer_cast<typing::pointer_type>(destination->get_type().type());
+    if (destination->get_type().is_const()) {
+        std::ostringstream ss;
+        ss << "Expression \"" << ast::to_c_string(node) << "\" is const and cannot be assigned to.";
+        throw panic(ss.str(), node.location());
+    }
+    return std::make_unique<logical_ir::set_address>(std::move(destination), m_compiler.compile_expression(*node.value(), pointer_type->pointee_type()));
+}
+
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::dereference_operator& node) {
     std::unique_ptr<logical_ir::expression> pointer = m_compiler.compile_expression(*node.pointer());
     if (!pointer->get_type().is_same_type<typing::pointer_type>()) {
