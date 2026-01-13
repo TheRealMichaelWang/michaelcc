@@ -749,6 +749,85 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     return std::make_unique<logical_ir::statement_block>(std::move(control_block));
 }
 
+std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::for_loop& node) {
+    std::shared_ptr<logical_ir::control_block> outer_control_block = std::make_shared<logical_ir::control_block>();
+    m_compiler.m_symbol_explorer.visit(outer_control_block);
+
+    std::vector<std::unique_ptr<logical_ir::statement>> outer_statements;
+    outer_statements.emplace_back((*this)(*node.initial_statement()));
+    std::unique_ptr<logical_ir::expression> condition = m_compiler.compile_expression(*node.condition(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS));
+    if (!condition->get_type().is_same_type<typing::int_type>()) {
+        std::ostringstream ss;
+        ss << "Expression \"" << ast::to_c_string(*node.condition()) << "\" is not a valid condition.";
+        throw panic(ss.str(), node.condition()->location());
+    }
+
+    std::shared_ptr<logical_ir::control_block> inner_control_block = std::make_shared<logical_ir::control_block>();
+    m_compiler.m_symbol_explorer.visit(inner_control_block);
+    std::vector<std::unique_ptr<logical_ir::statement>> inner_statements;
+    inner_statements.reserve(node.body().statements().size());
+    for (const auto& statement : node.body().statements()) {
+        inner_statements.emplace_back((*this)(*statement));
+    }
+    m_compiler.m_symbol_explorer.exit();
+    inner_statements.emplace_back((*this)(*node.increment_statement()));
+    inner_control_block->implement(std::move(inner_statements));
+
+    outer_statements.emplace_back(std::make_unique<logical_ir::loop_statement>(std::move(inner_control_block), std::move(condition), true));
+    outer_control_block->implement(std::move(outer_statements));
+    return std::make_unique<logical_ir::statement_block>(std::move(outer_control_block));
+}
+
+std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::do_block& node) {
+    std::shared_ptr<logical_ir::control_block> control_block = std::make_shared<logical_ir::control_block>();
+    m_compiler.m_symbol_explorer.visit(control_block);
+
+    std::vector<std::unique_ptr<logical_ir::statement>> statements;
+    statements.reserve(node.body().statements().size());
+    for (const auto& statement : node.body().statements()) {
+        statements.emplace_back((*this)(*statement));
+    }
+    control_block->implement(std::move(statements));
+
+    std::unique_ptr<logical_ir::expression> condition = m_compiler.compile_expression(*node.condition(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS));
+    if (!condition->get_type().is_same_type<typing::int_type>()) {
+        std::ostringstream ss;
+        ss << "Expression \"" << ast::to_c_string(*node.condition()) << "\" is not a valid condition.";
+        throw panic(ss.str(), node.condition()->location());
+    }
+
+    m_compiler.m_symbol_explorer.exit();
+    return std::make_unique<logical_ir::loop_statement>(std::move(control_block), std::move(condition), false);
+}
+
+std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::while_block& node) {
+    std::unique_ptr<logical_ir::expression> condition = m_compiler.compile_expression(*node.condition(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS));
+    if (!condition->get_type().is_same_type<typing::int_type>()) {
+        std::ostringstream ss;
+        ss << "Expression \"" << ast::to_c_string(*node.condition()) << "\" is not a valid condition.";
+        throw panic(ss.str(), node.condition()->location());
+    }
+
+    std::shared_ptr<logical_ir::control_block> control_block = std::make_shared<logical_ir::control_block>();
+    m_compiler.m_symbol_explorer.visit(control_block);
+
+    std::vector<std::unique_ptr<logical_ir::statement>> statements;
+    statements.reserve(node.body().statements().size());
+    for (const auto& statement : node.body().statements()) {
+        statements.emplace_back((*this)(*statement));
+    }
+    control_block->implement(std::move(statements));
+
+    m_compiler.m_symbol_explorer.exit();
+    return std::make_unique<logical_ir::loop_statement>(std::move(control_block), std::move(condition), true);
+}
+
+void compiler::statement_compiler::handle_default(const ast::ast_element& node) {
+    std::ostringstream ss;
+    ss << "\"" << ast::to_c_string(node) << "\" is not a valid statement.";
+    throw panic(ss.str(), node.location());
+}
+
 std::optional<typing::qual_type> compiler::arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, bool arbitrate_numeric) const noexcept {
     if (left == right) {
         if (arbitrate_numeric && !left.is_same_type<typing::int_type>() && !left.is_same_type<typing::float_type>()) {

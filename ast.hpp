@@ -398,9 +398,9 @@ namespace michaelcc {
 				m_increment_statement(std::move(increment_statement)),
 				m_to_execute(std::move(to_execute)) { }
 
-			const ast_element* initial_statement() const noexcept { return m_initial_statement.get(); }
-			const ast_element* condition() const noexcept { return m_condition.get(); }
-			const ast_element* increment_statement() const noexcept { return m_increment_statement.get(); }
+			const std::unique_ptr<ast_element>& initial_statement() const noexcept { return m_initial_statement; }
+			const std::unique_ptr<ast_element>& condition() const noexcept { return m_condition; }
+			const std::unique_ptr<ast_element>& increment_statement() const noexcept { return m_increment_statement; }
 			const context_block& body() const noexcept { return m_to_execute; }
 
 			std::unique_ptr<ast_element> clone() const override {

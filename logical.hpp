@@ -482,12 +482,12 @@ namespace michaelcc {
 
 			bool is_implemented() const noexcept { return m_statements.size() > 0; }
 
-			void implement(std::unique_ptr<statement>&& statement)
+			void implement(std::vector<std::unique_ptr<statement>>&& statements)
 			{
 				if (is_implemented()) {
 					throw std::runtime_error("Control block is already implemented");
 				}
-				m_statements.push_back(std::move(statement));
+				m_statements = std::move(statements);
 			}
 
 			const std::vector<std::unique_ptr<statement>>& statements() const noexcept { return m_statements; }

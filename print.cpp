@@ -753,11 +753,11 @@ public:
         after_print(0);
     }
 
-    // binary_operation: 2 children (left, right)
-    void visit(const logical_ir::binary_operation& node) override {
+    // arithmetic_operator: 2 children (left, right)
+    void visit(const logical_ir::arithmetic_operator& node) override {
         before_print();
         print_indent();
-        m_out << "binary_operation: " << token_to_str(node.get_operator()) << "\n";
+        m_out << "arithmetic_operator: " << token_to_str(node.get_operator()) << "\n";
         after_print(2);
     }
 
