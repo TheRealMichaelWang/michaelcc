@@ -256,6 +256,7 @@ namespace michaelcc {
         public:
             statement_compiler(compiler& compiler) : m_compiler(compiler) { }
 
+        protected:
             std::unique_ptr<logical_ir::statement> dispatch(const ast::context_block& node) override;
             std::unique_ptr<logical_ir::statement> dispatch(const ast::for_loop& node) override;
             std::unique_ptr<logical_ir::statement> dispatch(const ast::do_block& node) override;
@@ -268,6 +269,8 @@ namespace michaelcc {
             std::unique_ptr<logical_ir::statement> dispatch(const ast::set_operator& node) override;
             std::unique_ptr<logical_ir::statement> dispatch(const ast::function_call& node) override;
             std::unique_ptr<logical_ir::statement> dispatch(const ast::variable_declaration& node) override;
+
+            void handle_default(const ast::ast_element& node) override;
         };
 
         static compilation_error panic(const std::string& msg, const source_location& location) noexcept {

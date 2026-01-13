@@ -17,6 +17,7 @@ namespace michaelcc {
 		class variable;
 		class function_definition;
 		class control_block;
+		class statement_block;
 		class integer_constant;
 		class floating_constant;
 		class string_constant;
@@ -50,6 +51,7 @@ namespace michaelcc {
 		class visitor : public generic_visitor<
 			variable,
 			control_block,
+			statement_block,
 			function_definition,
 			integer_constant,
 			floating_constant,
@@ -475,8 +477,18 @@ namespace michaelcc {
 			std::vector<std::unique_ptr<statement>> m_statements;
 
 		public:
-			control_block(std::vector<std::unique_ptr<statement>>&& statements)
-				: symbol_context(), m_statements(std::move(statements)) {}
+			control_block()
+				: symbol_context() {}
+
+			bool is_implemented() const noexcept { return m_statements.size() > 0; }
+
+			void implement(std::unique_ptr<statement>&& statement)
+			{
+				if (is_implemented()) {
+					throw std::runtime_error("Control block is already implemented");
+				}
+				m_statements.push_back(std::move(statement));
+			}
 
 			const std::vector<std::unique_ptr<statement>>& statements() const noexcept { return m_statements; }
 
@@ -485,6 +497,22 @@ namespace michaelcc {
 				for (const auto& stmt : m_statements) {
 					stmt->accept(v);
 				}
+			}
+		};
+
+		class statement_block final : public statement {
+		private:
+			std::shared_ptr<control_block> m_control_block;
+
+		public:
+			statement_block(std::shared_ptr<control_block>&& control_block)
+				: m_control_block(std::move(control_block)) {}
+
+			const std::shared_ptr<control_block>& control_block() const noexcept { return m_control_block; }
+
+			void accept(visitor& v) const override {
+				v.visit(*this);
+				m_control_block->accept(v);
 			}
 		};
 

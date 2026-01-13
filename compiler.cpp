@@ -731,8 +731,22 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
 
 void compiler::expression_compiler::handle_default(const ast::ast_element& node) {
     std::ostringstream ss;
-    ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid expression.";
+    ss << "\"" << ast::to_c_string(node) << "\" is not a valid expression.";
     throw panic(ss.str(), node.location());
+}
+
+std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::context_block& node) {
+    std::shared_ptr<logical_ir::control_block> control_block = std::make_shared<logical_ir::control_block>();
+    m_compiler.m_symbol_explorer.visit(control_block);
+
+    std::vector<std::unique_ptr<logical_ir::statement>> statements;
+    statements.reserve(node.statements().size());
+    for (const auto& statement : node.statements()) {
+        statements.push_back((*this)(*statement));
+    }
+
+    m_compiler.m_symbol_explorer.exit();
+    return std::make_unique<logical_ir::statement_block>(std::move(control_block));
 }
 
 std::optional<typing::qual_type> compiler::arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, bool arbitrate_numeric) const noexcept {
