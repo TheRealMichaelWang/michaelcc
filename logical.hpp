@@ -617,11 +617,25 @@ namespace michaelcc {
 		};
 
 		class break_statement final : public statement {
+		private:
+			int m_loop_depth;
+		public:
+			explicit break_statement(int loop_depth) : m_loop_depth(loop_depth) {}
+
+			int loop_depth() const noexcept { return m_loop_depth; }
+
 		public:
 			void accept(visitor& v) const override { v.visit(*this); }
 		};
 
 		class continue_statement final : public statement {
+		private:
+			int m_loop_depth;
+		public:
+			explicit continue_statement(int loop_depth) : m_loop_depth(loop_depth) {}
+
+			int loop_depth() const noexcept { return m_loop_depth; }
+
 		public:
 			void accept(visitor& v) const override { v.visit(*this); }
 		};
