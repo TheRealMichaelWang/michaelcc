@@ -11,6 +11,11 @@
 
 namespace michaelcc {
     class compiler {
+    private:
+        enum class arbitrate_numeric_type {
+            NO,
+            YES
+        };
     public:
         struct platform_info {
             const size_t m_pointer_size;
@@ -274,7 +279,7 @@ namespace michaelcc {
             return typeid(type.type()) == typeid(typing::int_type) || typeid(type.type()) == typeid(typing::float_type);
         }
 
-        std::optional<typing::qual_type> arbitrate_types(const typing::qual_type& left, const typing::qual_type& right) const noexcept;
+        std::optional<typing::qual_type> arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, bool arbitrate_numeric=false) const noexcept;
         std::unique_ptr<logical_ir::expression> compile_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type = std::nullopt);
     public:
         compiler(const platform_info platform_info) 

@@ -530,14 +530,45 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     std::unique_ptr<logical_ir::expression> left = m_compiler.compile_expression(*node.left());
     std::unique_ptr<logical_ir::expression> right = m_compiler.compile_expression(*node.right());
 
-    std::optional<typing::qual_type> result = m_compiler.arbitrate_types(left->get_type(), right->get_type());
+    std::optional<typing::qual_type> result = m_compiler.arbitrate_types(left->get_type(), right->get_type(), true);
     if (!result) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid arithmetic operation.";
         ss << "Cannot arbitrate types \"" << left->get_type().to_string() << "\" and \"" << right->get_type().to_string() << "\".";
         throw panic(ss.str(), node.location());
     }
-    return std::make_unique<logical_ir::arithmetic_operator>(node.operation(), std::move(left), std::move(right), std::move(result.value()));
+    return std::make_unique<logical_ir::arithmetic_operator>(
+        node.operation(),
+        std::make_unique<logical_ir::type_cast>(std::move(left), std::move(result.value())), 
+        std::make_unique<logical_ir::type_cast>(std::move(right), std::move(result.value())), 
+        std::move(result.value())
+    );
+}
+
+std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::conditional_expression& node) {
+    std::unique_ptr<logical_ir::expression> condition = m_compiler.compile_expression(*node.condition());
+    std::unique_ptr<logical_ir::expression> true_expr = m_compiler.compile_expression(*node.true_expr());
+    std::unique_ptr<logical_ir::expression> false_expr = m_compiler.compile_expression(*node.false_expr());
+
+    if (!condition->get_type().is_same_type<typing::int_type>()) {
+        std::ostringstream ss;
+        ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid condition.";
+        throw panic(ss.str(), node.location());
+    }
+
+    std::optional<typing::qual_type> result = m_compiler.arbitrate_types(true_expr->get_type(), false_expr->get_type());
+    if (!result) {
+        std::ostringstream ss;
+        ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid conditional expression.";
+        ss << "Cannot arbitrate types \"" << true_expr->get_type().to_string() << "\" and \"" << false_expr->get_type().to_string() << "\".";
+        throw panic(ss.str(), node.location());
+    }
+    return std::make_unique<logical_ir::conditional_expression>(
+        std::move(condition),
+        std::make_unique<logical_ir::type_cast>(std::move(true_expr), std::move(result.value())),
+        std::make_unique<logical_ir::type_cast>(std::move(false_expr), std::move(result.value())),
+        std::move(result.value())
+    );
 }
 
 void compiler::expression_compiler::handle_default(const ast::ast_element& node) {
@@ -546,8 +577,11 @@ void compiler::expression_compiler::handle_default(const ast::ast_element& node)
     throw panic(ss.str(), node.location());
 }
 
-std::optional<typing::qual_type> compiler::arbitrate_types(const typing::qual_type& left, const typing::qual_type& right) const noexcept {
+std::optional<typing::qual_type> compiler::arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, bool arbitrate_numeric) const noexcept {
     if (left == right) {
+        if (arbitrate_numeric && !left.is_same_type<typing::int_type>() && !left.is_same_type<typing::float_type>()) {
+            return std::nullopt;
+        }
         return left;
     }
 
