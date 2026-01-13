@@ -504,7 +504,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
 }
 
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::set_operator& node) {
-    const ast::variable_reference* variable_reference = dynamic_cast<const ast::variable_reference*>(node.destination());
+    const ast::variable_reference* variable_reference = dynamic_cast<const ast::variable_reference*>(node.destination().get());
     if (variable_reference) {
         auto symbol = m_compiler.m_symbol_explorer.lookup(variable_reference->identifier());
         if (symbol == nullptr) {

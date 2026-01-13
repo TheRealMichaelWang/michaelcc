@@ -249,6 +249,27 @@ namespace michaelcc {
             void handle_default(const ast::ast_element& node) override;
         };
 
+        class statement_compiler : public ast::const_statement_dispatcher<std::unique_ptr<logical_ir::statement>> {
+        private:
+            compiler& m_compiler;
+
+        public:
+            statement_compiler(compiler& compiler) : m_compiler(compiler) { }
+
+            std::unique_ptr<logical_ir::statement> dispatch(const ast::context_block& node) override;
+            std::unique_ptr<logical_ir::statement> dispatch(const ast::for_loop& node) override;
+            std::unique_ptr<logical_ir::statement> dispatch(const ast::do_block& node) override;
+            std::unique_ptr<logical_ir::statement> dispatch(const ast::while_block& node) override;
+            std::unique_ptr<logical_ir::statement> dispatch(const ast::if_block& node) override;
+            std::unique_ptr<logical_ir::statement> dispatch(const ast::if_else_block& node) override;
+            std::unique_ptr<logical_ir::statement> dispatch(const ast::return_statement& node) override;
+            std::unique_ptr<logical_ir::statement> dispatch(const ast::break_statement& node) override;
+            std::unique_ptr<logical_ir::statement> dispatch(const ast::continue_statement& node) override;
+            std::unique_ptr<logical_ir::statement> dispatch(const ast::set_operator& node) override;
+            std::unique_ptr<logical_ir::statement> dispatch(const ast::function_call& node) override;
+            std::unique_ptr<logical_ir::statement> dispatch(const ast::variable_declaration& node) override;
+        };
+
         static compilation_error panic(const std::string& msg, const source_location& location) noexcept {
             return compilation_error(msg, location);
         }
