@@ -94,6 +94,18 @@ namespace michaelcc {
                 m_contexts.back()->add(std::move(sym));
                 return true;
             }
+
+            template<typename ContextType>
+            std::shared_ptr<ContextType> is_in_context()
+            {
+                for (const auto& context : std::views::reverse(m_contexts)) {
+                    auto context_ptr = std::dynamic_pointer_cast<ContextType>(context);
+                    if (context_ptr) {
+                        return context_ptr;
+                    }
+                }
+                return nullptr;
+            }
         };
     }
 }
