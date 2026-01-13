@@ -723,8 +723,8 @@ namespace michaelcc {
                 m_ptr(std::move(ptr)),
                 m_index(std::move(index)) {}
 
-            const ast_element* pointer() const noexcept { return m_ptr.get(); }
-            const ast_element* index() const noexcept { return m_index.get(); }
+            const std::unique_ptr<ast_element>& pointer() const noexcept { return m_ptr; }
+            const std::unique_ptr<ast_element>& index() const noexcept { return m_index; }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<get_index>(m_ptr->clone(), m_index->clone(), source_location(location()));
@@ -750,7 +750,7 @@ namespace michaelcc {
                 m_property_name(std::move(property_name)),
                 m_is_pointer_dereference(is_pointer_dereference) {}
 
-            const ast_element* struct_expr() const noexcept { return m_struct.get(); }
+            const std::unique_ptr<ast_element>& struct_expr() const noexcept { return m_struct; }
             const std::string& property_name() const noexcept { return m_property_name; }
             bool is_pointer_dereference() const noexcept { return m_is_pointer_dereference; }
 
@@ -775,8 +775,8 @@ namespace michaelcc {
                 m_set_dest(std::move(set_dest)),
                 m_set_value(std::move(set_value)) {}
 
-            const ast_element* destination() const noexcept { return m_set_dest.get(); }
-            const ast_element* value() const noexcept { return m_set_value.get(); }
+            const std::unique_ptr<ast_element>& destination() const noexcept { return m_set_dest; }
+            const std::unique_ptr<ast_element>& value() const noexcept { return m_set_value; }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<set_operator>(m_set_dest->clone(), m_set_value->clone(), source_location(location()));
@@ -798,7 +798,7 @@ namespace michaelcc {
                 : ast_element(std::move(location)),
                 m_pointer(std::move(pointer)) {}
 
-            const ast_element* pointer() const noexcept { return m_pointer.get(); }
+            const std::unique_ptr<ast_element>& pointer() const noexcept { return m_pointer; }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<dereference_operator>(m_pointer->clone(), source_location(location()));
@@ -847,8 +847,8 @@ namespace michaelcc {
                 m_operation(operation) {}
 
             token_type operation() const noexcept { return m_operation; }
-            const ast_element* left() const noexcept { return m_left.get(); }
-            const ast_element* right() const noexcept { return m_right.get(); }
+            const std::unique_ptr<ast_element>& left() const noexcept { return m_left; }
+            const std::unique_ptr<ast_element>& right() const noexcept { return m_right; }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<arithmetic_operator>(m_operation, m_left->clone(), m_right->clone(), source_location(location()));
@@ -877,9 +877,9 @@ namespace michaelcc {
                 m_true_expr(std::move(true_expr)),
                 m_false_expr(std::move(false_expr)) {}
 
-            const ast_element* condition() const noexcept { return m_condition.get(); }
-            const ast_element* true_expr() const noexcept { return m_true_expr.get(); }
-            const ast_element* false_expr() const noexcept { return m_false_expr.get(); }
+            const std::unique_ptr<ast_element>& condition() const noexcept { return m_condition; }
+            const std::unique_ptr<ast_element>& true_expr() const noexcept { return m_true_expr; }
+            const std::unique_ptr<ast_element>& false_expr() const noexcept { return m_false_expr; }
 
             std::unique_ptr<ast_element> clone() const override {
                 return std::make_unique<conditional_expression>(m_condition->clone(), m_true_expr->clone(), m_false_expr->clone(), source_location(location()));
