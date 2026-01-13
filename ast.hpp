@@ -50,7 +50,7 @@ namespace michaelcc {
         class function_prototype;
         class function_declaration;
 
-        using visitor = generic_visitor<
+        using visitor = const_generic_visitor<
             type_specifier,
             qualified_type,
             derived_type,
@@ -177,7 +177,7 @@ namespace michaelcc {
             const variable_declaration
         >;
 
-		class ast_element : public visitable_base<visitor> {
+		class ast_element : public const_visitable_base<visitor> {
 		private:
 			source_location m_location;
 
