@@ -895,6 +895,24 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     return std::make_unique<logical_ir::return_statement>(std::move(expression), function);
 }
 
+std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::break_statement& node) {
+    if (node.depth() > m_current_loop_depth) {
+        std::ostringstream ss;
+        ss << "Break statement depth is greater than the current loop depth.";
+        throw panic(ss.str(), node.location());
+    }
+    return std::make_unique<logical_ir::break_statement>(node.depth());
+}
+
+std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::continue_statement& node) {
+    if (node.depth() > m_current_loop_depth) {
+        std::ostringstream ss;
+        ss << "Continue statement depth is greater than the current loop depth.";
+        throw panic(ss.str(), node.location());
+    }
+    return std::make_unique<logical_ir::continue_statement>(node.depth());
+}
+
 void compiler::statement_compiler::handle_default(const ast::ast_element& node) {
     std::ostringstream ss;
     ss << "\"" << ast::to_c_string(node) << "\" is not a valid statement.";
