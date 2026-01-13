@@ -1,7 +1,9 @@
 #include "compiler.hpp"
 #include "ast.hpp"
 #include "logical.hpp"
+#include "tokens.hpp"
 #include "typing.hpp"
+#include <cstdint>
 #include <memory>
 #include <queue>
 #include <sstream>
@@ -388,7 +390,7 @@ void compiler::address_of_compiler::handle_default(const ast::ast_element& node)
 }
 
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::int_literal& node) {
-    if (m_target_type && typeid(m_target_type->type()) == typeid(typing::int_type)) {
+    if (m_target_type && m_target_type->is_same_type<typing::int_type>()) {
         return std::make_unique<logical_ir::integer_constant>(node.value(), typing::qual_type(m_target_type.value()));
     };
     return std::make_unique<logical_ir::integer_constant>(node.value(), 
@@ -397,7 +399,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
 }
 
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::float_literal& node) {
-    if (m_target_type && typeid(m_target_type->type()) == typeid(typing::float_type)) {
+    if (m_target_type && m_target_type->is_same_type<typing::float_type>()) {
         return std::make_unique<logical_ir::floating_constant>(node.value(), typing::qual_type(m_target_type.value()));
     };
     return std::make_unique<logical_ir::floating_constant>(node.value(), 
@@ -406,7 +408,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
 }
 
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::double_literal& node) {
-    if (m_target_type && typeid(m_target_type->type()) == typeid(typing::float_type)) {
+    if (m_target_type && m_target_type->is_same_type<typing::float_type>()) {
         return std::make_unique<logical_ir::floating_constant>(node.value(), typing::qual_type(m_target_type.value()));
     };
     return std::make_unique<logical_ir::floating_constant>(node.value(), 
@@ -502,7 +504,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
 
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::dereference_operator& node) {
     std::unique_ptr<logical_ir::expression> pointer = m_compiler.compile_expression(*node.pointer());
-    if (typeid(pointer->get_type().type()) != typeid(typing::pointer_type)) {
+    if (!pointer->get_type().is_same_type<typing::pointer_type>()) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(node) << "\" is not a pointer.";
         throw panic(ss.str(), node.location());
@@ -515,18 +517,71 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
 }
 
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::arithmetic_operator& node) {
+    if (node.operation() == MICHAELCC_TOKEN_INCREMENT_BY || node.operation() == MICHAELCC_TOKEN_DECREMENT_BY) {
+        std::unique_ptr<logical_ir::expression> destination = m_compiler.m_address_of_compiler(*node.left());
+        if (destination == nullptr) {
+            std::ostringstream ss;
+            ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid destination for increment or decrement.";
+            throw panic(ss.str(), node.location());
+        }
+        return std::make_unique<logical_ir::var_increment_operator>(std::move(destination), m_compiler.compile_expression(*node.right()));
+    }
+
     std::unique_ptr<logical_ir::expression> left = m_compiler.compile_expression(*node.left());
     std::unique_ptr<logical_ir::expression> right = m_compiler.compile_expression(*node.right());
 
-    if (m_compiler.is_numeric_type(left->get_type()) && m_compiler.is_numeric_type(right->get_type())) {
-        if (typeid(left->get_type().type()) == typeid(typing::int_type) && typeid(right->get_type().type()) == typeid(typing::int_type)) {
-            
-        }
+    std::optional<typing::qual_type> result = m_compiler.arbitrate_types(left->get_type(), right->get_type());
+    if (!result) {
+        std::ostringstream ss;
+        ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid arithmetic operation.";
+        ss << "Cannot arbitrate types \"" << left->get_type().to_string() << "\" and \"" << right->get_type().to_string() << "\".";
+        throw panic(ss.str(), node.location());
     }
+    return std::make_unique<logical_ir::arithmetic_operator>(node.operation(), std::move(left), std::move(right), std::move(result.value()));
 }
 
 void compiler::expression_compiler::handle_default(const ast::ast_element& node) {
     std::ostringstream ss;
     ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid expression.";
     throw panic(ss.str(), node.location());
+}
+
+std::optional<typing::qual_type> compiler::arbitrate_types(const typing::qual_type& left, const typing::qual_type& right) const noexcept {
+    if (left == right) {
+        return left;
+    }
+
+    if (is_numeric_type(left) && is_numeric_type(right)) {
+        if (left.is_same_type<typing::int_type>() && right.is_same_type<typing::int_type>()) {
+            const typing::int_type& left_int = static_cast<const typing::int_type&>(*left.type());
+            const typing::int_type& right_int = static_cast<const typing::int_type&>(*right.type());
+            
+            uint8_t max_info_qualifiers = right_int.int_qualifiers() | left_int.int_qualifiers();
+            if (max_info_qualifiers & typing::SIGNED_INT_QUALIFIER) { //remove signed qualifier
+                max_info_qualifiers &= ~typing::SIGNED_INT_QUALIFIER;
+            }
+            typing::int_class max_info_class = std::max(left_int.type_class(), right_int.type_class());
+            return typing::qual_type(std::make_shared<typing::int_type>(max_info_qualifiers, max_info_class));
+        }
+        if (left.is_same_type<typing::float_type>() && right.is_same_type<typing::float_type>()) {
+            const typing::float_type& left_float = static_cast<const typing::float_type&>(*left.type());
+            const typing::float_type& right_float = static_cast<const typing::float_type&>(*right.type());
+            typing::float_class max_info_class = std::max(left_float.type_class(), right_float.type_class());
+            return typing::qual_type(std::make_shared<typing::float_type>(max_info_class));
+        }
+        if (left.is_same_type<typing::float_type>() && right.is_same_type<typing::int_type>()) {
+            return left;
+        }
+        if (left.is_same_type<typing::int_type>() && right.is_same_type<typing::float_type>()) {
+            return right;
+        }
+    }
+    if (left.is_same_type<typing::pointer_type>() && right.is_same_type<typing::int_type>()) {
+        return left;
+    }
+    if (left.is_same_type<typing::int_type>() && right.is_same_type<typing::pointer_type>()) {
+        return right;
+    }
+
+    return std::nullopt;
 }

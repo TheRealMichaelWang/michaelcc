@@ -6,6 +6,7 @@
 #include "logical.hpp"
 #include "typing.hpp"
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace michaelcc {
@@ -273,6 +274,7 @@ namespace michaelcc {
             return typeid(type.type()) == typeid(typing::int_type) || typeid(type.type()) == typeid(typing::float_type);
         }
 
+        std::optional<typing::qual_type> arbitrate_types(const typing::qual_type& left, const typing::qual_type& right) const noexcept;
         std::unique_ptr<logical_ir::expression> compile_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type = std::nullopt);
     public:
         compiler(const platform_info platform_info) 

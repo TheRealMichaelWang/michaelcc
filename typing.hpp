@@ -39,15 +39,15 @@ namespace michaelcc {
 		};
 
 		enum int_class {
-			CHAR_INT_CLASS,
-			SHORT_INT_CLASS,
-			INT_INT_CLASS,
-			LONG_INT_CLASS
+			CHAR_INT_CLASS = 0,
+			SHORT_INT_CLASS = 1,
+			INT_INT_CLASS = 2,
+			LONG_INT_CLASS = 3
 		};
 
 		enum float_class {
-			FLOAT_FLOAT_CLASS,
-			DOUBLE_FLOAT_CLASS
+			FLOAT_FLOAT_CLASS = 0,
+			DOUBLE_FLOAT_CLASS = 1
 		};
 
         class base_type;
@@ -73,7 +73,7 @@ namespace michaelcc {
             struct_type,
             union_type> {};
         
-            class base_type {
+        class base_type {
         public:
             virtual ~base_type() = default;
 
@@ -177,6 +177,11 @@ namespace michaelcc {
                 std::ostringstream ss;
                 to_string(ss);
                 return ss.str();
+            }
+
+            template<typename ChildType, std::enable_if_t<std::is_base_of_v<base_type, ChildType>, int> = 0>
+            bool is_same_type() const {
+                return typeid(ChildType) == typeid(type());
             }
         };
 
