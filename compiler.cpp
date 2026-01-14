@@ -448,7 +448,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
 
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::get_index& node) {
     std::unique_ptr<logical_ir::expression> pointer = m_compiler.compile_expression(*node.pointer());
-    std::unique_ptr<logical_ir::expression> index = m_compiler.compile_expression(*node.index(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS));
+    std::unique_ptr<logical_ir::expression> index = m_compiler.compile_expression(*node.index(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS), true);
 
     if (!m_compiler.is_indexable_type(pointer->get_type())) {
         std::ostringstream ss;
@@ -755,7 +755,7 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
 
     std::vector<std::unique_ptr<logical_ir::statement>> outer_statements;
     outer_statements.emplace_back((*this)(*node.initial_statement()));
-    std::unique_ptr<logical_ir::expression> condition = m_compiler.compile_expression(*node.condition(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS));
+    std::unique_ptr<logical_ir::expression> condition = m_compiler.compile_expression(*node.condition(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS), true);
     if (!condition->get_type().is_same_type<typing::int_type>()) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(*node.condition()) << "\" is not a valid condition.";
@@ -886,13 +886,11 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
         ss << "Return statement is not in a function context.";
         throw panic(ss.str(), node.location());
     }
-    std::unique_ptr<logical_ir::expression> expression = m_compiler.compile_expression(*node.value(), function->return_type());
-    if (!expression->get_type().is_assignable_from(function->return_type())) {
-        std::ostringstream ss;
-        ss << "Return expression is not the same type as the function return type.";
-        throw panic(ss.str(), node.location());
-    }
-    return std::make_unique<logical_ir::return_statement>(std::move(expression), function);
+    
+    return std::make_unique<logical_ir::return_statement>(
+        m_compiler.compile_expression(*node.value(), function->return_type()), 
+        function
+    );
 }
 
 std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::break_statement& node) {
@@ -960,4 +958,16 @@ std::optional<typing::qual_type> compiler::arbitrate_types(const typing::qual_ty
     }
 
     return std::nullopt;
+}
+
+std::unique_ptr<logical_ir::expression> compiler::compile_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type, bool is_type_hint) {
+    expression_compiler expression_compiler(*this, target_type);
+    std::unique_ptr<logical_ir::expression> expression = expression_compiler(node);
+
+    if (target_type && !target_type->is_assignable_from(expression->get_type()) && !is_type_hint) {
+        std::ostringstream ss;
+        ss << "Expression \"" << ast::to_c_string(node) << "\" is not the same type as the target type.";
+        throw panic(ss.str(), node.location());
+    }
+    return expression;
 }
