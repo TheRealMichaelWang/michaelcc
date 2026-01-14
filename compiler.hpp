@@ -285,6 +285,7 @@ namespace michaelcc {
         type_layout_calculator m_type_layout_calculator;
         type_resolver m_type_resolver;
         address_of_compiler m_address_of_compiler;
+        statement_compiler m_statement_compiler;
 
         logical_ir::symbol_explorer m_symbol_explorer;
 
@@ -305,7 +306,7 @@ namespace michaelcc {
         }
 
         std::optional<typing::qual_type> arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, bool arbitrate_numeric=false) const noexcept;
-        std::unique_ptr<logical_ir::expression> compile_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type = std::nullopt);
+        std::unique_ptr<logical_ir::expression> compile_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type = std::nullopt, bool is_type_hint=false);
     public:
         compiler(const platform_info platform_info) 
             : m_translation_unit(), m_platform_info(platform_info), 
@@ -313,6 +314,7 @@ namespace michaelcc {
             m_type_layout_calculator(m_platform_info),
             m_type_resolver(*this),
             m_address_of_compiler(*this),
+            m_statement_compiler(*this),
             m_symbol_explorer() { }
     };
 }
