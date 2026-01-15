@@ -13,7 +13,7 @@
 
 using namespace michaelcc;
 
-void compiler::check_layout_dependencies(std::shared_ptr<typing::base_type>& type) {
+void compiler::check_layout_dependencies(const std::shared_ptr<typing::base_type>& type) {
     std::map<std::shared_ptr<typing::base_type>, std::shared_ptr<typing::base_type>> last_seen_parent;
 
     std::queue<std::shared_ptr<typing::base_type>> type_to_resolve;
@@ -1018,9 +1018,9 @@ logical_ir::variable_declaration compiler::compile_variable_declaration(const as
     typing::qual_type type = var_type_resolver(*node.type());
 
     std::shared_ptr<logical_ir::variable> variable = std::make_shared<logical_ir::variable>(
-        node.identifier(),
+        std::string(node.identifier()),
         node.qualifiers(),
-        type,
+        typing::qual_type(type),
         is_global,
         m_symbol_explorer.current_context()
     );
@@ -1086,4 +1086,47 @@ void compiler::top_level_compiler::visit(const ast::function_declaration& node) 
     }
     function->implement(std::move(statements));
     m_compiler.m_symbol_explorer.exit();
+}
+
+void compiler::compile(const std::vector<std::unique_ptr<ast::ast_element>>& ast) {
+    forward_declare_types forward_declare_types_pass(*this);
+    for (const auto& element : ast) {
+        element->accept(forward_declare_types_pass);
+    }
+
+    implement_type_declarations implement_type_declarations_pass(*this);
+    for (const auto& element : ast) {
+        element->accept(implement_type_declarations_pass);
+    }
+
+    forward_declare_functions forward_declare_functions_pass(*this);
+    for (const auto& element : ast) {
+        element->accept(forward_declare_functions_pass);
+    }
+
+    for (auto& [name, struct_type] : m_translation_unit.structs()) {
+        check_layout_dependencies(struct_type);
+    }
+    for (auto& [name, union_type] : m_translation_unit.unions()) {
+        check_layout_dependencies(union_type);
+    }
+    for (auto& [name, enum_type] : m_translation_unit.enums()) {
+        check_layout_dependencies(enum_type);
+    }
+
+    top_level_compiler top_level_compiler_pass(*this);
+    for (const auto& element : ast) {
+        element->accept(top_level_compiler_pass);
+    }
+
+    for (const auto& symbol : m_translation_unit.global_symbols()) {
+        std::shared_ptr<logical_ir::function_definition> function = std::dynamic_pointer_cast<logical_ir::function_definition>(symbol);
+        if (function) {
+            if (!function->is_implemented()) {
+                std::ostringstream ss;
+                ss << "Function \"" << function->name() << "\" is not implemented.";
+                throw panic(ss.str(), function->location());
+            }
+        }
+    }
 }

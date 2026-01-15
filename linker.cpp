@@ -118,6 +118,7 @@ void compiler::forward_declare_functions::forward_declare_function(const std::st
     for (const ast::function_parameter& parameter : parameters) {
         logical_parameters.emplace_back(std::make_shared<logical_ir::variable>(
             std::string(parameter.param_name),
+            parameter.qualifiers,
             m_compiler.resolve_type(*parameter.param_type).to_owning(),
             false,
             std::weak_ptr<logical_ir::symbol_context>()
@@ -128,7 +129,8 @@ void compiler::forward_declare_functions::forward_declare_function(const std::st
         std::string(function_name),
         m_compiler.resolve_type(return_type).to_owning(),
         std::move(logical_parameters),
-        std::weak_ptr<logical_ir::symbol_context>(m_compiler.m_translation_unit.global_context())
+        std::weak_ptr<logical_ir::symbol_context>(m_compiler.m_translation_unit.global_context()),
+        source_location(location)
     );
 
     auto existing_symbol = m_compiler.m_translation_unit.lookup_global(function_name);

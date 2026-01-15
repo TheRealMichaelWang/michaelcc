@@ -1166,7 +1166,7 @@ namespace michaelcc {
                 m_function_name(std::move(function_name)),
                 m_parameters(std::move(parameters)) {}
 
-            const ast_element* return_type() const noexcept { return m_return_type.get(); }
+            const std::unique_ptr<ast_element>& return_type() const noexcept { return m_return_type; }
             const std::string& function_name() const noexcept { return m_function_name; }
             const std::vector<function_parameter>& parameters() const noexcept { return m_parameters; }
 

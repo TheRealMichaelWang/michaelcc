@@ -5,6 +5,7 @@
 #include <string>
 #include <cstdint>
 #include <variant>
+#include "errors.hpp"
 #include "tokens.hpp"
 #include "symbols.hpp"
 #include "typing.hpp"
@@ -849,13 +850,16 @@ namespace michaelcc {
 		private:
 			typing::qual_type m_return_type;
 			std::vector<std::shared_ptr<variable>> m_parameters;
+			source_location m_location;
 
 		public:
-			explicit function_definition(std::string&& name, typing::qual_type&& return_type, std::vector<std::shared_ptr<variable>>&& parameters, std::weak_ptr<symbol_context>&& context)
-				: symbol(std::move(name), std::move(context)), control_block(), m_return_type(std::move(return_type)), m_parameters(std::move(parameters)) {}
+			explicit function_definition(std::string&& name, typing::qual_type&& return_type, std::vector<std::shared_ptr<variable>>&& parameters, std::weak_ptr<symbol_context>&& context, source_location&& location)
+				: symbol(std::move(name), std::move(context)), control_block(), m_return_type(std::move(return_type)), m_parameters(std::move(parameters)), m_location(std::move(location)) {}
 
 			const typing::qual_type& return_type() const noexcept { return m_return_type; }
 			const std::vector<std::shared_ptr<variable>>& parameters() const noexcept { return m_parameters; }
+			const source_location& location() const noexcept { return m_location; }
+			
             std::string to_string() const noexcept override {
                 return std::format("function {}", name());
             }

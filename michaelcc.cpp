@@ -3,6 +3,7 @@
 #include "preprocessor.hpp"
 #include "ast.hpp"
 #include "parser.hpp"
+#include "compiler.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -32,6 +33,29 @@ int main()
 		// Print all top-level elements
 		for (const auto& element : ast) {
 			cout << michaelcc::ast::to_c_string(*element) << endl;
+		}
+
+		michaelcc::compiler compiler(michaelcc::compiler::platform_info{
+			.m_pointer_size = 8,
+			.m_int_size = 4,
+			.m_short_size = 2,
+			.m_long_size = 4,
+			.m_long_long_size = 8,
+			.m_float_size = 4,
+			.m_double_size = 8,
+		});
+
+		compiler.compile(ast);
+		auto translation_unit = compiler.release_translation_unit();
+
+		for (const auto& symbol : translation_unit.global_symbols()) {
+			cout << symbol->name() << endl;
+			auto function = std::dynamic_pointer_cast<michaelcc::logical_ir::function_definition>(symbol);
+			if (function) {
+				cout << "Function: " << function->name() << endl;
+				cout << "Return type: " << function->return_type().to_string() << endl;
+				cout << "Parameters: " << function->parameters().size() << endl;
+			}
 		}
 	}
 	catch (const michaelcc::compilation_error& error) {

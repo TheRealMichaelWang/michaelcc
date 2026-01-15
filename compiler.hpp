@@ -307,12 +307,13 @@ namespace michaelcc {
         type_layout_calculator m_type_layout_calculator;
         address_of_compiler m_address_of_compiler;
         statement_compiler m_statement_compiler;
+        top_level_compiler m_top_level_compiler;
 
         logical_ir::symbol_explorer m_symbol_explorer;
 
         std::map<std::shared_ptr<typing::base_type>, const source_location> m_type_declaration_locations;
 
-        void check_layout_dependencies(std::shared_ptr<typing::base_type>& type);
+        void check_layout_dependencies(const std::shared_ptr<typing::base_type>& type);
 
         bool is_index_type(const typing::qual_type& type) const noexcept {
             return type.is_same_type<typing::int_type>();
@@ -337,7 +338,15 @@ namespace michaelcc {
             m_type_layout_calculator(m_platform_info),
             m_address_of_compiler(*this),
             m_statement_compiler(*this),
+            m_top_level_compiler(*this),
             m_symbol_explorer() { }
+
+
+        void compile(const std::vector<std::unique_ptr<ast::ast_element>>& ast);
+
+        const logical_ir::translation_unit& get_translation_unit() const { return m_translation_unit; }
+
+        logical_ir::translation_unit&& release_translation_unit() { return std::move(m_translation_unit); m_translation_unit = logical_ir::translation_unit(); }
     };
 }
 #endif
