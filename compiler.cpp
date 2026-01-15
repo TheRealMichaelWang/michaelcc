@@ -10,6 +10,7 @@
 #include <sstream>
 #include <numeric>
 #include <vector>
+#include <iostream>
 
 using namespace michaelcc;
 
@@ -601,8 +602,8 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     }
     return std::make_unique<logical_ir::arithmetic_operator>(
         node.operation(),
-        std::make_unique<logical_ir::type_cast>(std::move(left), std::move(result.value())), 
-        std::make_unique<logical_ir::type_cast>(std::move(right), std::move(result.value())), 
+        std::make_unique<logical_ir::type_cast>(std::move(left), typing::qual_type(result.value())), 
+        std::make_unique<logical_ir::type_cast>(std::move(right), typing::qual_type(result.value())), 
         std::move(result.value())
     );
 }
@@ -627,8 +628,8 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     }
     return std::make_unique<logical_ir::conditional_expression>(
         std::move(condition),
-        std::make_unique<logical_ir::type_cast>(std::move(true_expr), std::move(result.value())),
-        std::make_unique<logical_ir::type_cast>(std::move(false_expr), std::move(result.value())),
+        std::make_unique<logical_ir::type_cast>(std::move(true_expr), typing::qual_type(result.value())),
+        std::make_unique<logical_ir::type_cast>(std::move(false_expr), typing::qual_type(result.value())),
         std::move(result.value())
     );
 }
@@ -915,7 +916,6 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
 }
 
 std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::return_statement& node) {
-    
     std::shared_ptr<logical_ir::function_definition> function = m_compiler.m_symbol_explorer.is_in_context<logical_ir::function_definition>();
     if (function == nullptr) {
         std::ostringstream ss;
@@ -1063,7 +1063,10 @@ logical_ir::variable_declaration compiler::compile_variable_declaration(const as
 }
 
 void compiler::top_level_compiler::visit(const ast::function_declaration& node) {
-    std::shared_ptr<logical_ir::function_definition> function = std::static_pointer_cast<logical_ir::function_definition>(m_compiler.m_symbol_explorer.lookup(node.function_name()));
+    std::shared_ptr<logical_ir::function_definition> function = std::dynamic_pointer_cast<logical_ir::function_definition>(
+        m_compiler.m_symbol_explorer.lookup(node.function_name())
+    );
+    
     if (function->is_implemented()) {
         std::ostringstream ss;
         ss << "Function \"" << node.function_name() << "\" is already implemented.";
@@ -1114,10 +1117,12 @@ void compiler::compile(const std::vector<std::unique_ptr<ast::ast_element>>& ast
         check_layout_dependencies(enum_type);
     }
 
+    m_symbol_explorer.visit(m_translation_unit.global_context());
     top_level_compiler top_level_compiler_pass(*this);
     for (const auto& element : ast) {
         element->accept(top_level_compiler_pass);
     }
+    m_symbol_explorer.exit();
 
     for (const auto& symbol : m_translation_unit.global_symbols()) {
         std::shared_ptr<logical_ir::function_definition> function = std::dynamic_pointer_cast<logical_ir::function_definition>(symbol);

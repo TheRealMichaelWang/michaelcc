@@ -59,7 +59,16 @@ int main()
 		}
 	}
 	catch (const michaelcc::compilation_error& error) {
-		cerr << error.what() << endl;
+		cerr << "Compilation error: " << error.what() << endl;
+		return 2;
+	}
+	catch (const std::exception& e) {
+		cerr << "Exception: " << e.what() << endl;
+		return 3;
+	}
+	catch (...) {
+		cerr << "Unknown exception caught!" << endl;
+		return 4;
 	}
 	
 	return 0;
