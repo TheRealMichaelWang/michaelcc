@@ -82,7 +82,7 @@ void compiler::implement_type_declarations::visit(const ast::struct_declaration&
     std::vector<typing::qual_type> field_types;
     field_types.reserve(node.fields().size());
     for (const ast::variable_declaration& field : node.fields()) {
-        field_types.emplace_back(m_compiler.m_type_resolver(*field.type()));
+        field_types.emplace_back(m_compiler.resolve_type(*field.type()));
     }
 
     if (!struct_type->implement_field_types(std::move(field_types))) {
@@ -105,7 +105,7 @@ void compiler::implement_type_declarations::visit(const ast::union_declaration& 
     std::vector<typing::qual_type> member_types;
     member_types.reserve(node.members().size());
     for (const ast::union_declaration::member& member : node.members()) {
-        member_types.emplace_back(m_compiler.m_type_resolver(*member.member_type));
+        member_types.emplace_back(m_compiler.resolve_type(*member.member_type));
     }
     if (!union_type->implement_member_types(std::move(member_types))) {
         throw m_compiler.panic("Invalid number of member types for union " + node.union_name().value(), node.location());
@@ -118,7 +118,7 @@ void compiler::forward_declare_functions::forward_declare_function(const std::st
     for (const ast::function_parameter& parameter : parameters) {
         logical_parameters.emplace_back(std::make_shared<logical_ir::variable>(
             std::string(parameter.param_name),
-            m_compiler.m_type_resolver(*parameter.param_type).to_owning(),
+            m_compiler.resolve_type(*parameter.param_type).to_owning(),
             false,
             std::weak_ptr<logical_ir::symbol_context>()
         ));
@@ -126,7 +126,7 @@ void compiler::forward_declare_functions::forward_declare_function(const std::st
 
     auto function_definition = std::make_shared<logical_ir::function_definition>(
         std::string(function_name),
-        m_compiler.m_type_resolver(return_type).to_owning(),
+        m_compiler.resolve_type(return_type).to_owning(),
         std::move(logical_parameters),
         std::weak_ptr<logical_ir::symbol_context>(m_compiler.m_translation_unit.global_context())
     );
@@ -148,7 +148,7 @@ void compiler::forward_declare_functions::forward_declare_function(const std::st
         }
 
         for (size_t i = 0; i < parameters.size(); i++) {
-            if (existing_function_definition->parameters()[i]->get_type() != m_compiler.m_type_resolver(*parameters[i].param_type).to_owning()) {
+            if (existing_function_definition->parameters()[i]->get_type() != m_compiler.resolve_type(*parameters[i].param_type).to_owning()) {
                 throw m_compiler.panic(std::format(
                     "Parameter type mismatch for function {}; Function originally declared with parameter type {}, but now declared with parameter type {}.", 
                     function_name,

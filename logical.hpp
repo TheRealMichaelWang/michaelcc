@@ -32,6 +32,7 @@ namespace michaelcc {
 		class member_access;
 		class array_index;
 		class array_initializer;
+		class allocate_array;
 		class struct_initializer;
 		class union_initializer;
 		class function_call;
@@ -68,6 +69,7 @@ namespace michaelcc {
 			array_index,
 			array_initializer,
 			struct_initializer,
+			allocate_array,
 			union_initializer,
 			function_call,
 			conditional_expression,
@@ -109,6 +111,7 @@ namespace michaelcc {
 			member_access,
 			array_index,
 			array_initializer,
+			allocate_array,
 			struct_initializer,
 			union_initializer,
 			function_call,
@@ -925,6 +928,35 @@ namespace michaelcc {
 				v.visit(*this);
 				for (const auto& initializer : m_initializers) {
 					initializer->accept(v);
+				}
+			}
+		};
+
+		class allocate_array final : public expression {
+		private:
+			std::vector<std::unique_ptr<expression>> m_dimensions;
+			typing::qual_type m_element_type;	
+		public:
+			allocate_array(std::vector<std::unique_ptr<expression>>&& dimensions, typing::qual_type&& element_type)
+				: m_dimensions(std::move(dimensions)), m_element_type(std::move(element_type)) {}
+				
+			const std::vector<std::unique_ptr<expression>>& dimensions() const noexcept { return m_dimensions; }
+
+			const typing::qual_type get_type() const override {
+				return typing::qual_type::owning(std::make_shared<typing::array_type>(m_element_type));
+			}
+
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				for (const auto& dimension : m_dimensions) {
+					dimension->mutable_accept(v);
+				}
+			}
+
+			void accept(const_visitor& v) const override {
+				v.visit(*this);
+				for (const auto& dimension : m_dimensions) {
+					dimension->accept(v);
 				}
 			}
 		};
