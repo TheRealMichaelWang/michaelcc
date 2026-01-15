@@ -1032,3 +1032,29 @@ std::unique_ptr<logical_ir::expression> compiler::compile_expression(const ast::
     }
     return expression;
 }
+
+void compiler::top_level_compiler::visit(const ast::function_declaration& node) {
+    std::shared_ptr<logical_ir::function_definition> function = std::static_pointer_cast<logical_ir::function_definition>(m_compiler.m_symbol_explorer.lookup(node.function_name()));
+    if (function->is_implemented()) {
+        std::ostringstream ss;
+        ss << "Function \"" << node.function_name() << "\" is already implemented.";
+        throw panic(ss.str(), node.location());
+    }
+
+    m_compiler.m_symbol_explorer.visit(function);
+    for (const auto& param : function->parameters()) {
+        if (!m_compiler.m_symbol_explorer.add(param)) {
+            std::ostringstream ss;
+            ss << "Symbol \"" << param->name() << "\" already declared in this scope.";
+            throw panic(ss.str(), node.location());
+        }
+    }
+
+    std::vector<std::unique_ptr<logical_ir::statement>> statements;
+    statements.reserve(node.function_body().statements().size());
+    for (const auto& statement : node.function_body().statements()) {
+        statements.emplace_back(m_compiler.m_statement_compiler(*statement));
+    }
+    function->implement(std::move(statements));
+    m_compiler.m_symbol_explorer.exit();
+}
