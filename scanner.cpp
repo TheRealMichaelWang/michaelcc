@@ -292,6 +292,8 @@ token michaelcc::preprocessor::scanner::scan_token(bool in_macro_definition)
 			return token(scan_char_if_match('=') ? MICHAELCC_TOKEN_LESS_EQUAL : MICHAELCC_TOKEN_LESS, location().col());
 		case '?':
 			return token(MICHAELCC_TOKEN_QUESTION, location().col());
+		case '!':
+			return token(MICHAELCC_TOKEN_NOT, location().col());
 		case '\n':
 			return token(MICHAELCC_TOKEN_NEWLINE, location().col());
 		case '\0':
