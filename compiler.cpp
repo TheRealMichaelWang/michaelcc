@@ -947,55 +947,6 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     return std::make_unique<logical_ir::continue_statement>(node.depth());
 }
 
-std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::variable_declaration& node) {
-    type_resolver var_type_resolver(m_compiler, true);
-    typing::qual_type type = var_type_resolver(*node.type());
-
-    std::shared_ptr<logical_ir::variable> variable = std::make_shared<logical_ir::variable>(
-        node.identifier(),
-        node.qualifiers(),
-        type,
-        false,
-        m_compiler.m_symbol_explorer.current_context()
-    );
-    if(!m_compiler.m_symbol_explorer.add(variable)) {
-        std::ostringstream ss;
-        ss << "Symbol \"" << node.identifier() << "\" already declared in this scope.";
-        throw panic(ss.str(), node.location());
-    }
-
-    if (node.set_value()) {
-        if (var_type_resolver.vla_dimensions().size() > 0) {
-            std::ostringstream ss;
-            ss << "Variable \"" << node.identifier() << "\" is a variable length array and cannot be initialized.";
-            throw panic(ss.str(), node.location());
-        }
-
-        return std::make_unique<logical_ir::local_declaration>(
-            std::move(variable), 
-            m_compiler.compile_expression(*node.set_value().value(), type)
-        );
-    }
-    else if (var_type_resolver.vla_dimensions().size() > 0) {
-        std::shared_ptr<typing::array_type> array_type = std::dynamic_pointer_cast<typing::array_type>(type.type());
-        if (!array_type) {
-            std::ostringstream ss;
-            ss << "Variable \"" << node.identifier() << "\" is not an array.";
-            throw panic(ss.str(), node.location());
-        }
-        
-        return std::make_unique<logical_ir::local_declaration>(
-            std::move(variable), 
-            std::make_unique<logical_ir::array_initializer>(std::move(var_type_resolver.release_vla_dimensions()), typing::qual_type(array_type->element_type()))
-        );
-    }
-    else {
-        std::ostringstream ss;
-        ss << "Variable \"" << node.identifier() << "\" is not initialized.";
-        throw panic(ss.str(), node.location());
-    }
-}
-
 void compiler::statement_compiler::handle_default(const ast::ast_element& node) {
     std::ostringstream ss;
     ss << "\"" << ast::to_c_string(node) << "\" is not a valid statement.";
@@ -1060,6 +1011,55 @@ std::unique_ptr<logical_ir::expression> compiler::compile_expression(const ast::
         throw panic(ss.str(), node.location());
     }
     return expression;
+}
+
+logical_ir::variable_declaration compiler::compile_variable_declaration(const ast::variable_declaration& node, bool is_global) {
+    type_resolver var_type_resolver(*this, true);
+    typing::qual_type type = var_type_resolver(*node.type());
+
+    std::shared_ptr<logical_ir::variable> variable = std::make_shared<logical_ir::variable>(
+        node.identifier(),
+        node.qualifiers(),
+        type,
+        is_global,
+        m_symbol_explorer.current_context()
+    );
+    if(!m_symbol_explorer.add(variable)) {
+        std::ostringstream ss;
+        ss << "Symbol \"" << node.identifier() << "\" already declared in this scope.";
+        throw panic(ss.str(), node.location());
+    }
+
+    if (node.set_value()) {
+        if (var_type_resolver.vla_dimensions().size() > 0) {
+            std::ostringstream ss;
+            ss << "Variable \"" << node.identifier() << "\" is a variable length array and cannot be initialized.";
+            throw panic(ss.str(), node.location());
+        }
+
+        return logical_ir::variable_declaration(
+            std::move(variable), 
+            compile_expression(*node.set_value().value(), type)
+        );
+    }
+    else if (var_type_resolver.vla_dimensions().size() > 0) {
+        std::shared_ptr<typing::array_type> array_type = std::dynamic_pointer_cast<typing::array_type>(type.type());
+        if (!array_type) {
+            std::ostringstream ss;
+            ss << "Variable \"" << node.identifier() << "\" is not an array.";
+            throw panic(ss.str(), node.location());
+        }
+        
+        return logical_ir::variable_declaration(
+            std::move(variable), 
+            std::make_unique<logical_ir::array_initializer>(std::move(var_type_resolver.release_vla_dimensions()), typing::qual_type(array_type->element_type()))
+        );
+    }
+    else {
+        std::ostringstream ss;
+        ss << "Variable \"" << node.identifier() << "\" is not initialized.";
+        throw panic(ss.str(), node.location());
+    }
 }
 
 void compiler::top_level_compiler::visit(const ast::function_declaration& node) {

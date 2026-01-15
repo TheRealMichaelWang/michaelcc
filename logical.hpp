@@ -41,7 +41,7 @@ namespace michaelcc {
 		class set_variable;
 		class expression_statement;
 		class assignment_statement;
-		class local_declaration;
+		class variable_declaration;
 		class return_statement;
 		class if_statement;
 		class loop_statement;
@@ -77,7 +77,7 @@ namespace michaelcc {
 			set_variable,
 			expression_statement,
 			assignment_statement,
-			local_declaration,
+			variable_declaration,
 			return_statement,
 			if_statement,
 			loop_statement,
@@ -120,7 +120,7 @@ namespace michaelcc {
 			set_variable,
 			expression_statement,
 			assignment_statement,
-			local_declaration,
+			variable_declaration,
 			return_statement,
 			if_statement,
 			loop_statement,
@@ -690,12 +690,12 @@ namespace michaelcc {
 			}
 		};
 
-		class local_declaration final : public statement {
+		class variable_declaration final : public statement {
 		private:
 			std::shared_ptr<variable> m_variable;
 			std::unique_ptr<expression> m_initializer;
 		public:
-			local_declaration(std::shared_ptr<variable>&& var, std::unique_ptr<expression>&& initializer = nullptr)
+			variable_declaration(std::shared_ptr<variable>&& var, std::unique_ptr<expression>&& initializer = nullptr)
 				: m_variable(std::move(var)), m_initializer(std::move(initializer)) {}
 
 			const std::shared_ptr<variable>& get_variable() const noexcept { return m_variable; }
@@ -1083,6 +1083,8 @@ namespace michaelcc {
             std::unordered_map<std::string, std::shared_ptr<typing::struct_type>> m_structs;
             std::unordered_map<std::string, std::shared_ptr<typing::union_type>> m_unions;
             std::unordered_map<std::string, std::shared_ptr<typing::enum_type>> m_enums;
+			
+			std::vector<variable_declaration> m_static_variable_declarations;
 		public:
             translation_unit() : m_global_context(std::make_shared<symbol_context>()) {}
 
@@ -1121,6 +1123,10 @@ namespace michaelcc {
                 return m_global_context->add(std::move(sym));
             }
 
+			void add_static_variable_declaration(variable_declaration&& declaration) {
+				m_static_variable_declarations.push_back(std::move(declaration));
+			}
+
 			size_t add_string(std::string&& str) {
 				m_strings.push_back(std::move(str));
 				return m_strings.size() - 1;
@@ -1136,6 +1142,7 @@ namespace michaelcc {
             const std::unordered_map<std::string, std::shared_ptr<typing::struct_type>>& structs() const noexcept { return m_structs; }
             const std::unordered_map<std::string, std::shared_ptr<typing::union_type>>& unions() const noexcept { return m_unions; }
             const std::unordered_map<std::string, std::shared_ptr<typing::enum_type>>& enums() const noexcept { return m_enums; }
+			const std::vector<variable_declaration>& static_variable_declarations() const noexcept { return m_static_variable_declarations; }
 
             const std::shared_ptr<symbol_context>& global_context() const noexcept { return m_global_context; }
 

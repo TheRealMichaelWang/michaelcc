@@ -842,7 +842,7 @@ public:
     }
 
     // local_declaration: 1 + (initializer ? 1 : 0)
-    void visit(const logical_ir::local_declaration& node) override {
+    void visit(const logical_ir::variable_declaration& node) override {
         before_print();
         print_indent();
         m_out << "local_declaration\n";
