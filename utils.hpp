@@ -67,6 +67,7 @@ namespace michaelcc {
 
         ReturnType operator()(BaseType& node) {
             handle_default(node);
+            throw std::runtime_error("handle_default must throw");
         }
 
     protected:
@@ -87,7 +88,7 @@ namespace michaelcc {
 
     public:
         ReturnType operator()(BaseType& node) {
-            if (auto* p = dynamic_cast<const NodeType*>(&node)) {
+            if (auto* p = dynamic_cast<NodeType*>(&node)) {
                 return dispatch(*p);
             }
             return generic_dispatcher<ReturnType, BaseType, Rest...>::operator()(node);

@@ -40,6 +40,8 @@ namespace michaelcc {
             std::vector<std::shared_ptr<symbol>> m_symbols; 
 
         public:
+            virtual ~symbol_context() = default;
+
             std::shared_ptr<symbol> lookup(const std::string& name) const {
                 auto it = m_symbol_table.find(name);
                 
