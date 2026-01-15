@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <typeinfo>
 #include <memory>
+#include <format>
 
 namespace michaelcc {
     template<typename... NodeTypes>
@@ -70,7 +71,7 @@ namespace michaelcc {
 
     protected:
         virtual void handle_default(const BaseType& node) {
-            throw std::runtime_error("No dispatch method for type " + std::string(typeid(BaseType).name()));
+            throw std::runtime_error(std::format("No dispatch method for type {}", typeid(BaseType).name()));
         }
         // Sentinel for the using declaration chain - never called
         void dispatch() {}

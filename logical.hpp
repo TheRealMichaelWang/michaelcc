@@ -381,9 +381,9 @@ namespace michaelcc {
 		class member_access final : public expression {
 		private:
 			std::unique_ptr<expression> m_base;
-			const typing::member& m_member;
+			const typing::member m_member;
 		public:
-			member_access(std::unique_ptr<expression>&& base, const typing::member& member)
+			member_access(std::unique_ptr<expression>&& base, const typing::member member)
 				: m_base(std::move(base)), m_member(member) {}
 
 			const std::unique_ptr<expression>& base() const noexcept { return m_base; }
@@ -435,29 +435,31 @@ namespace michaelcc {
 		};
 
 		class address_of final : public expression {
+		public:
+			using operand_type = std::variant<std::shared_ptr<variable>, std::unique_ptr<array_index>, std::unique_ptr<member_access>>;
 		private:
-			std::variant<std::shared_ptr<variable>, std::shared_ptr<array_index>, std::shared_ptr<member_access>> m_operand;
+			operand_type m_operand;
 		public:
 			address_of(std::shared_ptr<variable>&& variable)
 				: m_operand(std::move(variable)) {}
 
-			address_of(std::shared_ptr<array_index>&& array_index)
+			address_of(std::unique_ptr<array_index>&& array_index)
 				: m_operand(std::move(array_index)) {}
 
-			address_of(std::shared_ptr<member_access>&& member_access)
+			address_of(std::unique_ptr<member_access>&& member_access)
 				: m_operand(std::move(member_access)) {}
 
-			const std::variant<std::shared_ptr<variable>, std::shared_ptr<array_index>, std::shared_ptr<member_access>>& operand() const noexcept { return m_operand; }
+			const operand_type& operand() const noexcept { return m_operand; }
 
 			const typing::qual_type get_type() const override { 
                 return typing::qual_type(std::make_shared<typing::pointer_type>(std::visit(overloaded { 
                     [](const std::shared_ptr<variable>& variable) {
                         return variable->get_type().to_weak();
                     },
-                    [](const std::shared_ptr<array_index>& array_index) {
+                    [](const std::unique_ptr<array_index>& array_index) {
                         return array_index->base()->get_type().to_weak();
                     },
-                    [](const std::shared_ptr<member_access>& member_access) {
+                    [](const std::unique_ptr<member_access>& member_access) {
                         return member_access->base()->get_type().to_weak();
                     }
                 }, m_operand)));
@@ -1039,18 +1041,17 @@ namespace michaelcc {
 			const std::vector<std::unique_ptr<expression>>& arguments() const noexcept { return m_arguments; }
 
 			const typing::qual_type get_type() const override {
-				auto callee_type = std::visit(overloaded { 
+				return std::visit(overloaded { 
 					[](const std::shared_ptr<function_definition>& function) {
 						return function->return_type();
 					}, [](const std::shared_ptr<expression>& expression) {
-						return expression->get_type();
+						auto type = expression->get_type();
+						if (!type.is_same_type<typing::function_pointer_type>()) {
+							throw std::runtime_error("Callee is not a function pointer");
+						}
+						return std::dynamic_pointer_cast<typing::function_pointer_type>(type.type())->return_type();
 					}
-				}, m_callee);
-				auto* fn_type = dynamic_cast<const typing::function_pointer_type*>(callee_type.type().get());
-				if (fn_type == nullptr) {
-                    throw std::runtime_error("Callee is not a function pointer");
-                }
-				return fn_type->return_type().to_owning();
+				}, m_callee);	
 			}
 
 			void mutable_accept(visitor& v) override {
