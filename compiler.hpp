@@ -34,6 +34,8 @@ namespace michaelcc {
             const bool optimize_struct_layout = true;
         };
     private:
+        logical_ir::variable_declaration compile_variable_declaration(const ast::variable_declaration& node, bool is_global);
+        
         class forward_declare_types final : public ast::visitor {
         private:
             compiler& m_compiler;
@@ -274,7 +276,9 @@ namespace michaelcc {
             std::unique_ptr<logical_ir::statement> dispatch(const ast::continue_statement& node) override;
             std::unique_ptr<logical_ir::statement> dispatch(const ast::set_operator& node) override { return std::make_unique<logical_ir::expression_statement>(m_compiler.compile_expression(node)); }
             std::unique_ptr<logical_ir::statement> dispatch(const ast::function_call& node) override { return std::make_unique<logical_ir::expression_statement>(m_compiler.compile_expression(node)); }
-            std::unique_ptr<logical_ir::statement> dispatch(const ast::variable_declaration& node) override;
+            std::unique_ptr<logical_ir::statement> dispatch(const ast::variable_declaration& node) override {
+                return std::make_unique<logical_ir::variable_declaration>(m_compiler.compile_variable_declaration(node, false));
+            }
 
             void handle_default(const ast::ast_element& node) override;
         };
@@ -286,7 +290,9 @@ namespace michaelcc {
         public:
             top_level_compiler(compiler& compiler) : m_compiler(compiler) { }
 
-            void visit(const ast::variable_declaration& node) override;
+            void visit(const ast::variable_declaration& node) override {
+                m_compiler.m_translation_unit.add_static_variable_declaration(m_compiler.compile_variable_declaration(node, true));
+            }
             void visit(const ast::function_declaration& node) override;
         };
 
