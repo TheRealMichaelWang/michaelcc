@@ -12,7 +12,7 @@ using namespace std;
 int main()
 {
     cout << "Michael C Compiler" << endl;
-	ifstream infile("../../tests/arithmetic.c");
+	ifstream infile("../../tests/bitwise.c");
 	
 	if (!infile.is_open()) {
 		cerr << "Failed to open file!" << endl;
@@ -48,7 +48,9 @@ int main()
 		compiler.compile(ast);
 		auto translation_unit = compiler.release_translation_unit();
 
-		for (const auto& symbol : translation_unit.global_symbols()) {
+		cout << michaelcc::logical_ir::to_tree_string(translation_unit) << endl;
+
+		/*for (const auto& symbol : translation_unit.global_symbols()) {
 			cout << symbol->name() << endl;
 			auto function = std::dynamic_pointer_cast<michaelcc::logical_ir::function_definition>(symbol);
 			if (function) {
@@ -56,7 +58,7 @@ int main()
 				cout << "Return type: " << function->return_type().to_string() << endl;
 				cout << "Parameters: " << function->parameters().size() << endl;
 			}
-		}
+		}*/
 	}
 	catch (const michaelcc::compilation_error& error) {
 		cerr << "Compilation error: " << error.what() << endl;
