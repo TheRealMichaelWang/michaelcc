@@ -681,7 +681,7 @@ public:
     logical_print_visitor(std::ostream& out) : m_out(out) {}
 
     // translation_unit: children = number of global symbols (vars + funcs)
-    void visit(const logical_ir::translation_unit& node) {
+    void visit(const logical_ir::translation_unit& node) override {
         before_print();
         print_indent();
         m_out << "translation_unit\n";

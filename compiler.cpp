@@ -272,9 +272,14 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::function_type& ty
 }
 
 typing::qual_type compiler::type_resolver::dispatch(const ast::struct_declaration& type) {
-    auto struct_type = m_compiler.m_translation_unit.lookup_struct(type.struct_name().value());
-    if (struct_type != nullptr) {
-        return typing::qual_type(struct_type);
+    if (type.struct_name().has_value()) {
+        auto struct_type = m_compiler.m_translation_unit.lookup_struct(type.struct_name().value());
+        if (!struct_type) {
+            std::ostringstream ss;
+            ss << "Struct \"" << type.struct_name().value() << "\" not found.";
+            throw panic(ss.str(), type.location());
+        }
+        return typing::qual_type::weak(struct_type);
     }
 
     std::vector<typing::member> fields;
@@ -286,15 +291,20 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::struct_declaratio
         });
     }
 
-    auto my_struct_type = std::make_shared<typing::struct_type>(type.struct_name().value(), std::move(fields));
+    auto my_struct_type = std::make_shared<typing::struct_type>(std::nullopt, std::move(fields));
     m_compiler.m_type_layout_calculator(*my_struct_type); //implement layout
 
-    return typing::qual_type();
+    return typing::qual_type::owning(my_struct_type);
 }
 
 typing::qual_type compiler::type_resolver::dispatch(const ast::union_declaration& type) {
-    auto union_type = m_compiler.m_translation_unit.lookup_union(type.union_name().value());
-    if (union_type != nullptr) {
+    if (type.union_name().has_value()) {
+        auto union_type = m_compiler.m_translation_unit.lookup_union(type.union_name().value());
+        if (!union_type) {
+            std::ostringstream ss;
+            ss << "Union \"" << type.union_name().value() << "\" not found.";
+            throw panic(ss.str(), type.location());
+        }
         return typing::qual_type::weak(union_type);
     }
 
@@ -307,14 +317,23 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::union_declaration
             0
         });
     }
-    return typing::qual_type(std::make_shared<typing::union_type>(type.union_name().value(), std::move(members)));
+    auto my_union_type = std::make_shared<typing::union_type>(std::nullopt, std::move(members));
+    m_compiler.m_type_layout_calculator(*my_union_type); //implement layout
+    
+    return typing::qual_type::owning(my_union_type);
 }
 
 typing::qual_type compiler::type_resolver::dispatch(const ast::enum_declaration& type) {
-    auto enum_type = m_compiler.m_translation_unit.lookup_enum(type.enum_name().value());
-    if (enum_type != nullptr) {
+    if (type.enum_name().has_value()) {
+        auto enum_type = m_compiler.m_translation_unit.lookup_enum(type.enum_name().value());
+        if (!enum_type) {
+            std::ostringstream ss;
+            ss << "Enum \"" << type.enum_name().value() << "\" not found.";
+            throw panic(ss.str(), type.location());
+        }
         return typing::qual_type::weak(enum_type);
     }
+
     std::vector<typing::enum_type::enumerator> enumerators;
     enumerators.reserve(type.enumerators().size());
 
@@ -327,7 +346,7 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::enum_declaration&
         max_value = std::max(max_value, enumerator.value.value_or(max_value));
         max_value++;
     }
-    return typing::qual_type(std::make_shared<typing::enum_type>(type.enum_name().value(), std::move(enumerators)));
+    return typing::qual_type::owning(std::make_shared<typing::enum_type>(std::nullopt, std::move(enumerators)));
 }
 
 void compiler::type_resolver::handle_default(const ast::ast_element& node) {
@@ -479,7 +498,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
 
     std::shared_ptr<typing::struct_type> struct_type = std::dynamic_pointer_cast<typing::struct_type>(base_type.type());
     if (struct_type) {
-        std::vector<typing::member> fields = struct_type->fields();
+        const std::vector<typing::member>& fields = struct_type->fields();
         auto field = std::find_if(fields.begin(), fields.end(), [name = node.property_name()](const typing::member& member) {
             return member.name == name;
         });
@@ -494,7 +513,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
 
     std::shared_ptr<typing::union_type> union_type = std::dynamic_pointer_cast<typing::union_type>(base_type.type());
     if (union_type) {
-        std::vector<typing::member> members = union_type->members();
+        const std::vector<typing::member>& members = union_type->members();
         auto member = std::find_if(members.begin(), members.end(), [name = node.property_name()](const typing::member& member) {
             return member.name == name;
         });
@@ -679,9 +698,6 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
 }
 
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::initializer_list_expression& node) {
-    std::vector<std::unique_ptr<logical_ir::expression>> initializers;
-    initializers.reserve(node.initializers().size());
-
     std::shared_ptr<typing::struct_type> struct_type = std::dynamic_pointer_cast<typing::struct_type>(m_target_type->type());
     if (struct_type) {
         std::vector<logical_ir::struct_initializer::member_initializer> member_initializers;
@@ -694,7 +710,10 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
             throw panic(ss.str(), node.location());
         }
         for (size_t i = 0; i < members.size(); i++) {
-            initializers.push_back(m_compiler.compile_expression(*node.initializers()[i], members[i].member_type));
+            member_initializers.emplace_back(logical_ir::struct_initializer::member_initializer{
+                members[i].name,
+                m_compiler.compile_expression(*node.initializers()[i], members[i].member_type)
+            });
         }
         return std::make_unique<logical_ir::struct_initializer>(std::move(member_initializers), std::move(struct_type));
     }
@@ -726,6 +745,8 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     
     std::shared_ptr<typing::array_type> array_type = std::dynamic_pointer_cast<typing::array_type>(m_target_type->type());
     if (array_type) {
+        std::vector<std::unique_ptr<logical_ir::expression>> initializers;
+        initializers.reserve(node.initializers().size());
         for (const auto& initializer : node.initializers()) {
             initializers.push_back(m_compiler.compile_expression(*initializer, array_type->element_type()));
         }
@@ -754,6 +775,7 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     }
 
     m_compiler.m_symbol_explorer.exit();
+    control_block->implement(std::move(statements));
     return std::make_unique<logical_ir::statement_block>(std::move(control_block));
 }
 
@@ -770,6 +792,7 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
         throw panic(ss.str(), node.condition()->location());
     }
 
+    m_current_loop_depth++;
     std::shared_ptr<logical_ir::control_block> inner_control_block = std::make_shared<logical_ir::control_block>();
     m_compiler.m_symbol_explorer.visit(inner_control_block);
     std::vector<std::unique_ptr<logical_ir::statement>> inner_statements;
@@ -778,6 +801,7 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
         inner_statements.emplace_back((*this)(*statement));
     }
     m_compiler.m_symbol_explorer.exit();
+    m_current_loop_depth--;
     inner_statements.emplace_back((*this)(*node.increment_statement()));
     inner_control_block->implement(std::move(inner_statements));
 
@@ -790,6 +814,7 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     std::shared_ptr<logical_ir::control_block> control_block = std::make_shared<logical_ir::control_block>();
     m_compiler.m_symbol_explorer.visit(control_block);
 
+    m_current_loop_depth++;
     std::vector<std::unique_ptr<logical_ir::statement>> statements;
     statements.reserve(node.body().statements().size());
     for (const auto& statement : node.body().statements()) {
@@ -804,6 +829,7 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
         throw panic(ss.str(), node.condition()->location());
     }
 
+    m_current_loop_depth--;
     m_compiler.m_symbol_explorer.exit();
     return std::make_unique<logical_ir::loop_statement>(std::move(control_block), std::move(condition), false);
 }
@@ -819,6 +845,7 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     std::shared_ptr<logical_ir::control_block> control_block = std::make_shared<logical_ir::control_block>();
     m_compiler.m_symbol_explorer.visit(control_block);
 
+    m_current_loop_depth++;
     std::vector<std::unique_ptr<logical_ir::statement>> statements;
     statements.reserve(node.body().statements().size());
     for (const auto& statement : node.body().statements()) {
@@ -826,6 +853,7 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     }
     control_block->implement(std::move(statements));
 
+    m_current_loop_depth--;
     m_compiler.m_symbol_explorer.exit();
     return std::make_unique<logical_ir::loop_statement>(std::move(control_block), std::move(condition), true);
 }

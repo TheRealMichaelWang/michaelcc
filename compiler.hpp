@@ -309,15 +309,15 @@ namespace michaelcc {
         void check_layout_dependencies(std::shared_ptr<typing::base_type>& type);
 
         bool is_index_type(const typing::qual_type& type) const noexcept {
-            return typeid(type.type()) == typeid(typing::int_type);
+            return type.is_same_type<typing::int_type>();
         }
 
         bool is_indexable_type(const typing::qual_type& type) const noexcept {
-            return typeid(type.type()) == typeid(typing::array_type) || typeid(type.type()) == typeid(typing::pointer_type);
+            return type.is_same_type<typing::array_type>() || type.is_same_type<typing::pointer_type>();
         }
 
         bool is_numeric_type(const typing::qual_type& type) const noexcept {
-            return typeid(type.type()) == typeid(typing::int_type) || typeid(type.type()) == typeid(typing::float_type);
+            return type.is_same_type<typing::int_type>() || type.is_same_type<typing::float_type>();
         }
 
         std::optional<typing::qual_type> arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, bool arbitrate_numeric=false) const noexcept;

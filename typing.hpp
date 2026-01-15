@@ -9,7 +9,6 @@
 #include <sstream>
 #include <map>
 #include <variant>
-#include <type_traits>
 #include "utils.hpp"
 
 namespace michaelcc {
@@ -183,7 +182,8 @@ namespace michaelcc {
 
             template<typename ChildType, std::enable_if_t<std::is_base_of_v<base_type, ChildType>, int> = 0>
             bool is_same_type() const {
-                return typeid(ChildType) == typeid(type());
+                auto t = type();
+                return t && dynamic_cast<const ChildType*>(t.get()) != nullptr;
             }
 
             bool is_assignable_from(const qual_type& other) const {
