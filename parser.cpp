@@ -13,6 +13,7 @@ const std::map<token_type, int> ast::arithmetic_operator::operator_precedence = 
     {MICHAELCC_TOKEN_MINUS,               2},
     {MICHAELCC_TOKEN_ASTERISK,            3},
     {MICHAELCC_TOKEN_SLASH,               3},
+    {MICHAELCC_TOKEN_MODULO,              3},
     {MICHAELCC_TOKEN_CARET,               4},
     {MICHAELCC_TOKEN_AND,                 5},
     {MICHAELCC_TOKEN_OR,                  5},

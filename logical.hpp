@@ -415,11 +415,18 @@ namespace michaelcc {
 
 			const typing::qual_type get_type() const override {
 				auto base_type = m_base->get_type();
-				auto* arr_type = dynamic_cast<const typing::array_type*>(base_type.type().get());
-				if (arr_type == nullptr) {
-                    throw std::runtime_error("Base is not an array");
-                }
-				return arr_type->element_type().to_owning(base_type.propagate_qualifiers());
+
+				std::shared_ptr<typing::array_type> arr_type = std::dynamic_pointer_cast<typing::array_type>(base_type.type());
+				if (arr_type) {
+					return arr_type->element_type().to_owning(base_type.propagate_qualifiers());
+				}
+
+				std::shared_ptr<typing::pointer_type> ptr_type = std::dynamic_pointer_cast<typing::pointer_type>(base_type.type());
+				if (ptr_type) {
+					return ptr_type->pointee_type().to_owning(base_type.propagate_qualifiers());
+				}
+
+				throw std::runtime_error("Base is not an array or pointer");
             }
 
 			void mutable_accept(visitor& v) override {
@@ -859,7 +866,7 @@ namespace michaelcc {
 			const typing::qual_type& return_type() const noexcept { return m_return_type; }
 			const std::vector<std::shared_ptr<variable>>& parameters() const noexcept { return m_parameters; }
 			const source_location& location() const noexcept { return m_location; }
-			
+
             std::string to_string() const noexcept override {
                 return std::format("function {}", name());
             }
