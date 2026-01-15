@@ -86,6 +86,10 @@ namespace michaelcc {
                 return nullptr;
             }
 
+            std::weak_ptr<symbol_context> current_context() const {
+                return m_contexts.back();
+            }
+
             bool add(std::shared_ptr<symbol>&& sym) noexcept {
                 if (lookup(sym->name())) {
                     return false;

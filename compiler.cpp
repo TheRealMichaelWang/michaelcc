@@ -241,9 +241,17 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::derived_type& typ
     switch (type.type_kind()) {
         case ast::derived_type::kind::POINTER:
             return typing::qual_type(std::make_shared<typing::pointer_type>(
-                (*this)(*type.inner_type()).to_weak()
+                m_compiler.resolve_type(*type.inner_type()).to_weak()
             ));
         case ast::derived_type::kind::ARRAY:
+            if (type.array_size()) {
+                if (!m_allow_vla) {
+                    std::ostringstream ss;
+                    ss << "Variable length array is not allowed in this context.";
+                    throw panic(ss.str(), type.location());
+                }
+                m_vla_dimensions.push_back(m_compiler.compile_expression(*type.array_size().value()));
+            }
             return typing::qual_type(std::make_shared<typing::array_type>(
                 (*this)(*type.inner_type()).to_weak()
             ));
@@ -256,10 +264,10 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::function_type& ty
     std::vector<typing::qual_type> param_types;
     param_types.reserve(type.parameters().size());
     for (const auto& param : type.parameters()) {
-        param_types.push_back((*this)(*param.param_type));
+        param_types.push_back(m_compiler.resolve_type(*param.param_type));
     }
     return typing::qual_type(std::make_shared<typing::function_pointer_type>(
-        (*this)(*type.return_type()), param_types
+        m_compiler.resolve_type(*type.return_type()), param_types
     ));
 }
 
@@ -274,7 +282,7 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::struct_declaratio
     for (const auto& field : type.fields()) {
         fields.emplace_back(typing::member{
             field.identifier(),
-            (*this)(*field.type())
+            m_compiler.resolve_type(*field.type())
         });
     }
 
@@ -295,7 +303,7 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::union_declaration
     for (const auto& member : type.members()) {
         members.emplace_back(typing::member{
             member.member_name,
-            (*this)(*member.member_type),
+            m_compiler.resolve_type(*member.member_type),
             0
         });
     }
@@ -911,6 +919,54 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     return std::make_unique<logical_ir::continue_statement>(node.depth());
 }
 
+std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::variable_declaration& node) {
+    type_resolver var_type_resolver(m_compiler, true);
+    typing::qual_type type = var_type_resolver(*node.type());
+
+    std::shared_ptr<logical_ir::variable> variable = std::make_shared<logical_ir::variable>(
+        node.identifier(),
+        type,
+        false,
+        m_compiler.m_symbol_explorer.current_context()
+    );
+    if(!m_compiler.m_symbol_explorer.add(variable)) {
+        std::ostringstream ss;
+        ss << "Symbol \"" << node.identifier() << "\" already declared in this scope.";
+        throw panic(ss.str(), node.location());
+    }
+
+    if (node.set_value()) {
+        if (var_type_resolver.vla_dimensions().size() > 0) {
+            std::ostringstream ss;
+            ss << "Variable \"" << node.identifier() << "\" is a variable length array and cannot be initialized.";
+            throw panic(ss.str(), node.location());
+        }
+
+        return std::make_unique<logical_ir::local_declaration>(
+            std::move(variable), 
+            m_compiler.compile_expression(*node.set_value().value(), type)
+        );
+    }
+    else if (var_type_resolver.vla_dimensions().size() > 0) {
+        std::shared_ptr<typing::array_type> array_type = std::dynamic_pointer_cast<typing::array_type>(type.type());
+        if (!array_type) {
+            std::ostringstream ss;
+            ss << "Variable \"" << node.identifier() << "\" is not an array.";
+            throw panic(ss.str(), node.location());
+        }
+        
+        return std::make_unique<logical_ir::local_declaration>(
+            std::move(variable), 
+            std::make_unique<logical_ir::array_initializer>(std::move(var_type_resolver.release_vla_dimensions()), typing::qual_type(array_type->element_type()))
+        );
+    }
+    else {
+        std::ostringstream ss;
+        ss << "Variable \"" << node.identifier() << "\" is not initialized.";
+        throw panic(ss.str(), node.location());
+    }
+}
+
 void compiler::statement_compiler::handle_default(const ast::ast_element& node) {
     std::ostringstream ss;
     ss << "\"" << ast::to_c_string(node) << "\" is not a valid statement.";
@@ -958,6 +1014,11 @@ std::optional<typing::qual_type> compiler::arbitrate_types(const typing::qual_ty
     }
 
     return std::nullopt;
+}
+
+typing::qual_type compiler::resolve_type(const ast::ast_element& node, bool allow_vla) {
+    type_resolver type_resolver(*this, allow_vla);
+    return type_resolver(node);
 }
 
 std::unique_ptr<logical_ir::expression> compiler::compile_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type, bool is_type_hint) {

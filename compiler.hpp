@@ -178,13 +178,18 @@ namespace michaelcc {
 
         class type_resolver final : public ast::const_type_dispatcher<typing::qual_type> {
         private:
+            bool m_allow_vla;
             compiler& m_compiler;
+            std::vector<std::unique_ptr<logical_ir::expression>> m_vla_dimensions;
 
         public:
-            type_resolver(compiler& compiler) : m_compiler(compiler) { }
+            type_resolver(compiler& compiler, bool allow_vla) : m_allow_vla(allow_vla), m_compiler(compiler) { }
 
             typing::qual_type resolve_int_type(const ast::type_specifier& type);
 
+            const std::vector<std::unique_ptr<logical_ir::expression>>& vla_dimensions() const { return m_vla_dimensions; }
+
+            std::vector<std::unique_ptr<logical_ir::expression>>&& release_vla_dimensions() { return std::move(m_vla_dimensions); }
         protected:
             typing::qual_type dispatch(const ast::type_specifier& type) override;
             typing::qual_type dispatch(const ast::qualified_type& type) override;
@@ -267,8 +272,8 @@ namespace michaelcc {
             std::unique_ptr<logical_ir::statement> dispatch(const ast::return_statement& node) override;
             std::unique_ptr<logical_ir::statement> dispatch(const ast::break_statement& node) override;
             std::unique_ptr<logical_ir::statement> dispatch(const ast::continue_statement& node) override;
-            std::unique_ptr<logical_ir::statement> dispatch(const ast::set_operator& node) override;
-            std::unique_ptr<logical_ir::statement> dispatch(const ast::function_call& node) override;
+            std::unique_ptr<logical_ir::statement> dispatch(const ast::set_operator& node) override { return std::make_unique<logical_ir::expression_statement>(m_compiler.compile_expression(node)); }
+            std::unique_ptr<logical_ir::statement> dispatch(const ast::function_call& node) override { return std::make_unique<logical_ir::expression_statement>(m_compiler.compile_expression(node)); }
             std::unique_ptr<logical_ir::statement> dispatch(const ast::variable_declaration& node) override;
 
             void handle_default(const ast::ast_element& node) override;
@@ -283,7 +288,6 @@ namespace michaelcc {
 
         layout_dependency_getter m_layout_dependency_getter;
         type_layout_calculator m_type_layout_calculator;
-        type_resolver m_type_resolver;
         address_of_compiler m_address_of_compiler;
         statement_compiler m_statement_compiler;
 
@@ -306,13 +310,14 @@ namespace michaelcc {
         }
 
         std::optional<typing::qual_type> arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, bool arbitrate_numeric=false) const noexcept;
+        
+        typing::qual_type resolve_type(const ast::ast_element& node, bool allow_vla=false);
         std::unique_ptr<logical_ir::expression> compile_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type = std::nullopt, bool is_type_hint=false);
     public:
         compiler(const platform_info platform_info) 
             : m_translation_unit(), m_platform_info(platform_info), 
             m_layout_dependency_getter(m_translation_unit), 
             m_type_layout_calculator(m_platform_info),
-            m_type_resolver(*this),
             m_address_of_compiler(*this),
             m_statement_compiler(*this),
             m_symbol_explorer() { }
