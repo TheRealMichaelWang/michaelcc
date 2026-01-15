@@ -953,6 +953,7 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
 
     std::shared_ptr<logical_ir::variable> variable = std::make_shared<logical_ir::variable>(
         node.identifier(),
+        node.qualifiers(),
         type,
         false,
         m_compiler.m_symbol_explorer.current_context()
