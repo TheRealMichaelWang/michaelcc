@@ -278,6 +278,8 @@ token michaelcc::preprocessor::scanner::scan_token(bool in_macro_definition)
                 return token(end_location());
             }
 			return token(MICHAELCC_TOKEN_SLASH, location().col());
+		case '%':
+			return token(MICHAELCC_TOKEN_MODULO, location().col());
 		case '^':
 			return token(MICHAELCC_TOKEN_CARET, location().col());
 		case '&':
