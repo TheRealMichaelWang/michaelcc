@@ -131,31 +131,40 @@ void compiler::forward_declare_functions::forward_declare_function(const std::st
         std::weak_ptr<logical_ir::symbol_context>(m_compiler.m_translation_unit.global_context())
     );
 
-    auto existing_function = m_compiler.m_translation_unit.lookup_global(function_name);
-    if (existing_function) {
-        logical_ir::function_definition* existing_function_definition = dynamic_cast<logical_ir::function_definition*>(existing_function.get());
-        if (existing_function_definition == nullptr) {
+    auto existing_symbol = m_compiler.m_translation_unit.lookup_global(function_name);
+    if (existing_symbol) {
+        std::shared_ptr<logical_ir::function_definition> existing_function = std::dynamic_pointer_cast<logical_ir::function_definition>(existing_symbol);
+        if (!existing_function) {
             throw m_compiler.panic(std::format("Symbol {} is not a function", function_name), location);
         }
 
-        if (existing_function_definition->parameters().size() != parameters.size()) {
+        if (existing_function->parameters().size() != parameters.size()) {
             throw m_compiler.panic(std::format(
                 "Parameter count mismatch for function {}; Function originally declared with {} parameters, but now declared with {} parameters.", 
                 function_name,
-                existing_function_definition->parameters().size(),
+                existing_function->parameters().size(),
                 parameters.size()
             ), location);
         }
 
         for (size_t i = 0; i < parameters.size(); i++) {
-            if (existing_function_definition->parameters()[i]->get_type() != m_compiler.resolve_type(*parameters[i].param_type).to_owning()) {
+            if (existing_function->parameters()[i]->get_type() != m_compiler.resolve_type(*parameters[i].param_type)) {
                 throw m_compiler.panic(std::format(
                     "Parameter type mismatch for function {}; Function originally declared with parameter type {}, but now declared with parameter type {}.", 
                     function_name,
-                    existing_function_definition->parameters()[i]->get_type().to_string(),
+                    existing_function->parameters()[i]->get_type().to_string(),
                     logical_parameters[i]->get_type().to_string()
                 ), location);
             }
+        }
+
+        if (existing_function->return_type() != m_compiler.resolve_type(return_type)) {
+            throw m_compiler.panic(std::format(
+                "Return type mismatch for function {}; Function originally declared with return type {}, but now declared with return type {}.", 
+                function_name,
+                existing_function->return_type().to_string(),
+                m_compiler.resolve_type(return_type).to_string()
+            ), location);
         }
     } else {
         m_compiler.m_translation_unit.declare_global(std::move(function_definition));

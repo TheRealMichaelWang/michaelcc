@@ -279,6 +279,17 @@ namespace michaelcc {
             void handle_default(const ast::ast_element& node) override;
         };
 
+        class top_level_compiler : public ast::visitor {
+        private:
+            compiler& m_compiler;
+
+        public:
+            top_level_compiler(compiler& compiler) : m_compiler(compiler) { }
+
+            void visit(const ast::variable_declaration& node) override;
+            void visit(const ast::function_declaration& node) override;
+        };
+
         static compilation_error panic(const std::string& msg, const source_location& location) noexcept {
             return compilation_error(msg, location);
         }
