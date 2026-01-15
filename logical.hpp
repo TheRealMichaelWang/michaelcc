@@ -147,8 +147,8 @@ namespace michaelcc {
             typing::qual_type m_type;
 			bool m_is_global;
 		public:
-			variable(std::string&& name, typing::qual_type&& var_type, bool is_global, std::weak_ptr<symbol_context>&& context)
-				: symbol(std::move(name), std::move(context)), m_type(std::move(var_type)), m_is_global(is_global) {}
+			variable(std::string&& name, uint8_t qualifiers, typing::qual_type&& var_type, bool is_global, std::weak_ptr<symbol_context>&& context)
+				: symbol(std::move(name), std::move(context)), m_qualifiers(qualifiers), m_type(std::move(var_type)), m_is_global(is_global) {}
 
 			const typing::qual_type& get_type() const noexcept { return m_type; }
 			bool is_global() const noexcept { return m_is_global; }
