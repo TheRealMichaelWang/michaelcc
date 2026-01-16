@@ -6,25 +6,50 @@
 using namespace michaelcc;
 
 const std::map<token_type, int> ast::arithmetic_operator::operator_precedence = {
-    {MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR, 1},
+    // Compound assignment (lowest, right-associative - handled specially)
     {MICHAELCC_TOKEN_INCREMENT_BY,        1},
     {MICHAELCC_TOKEN_DECREMENT_BY,        1},
-    {MICHAELCC_TOKEN_PLUS,                2},
-    {MICHAELCC_TOKEN_MINUS,               2},
-    {MICHAELCC_TOKEN_ASTERISK,            3},
-    {MICHAELCC_TOKEN_SLASH,               3},
-    {MICHAELCC_TOKEN_MODULO,              3},
-    {MICHAELCC_TOKEN_CARET,               4},
-    {MICHAELCC_TOKEN_AND,                 5},
+
+    // Conditional/ternary (right-associative - handled specially)
+    {MICHAELCC_TOKEN_QUESTION,            2},
+
+    // Logical OR
+    {MICHAELCC_TOKEN_DOUBLE_OR,           3},
+
+    // Logical AND
+    {MICHAELCC_TOKEN_DOUBLE_AND,          4},
+
+    // Bitwise OR
     {MICHAELCC_TOKEN_OR,                  5},
-    {MICHAELCC_TOKEN_DOUBLE_AND,          6},
-    {MICHAELCC_TOKEN_DOUBLE_OR,           7},
-    {MICHAELCC_TOKEN_MORE,                8},
-    {MICHAELCC_TOKEN_LESS,                8},
-    {MICHAELCC_TOKEN_MORE_EQUAL,          8},
-    {MICHAELCC_TOKEN_LESS_EQUAL,          8},
-    {MICHAELCC_TOKEN_EQUALS,              9},
-    {MICHAELCC_TOKEN_QUESTION,			  1},
+
+    // Bitwise XOR
+    {MICHAELCC_TOKEN_CARET,               6},
+
+    // Bitwise AND
+    {MICHAELCC_TOKEN_AND,                 7},
+
+    // Equality
+    {MICHAELCC_TOKEN_EQUALS,              8},
+    {MICHAELCC_TOKEN_NOT_EQUALS,          8},
+
+    // Relational
+    {MICHAELCC_TOKEN_MORE,                9},
+    {MICHAELCC_TOKEN_LESS,                9},
+    {MICHAELCC_TOKEN_MORE_EQUAL,          9},
+    {MICHAELCC_TOKEN_LESS_EQUAL,          9},
+
+    // Shift
+    {MICHAELCC_TOKEN_BITSHIFT_LEFT,       10},
+    {MICHAELCC_TOKEN_BITSHIFT_RIGHT,      10},
+
+    // Additive
+    {MICHAELCC_TOKEN_PLUS,                11},
+    {MICHAELCC_TOKEN_MINUS,               11},
+
+    // Multiplicative (highest precedence)
+    {MICHAELCC_TOKEN_ASTERISK,            12},
+    {MICHAELCC_TOKEN_SLASH,               12},
+    {MICHAELCC_TOKEN_MODULO,              12},
 };
 
 void michaelcc::parser::next_token() noexcept {
@@ -383,10 +408,12 @@ std::unique_ptr<ast::ast_element> michaelcc::parser::parse_value()
     }
     case MICHAELCC_TOKEN_NOT:
     case MICHAELCC_TOKEN_MINUS:
-    case MICHAELCC_TOKEN_TILDE:
+    case MICHAELCC_TOKEN_TILDE: {
+        auto unary_op = current_token().type();
         next_token();
-        value = std::make_unique<ast::unary_operation>(current_token().type(), parse_value(), source_location(location));
+        value = std::make_unique<ast::unary_operation>(unary_op, parse_value(), source_location(location));
         break;
+    }
     default: {
         std::unique_ptr<ast::ast_element> destination = parse_set_destination();
         if (current_token().type() == MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR) {
@@ -464,8 +491,8 @@ std::unique_ptr<ast::ast_element> michaelcc::parser::parse_expression(int min_pr
             continue;
         }
         else {
-            //right associate check
-            if (op == MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR) {
+            // Right-associative operators: compound assignments
+            if (op == MICHAELCC_TOKEN_INCREMENT_BY || op == MICHAELCC_TOKEN_DECREMENT_BY) {
                 next_min_prec = precedence;
             }
 

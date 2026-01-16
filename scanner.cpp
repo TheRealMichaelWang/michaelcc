@@ -212,7 +212,7 @@ token michaelcc::preprocessor::scanner::scan_token(bool in_macro_definition)
 	else if (scan_char_if_match('\'')) {
 		char c = scan_char_literal();
 		expect_char('\'');
-		return token(MICHAELCC_TOKEN_CHAR_LITERAL, c);
+		return token(MICHAELCC_TOKEN_CHAR_LITERAL, static_cast<size_t>(c), location().col());
 	}
 	else {
 		char current = scan_char();
@@ -303,7 +303,7 @@ token michaelcc::preprocessor::scanner::scan_token(bool in_macro_definition)
 		case '?':
 			return token(MICHAELCC_TOKEN_QUESTION, location().col());
 		case '!':
-			return token(MICHAELCC_TOKEN_NOT, location().col());
+			return token(scan_char_if_match('=') ? MICHAELCC_TOKEN_NOT_EQUALS : MICHAELCC_TOKEN_NOT, location().col());
 		case '\n':
 			return token(MICHAELCC_TOKEN_NEWLINE, location().col());
 		case '\0':
