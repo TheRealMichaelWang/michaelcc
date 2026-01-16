@@ -631,6 +631,15 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
             }
             return std::make_unique<logical_ir::unary_operation>(node.get_operator(), std::move(operand));
         }
+        case MICHAELCC_TOKEN_TILDE: {
+            auto operand = m_compiler.compile_expression(*node.operand(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS), true);
+            if (!operand->get_type().is_same_type<typing::int_type>()) {
+                std::ostringstream ss;
+                ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid integer type.";
+                throw panic(ss.str(), node.location());
+            }
+            return std::make_unique<logical_ir::unary_operation>(node.get_operator(), std::move(operand));
+        }
         default:
             std::ostringstream ss;
             ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid unary operation since " << token_to_str(node.get_operator()) << " is not a valid unary operator.";
