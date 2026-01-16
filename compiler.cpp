@@ -1101,9 +1101,9 @@ logical_ir::variable_declaration compiler::compile_variable_declaration(const as
     }
 }
 
-void compiler::top_level_compiler::visit(const ast::function_declaration& node) {
+std::shared_ptr<logical_ir::function_definition> compiler::compile_function_declaration(const ast::function_declaration& node) {
     std::shared_ptr<logical_ir::function_definition> function = std::dynamic_pointer_cast<logical_ir::function_definition>(
-        m_compiler.m_symbol_explorer.lookup(node.function_name())
+        m_symbol_explorer.lookup(node.function_name())
     );
     
     if (function->is_implemented()) {
@@ -1112,9 +1112,9 @@ void compiler::top_level_compiler::visit(const ast::function_declaration& node) 
         throw panic(ss.str(), node.location());
     }
 
-    m_compiler.m_symbol_explorer.visit(function);
+    m_symbol_explorer.visit(function);
     for (const auto& param : function->parameters()) {
-        if (!m_compiler.m_symbol_explorer.add(param)) {
+        if (!m_symbol_explorer.add(param)) {
             std::ostringstream ss;
             ss << "Symbol \"" << param->name() << "\" already declared in this scope.";
             throw panic(ss.str(), node.location());
@@ -1124,10 +1124,12 @@ void compiler::top_level_compiler::visit(const ast::function_declaration& node) 
     std::vector<std::unique_ptr<logical_ir::statement>> statements;
     statements.reserve(node.function_body().statements().size());
     for (const auto& statement : node.function_body().statements()) {
-        statements.emplace_back(m_compiler.m_statement_compiler(*statement));
+        statements.emplace_back(m_statement_compiler(*statement));
     }
     function->implement(std::move(statements));
-    m_compiler.m_symbol_explorer.exit();
+    m_symbol_explorer.exit();
+
+    return function;
 }
 
 void compiler::compile(const std::vector<std::unique_ptr<ast::ast_element>>& ast) {
@@ -1157,9 +1159,15 @@ void compiler::compile(const std::vector<std::unique_ptr<ast::ast_element>>& ast
     }
 
     m_symbol_explorer.visit(m_translation_unit.global_context());
-    top_level_compiler top_level_compiler_pass(*this);
     for (const auto& element : ast) {
-        element->accept(top_level_compiler_pass);
+        auto variable_declaration = dynamic_cast<ast::variable_declaration*>(element.get());
+        if (variable_declaration) {
+            m_translation_unit.add_static_variable_declaration(compile_variable_declaration(*variable_declaration, true));
+        }
+        auto function_declaration = dynamic_cast<ast::function_declaration*>(element.get());
+        if (function_declaration) {
+            compile_function_declaration(*function_declaration);
+        }
     }
     m_symbol_explorer.exit();
 
