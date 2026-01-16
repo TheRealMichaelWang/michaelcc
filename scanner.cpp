@@ -287,9 +287,19 @@ token michaelcc::preprocessor::scanner::scan_token(bool in_macro_definition)
 		case '|':
 			return token(scan_char_if_match('|') ? MICHAELCC_TOKEN_DOUBLE_OR : MICHAELCC_TOKEN_OR, location().col());
 		case '>':
-			return token(scan_char_if_match('=') ? MICHAELCC_TOKEN_MORE_EQUAL : MICHAELCC_TOKEN_MORE, location().col());
+			return token(
+				scan_char_if_match('=') ? MICHAELCC_TOKEN_MORE_EQUAL 
+				: scan_char_if_match('>') ? MICHAELCC_TOKEN_BITSHIFT_LEFT 
+				: MICHAELCC_TOKEN_MORE, 
+				location().col()
+			);
 		case '<':
-			return token(scan_char_if_match('=') ? MICHAELCC_TOKEN_LESS_EQUAL : MICHAELCC_TOKEN_LESS, location().col());
+			return token(
+				scan_char_if_match('=') ? MICHAELCC_TOKEN_LESS_EQUAL 
+				: scan_char_if_match('<') ? MICHAELCC_TOKEN_BITSHIFT_RIGHT 
+				: MICHAELCC_TOKEN_LESS,
+				location().col()
+			);
 		case '?':
 			return token(MICHAELCC_TOKEN_QUESTION, location().col());
 		case '!':
