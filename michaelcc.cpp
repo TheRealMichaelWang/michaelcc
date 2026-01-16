@@ -23,7 +23,7 @@ int main()
 	ss << infile.rdbuf();
 
 	try {
-		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/arithmetic.c");
+		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/bitwise.c");
 		preprocessor.preprocess();
 		vector<michaelcc::token> tokens = preprocessor.result();
 

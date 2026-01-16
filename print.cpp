@@ -81,6 +81,7 @@ const std::string michaelcc::token_to_str(token_type type) {
         "+=",
         "-=",
         "/",
+        "%",
         "^",
         "&",
         "|",
@@ -92,6 +93,7 @@ const std::string michaelcc::token_to_str(token_type type) {
         "<=",
         "==",
         "?",
+        "!",
 
         //literal tokens
         "INTEGER_LITERAL",
@@ -721,6 +723,14 @@ public:
         after_print(static_cast<int>(node.statements().size()));
     }
 
+    // statement_block: 1 child (control_block)
+    void visit(const logical_ir::statement_block& node) override {
+        before_print();
+        print_indent();
+        m_out << "statement_block\n";
+        after_print(1);
+    }
+
     // integer_constant: 0 children
     void visit(const logical_ir::integer_constant& node) override {
         before_print();
@@ -750,6 +760,22 @@ public:
         before_print();
         print_indent();
         m_out << "variable_reference: " << node.get_variable()->name() << "\n";
+        after_print(0);
+    }
+
+    // function_reference: 0 children
+    void visit(const logical_ir::function_reference& node) override {
+        before_print();
+        print_indent();
+        m_out << "function_reference: " << node.get_function()->name() << "\n";
+        after_print(0);
+    }
+
+    // var_increment_operator: 0 children (doesn't visit destination/amount)
+    void visit(const logical_ir::var_increment_operator& node) override {
+        before_print();
+        print_indent();
+        m_out << "var_increment_operator\n";
         after_print(0);
     }
 
@@ -809,6 +835,38 @@ public:
         after_print(2);
     }
 
+    // array_initializer: initializers.size() children
+    void visit(const logical_ir::array_initializer& node) override {
+        before_print();
+        print_indent();
+        m_out << "array_initializer\n";
+        after_print(static_cast<int>(node.initializers().size()));
+    }
+
+    // allocate_array: dimensions.size() children
+    void visit(const logical_ir::allocate_array& node) override {
+        before_print();
+        print_indent();
+        m_out << "allocate_array\n";
+        after_print(static_cast<int>(node.dimensions().size()));
+    }
+
+    // struct_initializer: initializers.size() children
+    void visit(const logical_ir::struct_initializer& node) override {
+        before_print();
+        print_indent();
+        m_out << "struct_initializer\n";
+        after_print(static_cast<int>(node.initializers().size()));
+    }
+
+    // union_initializer: 1 child (initializer)
+    void visit(const logical_ir::union_initializer& node) override {
+        before_print();
+        print_indent();
+        m_out << "union_initializer\n";
+        after_print(1);
+    }
+
     // function_call: 1 + arguments.size() (callee + args)
     void visit(const logical_ir::function_call& node) override {
         before_print();
@@ -823,6 +881,22 @@ public:
         print_indent();
         m_out << "conditional_expression\n";
         after_print(3);
+    }
+
+    // set_address: 2 children (destination, value)
+    void visit(const logical_ir::set_address& node) override {
+        before_print();
+        print_indent();
+        m_out << "set_address\n";
+        after_print(2);
+    }
+
+    // set_variable: 2 children (variable, value)
+    void visit(const logical_ir::set_variable& node) override {
+        before_print();
+        print_indent();
+        m_out << "set_variable\n";
+        after_print(2);
     }
 
     // expression_statement: 1 child (expression)
