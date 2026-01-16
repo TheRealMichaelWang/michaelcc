@@ -381,6 +381,11 @@ std::unique_ptr<ast::ast_element> michaelcc::parser::parse_value()
         value = std::make_unique<ast::initializer_list_expression>(std::move(initializers), source_location(location));
         break;
     }
+    case MICHAELCC_TOKEN_NOT:
+    case MICHAELCC_TOKEN_MINUS:
+        next_token();
+        value = std::make_unique<ast::unary_operation>(current_token().type(), parse_value(), source_location(location));
+        break;
     default: {
         std::unique_ptr<ast::ast_element> destination = parse_set_destination();
         if (current_token().type() == MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR) {

@@ -39,6 +39,7 @@ namespace michaelcc {
         class dereference_operator;
         class get_reference;
         class arithmetic_operator;
+        class unary_operation;
         class conditional_expression;
         class function_call;
         class initializer_list_expression;
@@ -75,6 +76,7 @@ namespace michaelcc {
             dereference_operator,
             get_reference,
             arithmetic_operator,
+            unary_operation,
             conditional_expression,
             function_call,
             initializer_list_expression,
@@ -122,6 +124,7 @@ namespace michaelcc {
             dereference_operator,
             get_reference,
             arithmetic_operator,
+            unary_operation,
             conditional_expression,
             function_call,
             initializer_list_expression
@@ -156,6 +159,7 @@ namespace michaelcc {
             const dereference_operator,
             const get_reference,
             const arithmetic_operator,
+            const unary_operation,
             const conditional_expression,
             const function_call,
             const initializer_list_expression
@@ -950,6 +954,27 @@ namespace michaelcc {
                 for (const auto& init : m_initializers) {
                     init->accept(v);
                 }
+            }
+        };
+
+        class unary_operation final : public ast_element {
+        private:
+            token_type m_operator;
+            std::unique_ptr<ast_element> m_operand;
+        public:
+            unary_operation(token_type op, std::unique_ptr<ast_element>&& operand, source_location&& location)
+                : ast_element(std::move(location)), m_operator(op), m_operand(std::move(operand)) {}
+
+            const token_type get_operator() const noexcept { return m_operator; }
+            const std::unique_ptr<ast_element>& operand() const noexcept { return m_operand; }
+
+            std::unique_ptr<ast_element> clone() const override {
+                return std::make_unique<unary_operation>(m_operator, m_operand->clone(), source_location(location()));
+            }
+
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_operand->accept(v);
             }
         };
 
