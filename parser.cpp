@@ -383,6 +383,7 @@ std::unique_ptr<ast::ast_element> michaelcc::parser::parse_value()
     }
     case MICHAELCC_TOKEN_NOT:
     case MICHAELCC_TOKEN_MINUS:
+    case MICHAELCC_TOKEN_TILDE:
         next_token();
         value = std::make_unique<ast::unary_operation>(current_token().type(), parse_value(), source_location(location));
         break;
