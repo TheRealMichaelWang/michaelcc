@@ -285,7 +285,7 @@ namespace michaelcc {
             void handle_default(const ast::ast_element& node) override;
         };
 
-        class top_level_compiler : public ast::visitor {
+        /*class top_level_compiler : public ast::visitor {
         private:
             compiler& m_compiler;
 
@@ -296,7 +296,7 @@ namespace michaelcc {
                 m_compiler.m_translation_unit.add_static_variable_declaration(m_compiler.compile_variable_declaration(node, true));
             }
             void visit(const ast::function_declaration& node) override;
-        };
+        };*/
 
         static compilation_error panic(const std::string& msg, const source_location& location) noexcept {
             return compilation_error(msg, location);
@@ -309,7 +309,6 @@ namespace michaelcc {
         type_layout_calculator m_type_layout_calculator;
         address_of_compiler m_address_of_compiler;
         statement_compiler m_statement_compiler;
-        top_level_compiler m_top_level_compiler;
 
         logical_ir::symbol_explorer m_symbol_explorer;
 
@@ -333,6 +332,8 @@ namespace michaelcc {
         
         typing::qual_type resolve_type(const ast::ast_element& node, bool allow_vla=false);
         std::unique_ptr<logical_ir::expression> compile_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type = std::nullopt, bool is_type_hint=false);
+    
+        std::shared_ptr<logical_ir::function_definition> compile_function_declaration(const ast::function_declaration& node);
     public:
         compiler(const platform_info platform_info) 
             : m_translation_unit(), m_platform_info(platform_info), 
@@ -340,7 +341,6 @@ namespace michaelcc {
             m_type_layout_calculator(m_platform_info),
             m_address_of_compiler(*this),
             m_statement_compiler(*this),
-            m_top_level_compiler(*this),
             m_symbol_explorer() { }
 
 
