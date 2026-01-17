@@ -216,6 +216,63 @@ namespace michaelcc {
             }
         };
 
+        class enum_type final : public base_type {
+        public:
+            struct enumerator {
+                std::string name;
+                int64_t value;
+            };
+
+        private:
+            std::optional<std::string> m_name;
+            std::vector<enumerator> m_enumerators;
+
+        public:
+            enum_type(std::optional<std::string> name, std::vector<enumerator> enumerators)
+                : m_name(std::move(name)), m_enumerators(std::move(enumerators)) {}
+
+            const std::optional<std::string>& name() const noexcept { return m_name; }
+            const std::vector<enumerator>& enumerators() const noexcept { return m_enumerators; }
+
+            bool is_assignable_from(const base_type& other) const override {
+                if (typeid(other) != typeid(*this)) {
+                    return false;
+                }
+
+                const enum_type& other_enum = static_cast<const enum_type&>(other);
+                
+                // Named enums: same name = same type
+                if (m_name.has_value() && other_enum.name().has_value()) {
+                    return m_name == other_enum.name();
+                }
+
+                // Anonymous enums: structural comparison
+                if (m_enumerators.size() != other_enum.enumerators().size()) {
+                    return false;
+                }
+                for (size_t i = 0; i < m_enumerators.size(); i++) {
+                    if (m_enumerators[i].value != other_enum.enumerators()[i].value) {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            void to_string(std::ostringstream& ss) const override {
+                if (m_name.has_value()) {
+                    ss << "enum " << m_name.value();
+                    return;
+                }
+                ss << "enum { ";
+                for (size_t i = 0; i < m_enumerators.size(); i++) {
+                    if (i > 0) ss << ", ";
+                    ss << m_enumerators[i].name << " = " << m_enumerators[i].value;
+                }
+                ss << " }";
+            }
+        };
+
         class int_type : public base_type {
         private:
             uint8_t m_int_qualifiers;
@@ -234,6 +291,10 @@ namespace michaelcc {
 
             bool is_assignable_from(const base_type& other) const override {
                 if (typeid(other) != typeid(*this)) {
+                    if (const enum_type* other_enum = dynamic_cast<const enum_type*>(&other)) {
+                        return true;
+                    }
+                    
                     return false;
                 }
 
@@ -559,63 +620,6 @@ namespace michaelcc {
                     ss << " " << m.name << "; ";
                 }
                 ss << "}";
-            }
-        };
-
-        class enum_type final : public base_type {
-        public:
-            struct enumerator {
-                std::string name;
-                int64_t value;
-            };
-
-        private:
-            std::optional<std::string> m_name;
-            std::vector<enumerator> m_enumerators;
-
-        public:
-            enum_type(std::optional<std::string> name, std::vector<enumerator> enumerators)
-                : m_name(std::move(name)), m_enumerators(std::move(enumerators)) {}
-
-            const std::optional<std::string>& name() const noexcept { return m_name; }
-            const std::vector<enumerator>& enumerators() const noexcept { return m_enumerators; }
-
-            bool is_assignable_from(const base_type& other) const override {
-                if (typeid(other) != typeid(*this)) {
-                    return false;
-                }
-
-                const enum_type& other_enum = static_cast<const enum_type&>(other);
-                
-                // Named enums: same name = same type
-                if (m_name.has_value() && other_enum.name().has_value()) {
-                    return m_name == other_enum.name();
-                }
-
-                // Anonymous enums: structural comparison
-                if (m_enumerators.size() != other_enum.enumerators().size()) {
-                    return false;
-                }
-                for (size_t i = 0; i < m_enumerators.size(); i++) {
-                    if (m_enumerators[i].value != other_enum.enumerators()[i].value) {
-                        return false;
-                    }
-                }
-
-                return true;
-            }
-
-            void to_string(std::ostringstream& ss) const override {
-                if (m_name.has_value()) {
-                    ss << "enum " << m_name.value();
-                    return;
-                }
-                ss << "enum { ";
-                for (size_t i = 0; i < m_enumerators.size(); i++) {
-                    if (i > 0) ss << ", ";
-                    ss << m_enumerators[i].name << " = " << m_enumerators[i].value;
-                }
-                ss << " }";
             }
         };
     }

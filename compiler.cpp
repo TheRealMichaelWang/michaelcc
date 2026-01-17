@@ -484,6 +484,11 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     if (function) {
         return std::make_unique<logical_ir::function_reference>(std::move(function));
     }
+    
+    std::shared_ptr<logical_ir::enumerator_symbol> enumerator_symbol = std::dynamic_pointer_cast<logical_ir::enumerator_symbol>(symbol);
+    if (enumerator_symbol) {
+        return enumerator_symbol->to_literal();
+    }
 
     std::ostringstream ss;
     ss << "Symbol \"" << node.identifier() << "\" is not a variable or function that can be captured as an expression.";
@@ -609,11 +614,19 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     std::unique_ptr<logical_ir::expression> left = m_compiler.compile_expression(*node.left());
     std::unique_ptr<logical_ir::expression> right = m_compiler.compile_expression(*node.right());
 
-    std::optional<typing::qual_type> result = m_compiler.arbitrate_types(left->get_type(), right->get_type(), true);
+    std::optional<typing::qual_type> result = m_compiler.arbitrate_types(
+        left->get_type(), 
+        right->get_type(), 
+        (
+            (node.operation() >= MICHAELCC_TOKEN_EQUALS && node.operation() <= MICHAELCC_TOKEN_LESS_EQUAL) ? MICHAELCC_ARBITRATE_COMPARE : 
+            (node.operation() >= MICHAELCC_TOKEN_DOUBLE_OR && node.operation() <= MICHAELCC_TOKEN_DOUBLE_AND) ? MICHAELCC_ARBITRATE_LOGICAL : 
+            MICHAELCC_ARBITRATE_NUMERIC 
+        )
+    );
     if (!result) {
         std::ostringstream ss;
-        ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid arithmetic operation.";
-        ss << "Cannot arbitrate types \"" << left->get_type().to_string() << "\" and \"" << right->get_type().to_string() << "\".";
+        ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid arithmetic operation (" << token_to_str(node.operation()) << "). ";
+        ss << "Cannot arbitrate types \"" << left->get_type().to_string() << "\" and \"" << right->get_type().to_string() << "\"";
         throw panic(ss.str(), node.location());
     }
     return std::make_unique<logical_ir::arithmetic_operator>(
@@ -1010,12 +1023,21 @@ void compiler::statement_compiler::handle_default(const ast::ast_element& node) 
     throw panic(ss.str(), node.location());
 }
 
-std::optional<typing::qual_type> compiler::arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, bool arbitrate_numeric) const noexcept {
+std::optional<typing::qual_type> compiler::arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, type_arbitartion_mode mode) const noexcept {
     if (left == right) {
-        if (arbitrate_numeric && !left.is_same_type<typing::int_type>() && !left.is_same_type<typing::float_type>()) {
-            return std::nullopt;
+        if (mode == MICHAELCC_ARBITRATE_NONE) {
+            return left;
         }
-        return left;
+        if (mode == MICHAELCC_ARBITRATE_LOGICAL && (left.is_same_type<typing::int_type>() || left.is_same_type<typing::pointer_type>() || left.is_same_type<typing::enum_type>())) {
+            return left;
+        }
+        if (mode >= MICHAELCC_ARBITRATE_NUMERIC && (left.is_same_type<typing::int_type>() || left.is_same_type<typing::float_type>())) {
+            return left;
+        }
+        if (mode >= MICHAELCC_ARBITRATE_COMPARE && (left.is_same_type<typing::pointer_type>() || left.is_same_type<typing::enum_type>())) {
+            return left;
+        }
+        return std::nullopt;
     }
 
     if (is_numeric_type(left) && is_numeric_type(right)) {
@@ -1049,6 +1071,12 @@ std::optional<typing::qual_type> compiler::arbitrate_types(const typing::qual_ty
     if (left.is_same_type<typing::int_type>() && right.is_same_type<typing::pointer_type>()) {
         return right;
     }
+    if (left.is_same_type<typing::enum_type>() && right.is_same_type<typing::int_type>()) {
+        return right;
+    }
+    if (left.is_same_type<typing::int_type>() && right.is_same_type<typing::enum_type>()) {
+        return left;
+    }
 
     return std::nullopt;
 }
@@ -1062,10 +1090,19 @@ std::unique_ptr<logical_ir::expression> compiler::compile_expression(const ast::
     expression_compiler expression_compiler(*this, target_type);
     std::unique_ptr<logical_ir::expression> expression = expression_compiler(node);
 
-    if (target_type && !target_type->is_assignable_from(expression->get_type()) && !is_type_hint) {
-        std::ostringstream ss;
-        ss << "Expression \"" << ast::to_c_string(node) << "\" is not the same type as the target type.";
-        throw panic(ss.str(), node.location());
+    if (target_type && !is_type_hint) {
+        if (!target_type->is_assignable_from(expression->get_type())) {
+            std::ostringstream ss;
+            ss << "Expression \"" << ast::to_c_string(node) << "\" (of type " << expression->get_type().to_string();
+            ss << ") is not the same type as the target type " << target_type->to_string() << ".";
+            throw panic(ss.str(), node.location());
+        }
+
+        if (target_type == expression->get_type()) {
+            return expression;
+        }
+
+        return std::make_unique<logical_ir::type_cast>(std::move(expression), typing::qual_type(target_type.value()));
     }
     return expression;
 }

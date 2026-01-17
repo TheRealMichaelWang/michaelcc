@@ -48,6 +48,7 @@ namespace michaelcc {
 		class loop_statement;
 		class break_statement;
 		class continue_statement;
+		class enumerator_literal;
 		class translation_unit;
 
 		class visitor : public mutable_generic_visitor<
@@ -84,6 +85,7 @@ namespace michaelcc {
 			loop_statement,
 			break_statement,
 			continue_statement,
+			enumerator_literal,
 			translation_unit
 		> { 
 		private:
@@ -127,6 +129,7 @@ namespace michaelcc {
 			loop_statement,
 			break_statement,
 			continue_statement,
+			enumerator_literal,
 			translation_unit
 		>;
 
@@ -1039,6 +1042,50 @@ namespace michaelcc {
 			}
 		};
 
+		class enumerator_literal final : public expression {
+		private:
+			typing::enum_type::enumerator m_enumerator;
+			std::shared_ptr<typing::enum_type> m_enum_type;
+		public:
+			enumerator_literal(typing::enum_type::enumerator&& enumerator, std::shared_ptr<typing::enum_type> enum_type)
+				: m_enumerator(std::move(enumerator)), m_enum_type(std::move(enum_type)) {}
+
+			const typing::enum_type::enumerator& enumerator() const noexcept { return m_enumerator; }
+			const std::shared_ptr<typing::enum_type>& enum_type() const noexcept { return m_enum_type; }
+
+			const typing::qual_type get_type() const override {
+				return typing::qual_type::weak(m_enum_type);
+			}
+
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+			}
+
+			void accept(const_visitor& v) const override {
+				v.visit(*this);
+			}
+		};
+
+		class enumerator_symbol final : public symbol {
+		private:
+			typing::enum_type::enumerator m_enumerator;
+			std::shared_ptr<typing::enum_type> m_enum_type;
+		public:
+			enumerator_symbol(typing::enum_type::enumerator&& enumerator, std::shared_ptr<typing::enum_type>&& enum_type, std::weak_ptr<symbol_context>&& context)
+				: symbol(std::move(enumerator.name), std::move(context)), m_enumerator(std::move(enumerator)), m_enum_type(std::move(enum_type)) {}
+
+			const typing::enum_type::enumerator& enumerator() const noexcept { return m_enumerator; }
+			const std::shared_ptr<typing::enum_type>& enum_type() const noexcept { return m_enum_type; }
+
+			std::string to_string() const noexcept override {
+				return std::format("enumerator {} of enum {}", m_enumerator.name, m_enum_type->name().value());
+			}
+
+			std::unique_ptr<enumerator_literal> to_literal() const {
+				return std::make_unique<enumerator_literal>(typing::enum_type::enumerator(m_enumerator.name, m_enumerator.value), m_enum_type);
+			}
+		};
+
 		class function_call final : public expression {
 		public:
 			using callable = std::variant<std::shared_ptr<function_definition>, std::shared_ptr<expression>>;
@@ -1101,19 +1148,19 @@ namespace michaelcc {
 		public:
             translation_unit() : m_global_context(std::make_shared<symbol_context>()) {}
 
-            void declare_struct(std::unique_ptr<typing::struct_type>&& struct_type) {
+            void declare_struct(std::shared_ptr<typing::struct_type>&& struct_type) {
                 std::string name = struct_type->name().value();
-                m_structs[name] = std::shared_ptr<typing::struct_type>(std::move(struct_type));
+                m_structs[name] = std::move(struct_type);
             }
 
-            void declare_union(std::unique_ptr<typing::union_type>&& union_type) {
+            void declare_union(std::shared_ptr<typing::union_type>&& union_type) {
                 std::string name = union_type->name().value();
-                m_unions[name] = std::shared_ptr<typing::union_type>(std::move(union_type));
+                m_unions[name] = std::move(union_type);
             }
 
-            void declare_enum(std::unique_ptr<typing::enum_type>&& enum_type) {
+            void declare_enum(std::shared_ptr<typing::enum_type>&& enum_type) {
                 std::string name = enum_type->name().value();
-                m_enums[name] = std::shared_ptr<typing::enum_type>(std::move(enum_type));
+                m_enums[name] = std::move(enum_type);
             }
 
             std::shared_ptr<typing::struct_type> lookup_struct(const std::string& name) {
