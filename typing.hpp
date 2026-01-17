@@ -359,6 +359,15 @@ namespace michaelcc {
             const qual_type& pointee_type() const noexcept { return m_pointee_type; }
 
             bool is_assignable_from(const base_type& other) const override {
+                // Array-to-pointer decay: int[] can be assigned to int*
+                if (const array_type* other_arr = dynamic_cast<const array_type*>(&other)) {
+                    // void* accepts any array
+                    if (dynamic_cast<const void_type*>(m_pointee_type.type().get()) != nullptr) {
+                        return true;
+                    }
+                    return m_pointee_type.type()->is_assignable_from(*other_arr->element_type().type());
+                }
+
                 if (typeid(other) != typeid(*this)) {
                     // void* can accept function pointers
                     if (typeid(other) == typeid(function_pointer_type)

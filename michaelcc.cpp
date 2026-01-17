@@ -23,7 +23,7 @@ int main()
 	ss << infile.rdbuf();
 
 	try {
-		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/data_structures.c");
+		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/arrays.c");
 		preprocessor.preprocess();
 		vector<michaelcc::token> tokens = preprocessor.result();
 
