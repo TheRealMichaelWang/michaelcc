@@ -879,10 +879,40 @@ std::unique_ptr<ast::function_declaration> parser::parse_function_declaration() 
 
 std::vector<std::unique_ptr<ast::ast_element>> michaelcc::parser::parse_all()
 {
+    auto parse_function_or_variable = [this](size_t backup, source_location backup_loc) {
+        // Try to parse as function prototype or declaration
+        auto return_type = parse_type();
+        if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
+            std::string func_name = current_token().string();
+            next_token();
+            if (current_token().type() == MICHAELCC_TOKEN_OPEN_PAREN) {
+                parse_parameter_list();
+                if (current_token().type() == MICHAELCC_TOKEN_SEMICOLON) {
+                    m_token_index = backup;
+                    current_loc = backup_loc;
+                    m_result.push_back(parse_function_prototype());
+                    return;
+                }
+                else if (current_token().type() == MICHAELCC_TOKEN_OPEN_BRACE) {
+                    m_token_index = backup;
+                    current_loc = backup_loc;
+                    m_result.push_back(parse_function_declaration());
+                    return;
+                }
+            }
+        }
+
+        // If not a function, treat as variable declaration
+        m_token_index = backup;
+        current_loc = backup_loc;
+        m_result.push_back(std::make_unique<ast::variable_declaration>(parse_variable_declaration()));
+    };
+
     while (!end())
     {
         size_t backup = m_token_index;
         auto backup_loc = current_loc;
+        bool need_semicolon = true;
 
         switch (current_token().type())
         {
@@ -891,9 +921,11 @@ std::vector<std::unique_ptr<ast::ast_element>> michaelcc::parser::parse_all()
             if (struct_decl->fields().empty()) {
                 m_token_index = backup;
                 current_loc = backup_loc;
-                goto parse_as_function_or_variable_declaration;
+                parse_function_or_variable(backup, backup_loc);
+                need_semicolon = false;
+            } else {
+                m_result.emplace_back(std::move(struct_decl));
             }
-            m_result.emplace_back(std::move(struct_decl));
             break;
         }
         case MICHAELCC_TOKEN_UNION: {
@@ -901,9 +933,11 @@ std::vector<std::unique_ptr<ast::ast_element>> michaelcc::parser::parse_all()
             if (union_decl->members().empty()) {
                 m_token_index = backup;
                 current_loc = backup_loc;
-                goto parse_as_function_or_variable_declaration;
+                parse_function_or_variable(backup, backup_loc);
+                need_semicolon = false;
+            } else {
+                m_result.emplace_back(std::move(union_decl));
             }
-            m_result.emplace_back(std::move(union_decl));
             break;
         }
         case MICHAELCC_TOKEN_ENUM: {
@@ -911,9 +945,11 @@ std::vector<std::unique_ptr<ast::ast_element>> michaelcc::parser::parse_all()
             if (enum_decl->enumerators().empty()) {
                 m_token_index = backup;
                 current_loc = backup_loc;
-                goto parse_as_function_or_variable_declaration;
+                parse_function_or_variable(backup, backup_loc);
+                need_semicolon = false;
+            } else {
+                m_result.emplace_back(std::move(enum_decl));
             }
-            m_result.emplace_back(std::move(enum_decl));
             break;
         }
         case MICHAELCC_TOKEN_TYPEDEF: {
@@ -937,42 +973,18 @@ std::vector<std::unique_ptr<ast::ast_element>> michaelcc::parser::parse_all()
         case MICHAELCC_TOKEN_FLOAT:
         case MICHAELCC_TOKEN_DOUBLE:
         case MICHAELCC_TOKEN_IDENTIFIER:
-        case MICHAELCC_TOKEN_VOID: 
-        parse_as_function_or_variable_declaration: {
-            // Try to parse as function prototype or declaration
-            auto return_type = parse_type();
-            if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
-                std::string func_name = current_token().string();
-                next_token();
-                if (current_token().type() == MICHAELCC_TOKEN_OPEN_PAREN) {
-                    parse_parameter_list();
-                    if (current_token().type() == MICHAELCC_TOKEN_SEMICOLON) {
-                        m_token_index = backup;
-                        current_loc = backup_loc;
-                        m_result.push_back(parse_function_prototype());
-                        continue;
-                    }
-                    else if (current_token().type() == MICHAELCC_TOKEN_OPEN_BRACE) {
-                        m_token_index = backup;
-                        current_loc = backup_loc;
-                        m_result.push_back(parse_function_declaration());
-                        continue;
-                    }
-                }
-            }
-
-            // If not a function, treat as variable declaration
-            m_token_index = backup;
-            current_loc = backup_loc;
-            m_result.push_back(std::make_unique<ast::variable_declaration>(parse_variable_declaration()));
-            continue;
-        }
+        case MICHAELCC_TOKEN_VOID:
+            parse_function_or_variable(backup, backup_loc);
+            need_semicolon = false;
+            break;
         default:
             break;
         }
 
-        match_token(MICHAELCC_TOKEN_SEMICOLON);
-        next_token();
+        if (need_semicolon) {
+            match_token(MICHAELCC_TOKEN_SEMICOLON);
+            next_token();
+        }
     }
 
     // Clear internal typedef map after parsing
