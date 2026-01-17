@@ -227,6 +227,7 @@ namespace michaelcc {
             std::unique_ptr<logical_ir::expression> dispatch(const ast::arithmetic_operator& node) override { handle_default(node); return nullptr; }
             std::unique_ptr<logical_ir::expression> dispatch(const ast::unary_operation& node) override { handle_default(node); return nullptr; }
             std::unique_ptr<logical_ir::expression> dispatch(const ast::conditional_expression& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::cast_expression& node) override { return (*this)(*node.operand()); }
             std::unique_ptr<logical_ir::expression> dispatch(const ast::function_call& node) override { handle_default(node); return nullptr; }
             std::unique_ptr<logical_ir::expression> dispatch(const ast::initializer_list_expression& node) override { handle_default(node); return nullptr; }
 
@@ -254,6 +255,7 @@ namespace michaelcc {
             std::unique_ptr<logical_ir::expression> dispatch(const ast::arithmetic_operator& node) override;
             std::unique_ptr<logical_ir::expression> dispatch(const ast::unary_operation& node) override;
             std::unique_ptr<logical_ir::expression> dispatch(const ast::conditional_expression& node) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const ast::cast_expression& node) override;
             std::unique_ptr<logical_ir::expression> dispatch(const ast::function_call& node) override;
             std::unique_ptr<logical_ir::expression> dispatch(const ast::initializer_list_expression& node) override;
 

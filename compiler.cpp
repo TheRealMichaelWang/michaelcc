@@ -702,6 +702,21 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     );
 }
 
+std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::cast_expression& node) {
+    std::unique_ptr<logical_ir::expression> operand = m_compiler.compile_expression(*node.operand());
+    auto target_type = m_compiler.resolve_type(*node.target_type());
+
+    std::optional<typing::qual_type> result = m_compiler.arbitrate_types(operand->get_type(), target_type);
+    if (!result) {
+        std::ostringstream ss;
+        ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid cast expression.";
+        ss << "Cannot arbitrate types \"" << operand->get_type().to_string() << "\" and \"" << target_type.to_string() << "\".";
+        throw panic(ss.str(), node.location());
+    }
+
+    return std::make_unique<logical_ir::type_cast>(std::move(operand), std::move(target_type));
+}
+
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::function_call& node) {
     std::vector<std::unique_ptr<logical_ir::expression>> arguments;
     arguments.reserve(node.arguments().size());

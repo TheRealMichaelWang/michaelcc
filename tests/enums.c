@@ -34,15 +34,15 @@ int is_primary_color(enum Color c) {
 }
 
 enum Direction turn_right(enum Direction d) {
-    return (d + 1) % 4;
+    return (enum Direction)((d + 1) % 4);
 }
 
 enum Direction turn_left(enum Direction d) {
-    return (d + 3) % 4;
+    return (enum Direction)((d + 3) % 4);
 }
 
 enum Direction opposite(enum Direction d) {
-    return (d + 2) % 4;
+    return (enum Direction)((d + 2) % 4);
 }
 
 int is_weekend(enum Days day) {
