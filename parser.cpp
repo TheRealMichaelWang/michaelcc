@@ -518,6 +518,20 @@ std::unique_ptr<ast::ast_element> parser::parse_statement() {
         auto true_block = parse_block();
         if (current_token().type() == MICHAELCC_TOKEN_ELSE) {
             next_token();
+            // Handle "else if" by parsing the if as a nested statement
+            if (current_token().type() == MICHAELCC_TOKEN_IF) {
+                source_location else_if_loc = current_loc;
+                auto nested_if = parse_statement();
+                std::vector<std::unique_ptr<ast::ast_element>> stmts;
+                stmts.push_back(std::move(nested_if));
+                ast::context_block false_block(std::move(stmts), std::move(else_if_loc));
+                return std::make_unique<ast::if_else_block>(
+                    std::move(condition),
+                    std::move(true_block),
+                    std::move(false_block),
+                    std::move(location)
+                );
+            }
             auto false_block = parse_block();
             return std::make_unique<ast::if_else_block>(
                 std::move(condition),
