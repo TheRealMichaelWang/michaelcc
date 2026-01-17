@@ -462,13 +462,15 @@ namespace michaelcc {
 			const typing::qual_type get_type() const override { 
                 return typing::qual_type(std::make_shared<typing::pointer_type>(std::visit(overloaded { 
                     [](const std::shared_ptr<variable>& variable) {
-                        return variable->get_type().to_weak();
+                        return variable->get_type();
                     },
                     [](const std::unique_ptr<array_index>& array_index) {
-                        return array_index->base()->get_type().to_weak();
+                        // Address of arr[i] is a pointer to the element type, not to the base type
+                        return array_index->get_type();
                     },
                     [](const std::unique_ptr<member_access>& member_access) {
-                        return member_access->base()->get_type().to_weak();
+                        // Address of struct.member is a pointer to the member type
+                        return member_access->get_type();
                     }
                 }, m_operand)));
             }

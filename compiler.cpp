@@ -254,8 +254,10 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::qualified_type& t
 typing::qual_type compiler::type_resolver::dispatch(const ast::derived_type& type) {
     switch (type.type_kind()) {
         case ast::derived_type::kind::POINTER:
+            // Use owning reference - primitives need to stay alive, and named types 
+            // (structs/unions/enums) are kept alive by the translation_unit
             return typing::qual_type(std::make_shared<typing::pointer_type>(
-                m_compiler.resolve_type(*type.inner_type()).to_weak()
+                m_compiler.resolve_type(*type.inner_type())
             ));
         case ast::derived_type::kind::ARRAY:
             if (type.array_size()) {
@@ -266,8 +268,9 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::derived_type& typ
                 }
                 m_vla_dimensions.push_back(m_compiler.compile_expression(*type.array_size().value()));
             }
+            // Use owning reference for element type
             return typing::qual_type(std::make_shared<typing::array_type>(
-                (*this)(*type.inner_type()).to_weak()
+                (*this)(*type.inner_type())
             ));
         default:
             throw std::runtime_error("Invalid derived type kind");
@@ -715,7 +718,8 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
                 throw panic(ss.str(), node.location());
             }
             for (size_t i = 0; i < function->parameters().size(); i++) {
-                if (!arguments[i]->get_type().is_assignable_from(function->parameters()[i]->get_type())) {
+                // Check if the parameter type can accept the argument type
+                if (!function->parameters()[i]->get_type().is_assignable_from(arguments[i]->get_type())) {
                     std::ostringstream ss;
                     ss << "Argument " << i << " is not the same type as the parameter " << function->parameters()[i]->name() << ". ";
                     ss << "Expected " << function->parameters()[i]->get_type().to_string() << ", but got " << arguments[i]->get_type().to_string() << ".";
@@ -740,7 +744,8 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
         throw panic(ss.str(), node.location());
     }
     for (size_t i = 0; i < function_pointer->parameter_types().size(); i++) {
-        if (!arguments[i]->get_type().is_assignable_from(function_pointer->parameter_types()[i])) {
+        // Check if the parameter type can accept the argument type
+        if (!function_pointer->parameter_types()[i].is_assignable_from(arguments[i]->get_type())) {
             std::ostringstream ss;
             ss << "Argument " << i << " is not the same type as the parameter " << function_pointer->parameter_types()[i].to_string() << ". ";
             ss << "Expected " << function_pointer->parameter_types()[i].to_string() << ", but got " << arguments[i]->get_type().to_string() << ".";
