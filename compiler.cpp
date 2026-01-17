@@ -4,64 +4,77 @@
 #include "tokens.hpp"
 #include "typing.hpp"
 #include <cstdint>
+#include <functional>
 #include <memory>
-#include <optional>
-#include <queue>
-#include <sstream>
 #include <numeric>
+#include <optional>
+#include <set>
+#include <sstream>
 #include <vector>
-#include <iostream>
 
 using namespace michaelcc;
 
 void compiler::check_layout_dependencies(const std::shared_ptr<typing::base_type>& type) {
-    std::map<std::shared_ptr<typing::base_type>, std::shared_ptr<typing::base_type>> last_seen_parent;
-
-    std::queue<std::shared_ptr<typing::base_type>> type_to_resolve;
-    type_to_resolve.push(type);
-
-    while (!type_to_resolve.empty()) {
-        std::shared_ptr<typing::base_type> type = type_to_resolve.front();
-        if (last_seen_parent.contains(type)) { //check for circular dependencies
+    // Track the current path from root to detect true cycles
+    // A cycle occurs when we try to add a type that's already IN the current DFS path
+    std::set<std::shared_ptr<typing::base_type>> in_current_path;
+    // Track fully processed types to avoid redundant work
+    std::set<std::shared_ptr<typing::base_type>> fully_processed;
+    
+    std::function<void(const std::shared_ptr<typing::base_type>&, std::vector<std::shared_ptr<typing::base_type>>&)> 
+        check_recursive = [&](const std::shared_ptr<typing::base_type>& current_type, 
+                             std::vector<std::shared_ptr<typing::base_type>>& path) {
+        if (!current_type) return;
+        
+        // Skip if already fully processed
+        if (fully_processed.contains(current_type)) return;
+        
+        // Check for circular dependency (type is already in current path)
+        if (in_current_path.contains(current_type)) {
             std::ostringstream ss;
-
             ss << "Circular memory layout dependency detected with type ";
-            type->to_string(ss);
-            if (m_type_declaration_locations.contains(type)) {
-                ss << "(at " << m_type_declaration_locations.at(type).to_string() << ')';
+            current_type->to_string(ss);
+            if (m_type_declaration_locations.contains(current_type)) {
+                ss << " (at " << m_type_declaration_locations.at(current_type).to_string() << ')';
             }
-
-            std::vector<std::shared_ptr<typing::base_type>> path;
-            std::shared_ptr<typing::base_type> current = last_seen_parent[type];
-            while (current != type) {
-                path.push_back(current);
-                current = last_seen_parent[current];
-            }
-            path.push_back(type);
-            std::reverse(path.begin(), path.end());
             ss << " in the following path: ";
-
-            for (const auto& path_type : path) {
-                path_type->to_string(ss);
-                if (m_type_declaration_locations.contains(path_type)) {
-                    ss << " (at " << m_type_declaration_locations.at(path_type).to_string() << ')';
+            
+            // Find where the cycle starts in the path
+            auto cycle_start = std::find(path.begin(), path.end(), current_type);
+            for (auto it = cycle_start; it != path.end(); ++it) {
+                (*it)->to_string(ss);
+                if (m_type_declaration_locations.contains(*it)) {
+                    ss << " (at " << m_type_declaration_locations.at(*it).to_string() << ')';
                 }
-                if (path_type != type) {
-                    ss << " -> ";
-                }
+                ss << " -> ";
             }
+            current_type->to_string(ss);
             ss << '.';
-
-            throw compilation_error(ss.str(), m_type_declaration_locations.at(type));
+            
+            throw compilation_error(ss.str(), m_type_declaration_locations.count(current_type) ? 
+                m_type_declaration_locations.at(current_type) : source_location());
         }
-        type_to_resolve.pop();
-
-        const std::vector<std::shared_ptr<typing::base_type>> dependencies = m_layout_dependency_getter(*type);
+        
+        // Add to current path
+        in_current_path.insert(current_type);
+        path.push_back(current_type);
+        
+        // Process dependencies
+        const std::vector<std::shared_ptr<typing::base_type>> dependencies = m_layout_dependency_getter(*current_type);
         for (const auto& dependency : dependencies) {
-            type_to_resolve.push(dependency);
-            last_seen_parent[dependency] = type;
+            check_recursive(dependency, path);
         }
-    }
+        
+        // Remove from current path (backtrack)
+        path.pop_back();
+        in_current_path.erase(current_type);
+        
+        // Mark as fully processed
+        fully_processed.insert(current_type);
+    };
+    
+    std::vector<std::shared_ptr<typing::base_type>> path;
+    check_recursive(type, path);
 }
 
 const compiler::type_layout_info compiler::type_layout_calculator::dispatch(typing::int_type& type) {
@@ -1106,6 +1119,12 @@ std::shared_ptr<logical_ir::function_definition> compiler::compile_function_decl
         m_symbol_explorer.lookup(node.function_name())
     );
     
+    if (!function) {
+        std::ostringstream ss;
+        ss << "Function \"" << node.function_name() << "\" was not declared.";
+        throw panic(ss.str(), node.location());
+    }
+
     if (function->is_implemented()) {
         std::ostringstream ss;
         ss << "Function \"" << node.function_name() << "\" is already implemented.";
