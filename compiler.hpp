@@ -11,11 +11,6 @@
 
 namespace michaelcc {
     class compiler {
-    private:
-        enum class arbitrate_numeric_type {
-            NO,
-            YES
-        };
     public:
         struct platform_info {
             const size_t m_pointer_size;
@@ -34,6 +29,13 @@ namespace michaelcc {
             const bool optimize_struct_layout = true;
         };
     private:
+        enum type_arbitartion_mode {
+            MICHAELCC_ARBITRATE_NONE = 0,
+            MICHAELCC_ARBITRATE_LOGICAL = 1,
+            MICHAELCC_ARBITRATE_NUMERIC = 2,
+            MICHAELCC_ARBITRATE_COMPARE = 3,
+        };
+
         logical_ir::variable_declaration compile_variable_declaration(const ast::variable_declaration& node, bool is_global);
         
         class forward_declare_types final : public ast::visitor {
@@ -328,7 +330,7 @@ namespace michaelcc {
             return type.is_same_type<typing::int_type>() || type.is_same_type<typing::float_type>();
         }
 
-        std::optional<typing::qual_type> arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, bool arbitrate_numeric=false) const noexcept;
+        std::optional<typing::qual_type> arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, type_arbitartion_mode mode = MICHAELCC_ARBITRATE_NONE) const noexcept;
         
         typing::qual_type resolve_type(const ast::ast_element& node, bool allow_vla=false);
         std::unique_ptr<logical_ir::expression> compile_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type = std::nullopt, bool is_type_hint=false);

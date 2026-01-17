@@ -22,7 +22,7 @@ void compiler::forward_declare_types::visit(const ast::struct_declaration& node)
         });
     }
 
-    m_compiler.m_translation_unit.declare_struct(std::make_unique<typing::struct_type>(node.struct_name().value(), std::move(fields)));
+    m_compiler.m_translation_unit.declare_struct(std::make_shared<typing::struct_type>(node.struct_name().value(), std::move(fields)));
 }
 
 void compiler::forward_declare_types::visit(const ast::union_declaration& node) {
@@ -42,7 +42,7 @@ void compiler::forward_declare_types::visit(const ast::union_declaration& node) 
             0
         });
     }
-    m_compiler.m_translation_unit.declare_union(std::make_unique<typing::union_type>(node.union_name().value(), std::move(members)));
+    m_compiler.m_translation_unit.declare_union(std::make_shared<typing::union_type>(node.union_name().value(), std::move(members)));
 }
 
 void compiler::forward_declare_types::visit(const ast::enum_declaration& node) {
@@ -65,10 +65,20 @@ void compiler::forward_declare_types::visit(const ast::enum_declaration& node) {
         max_value = std::max(max_value, enumerator.value.value_or(max_value));
         max_value++;
     }
-    m_compiler.m_translation_unit.declare_enum(std::make_unique<typing::enum_type>(
+
+    auto enum_type = std::make_shared<typing::enum_type>(
         node.enum_name().value(), 
         std::move(enumerators)
-    ));
+    );
+    for (auto& enumerator : enum_type->enumerators()) {
+        m_compiler.m_translation_unit.declare_global(std::make_shared<logical_ir::enumerator_symbol>(
+            typing::enum_type::enumerator(enumerator),
+            std::shared_ptr<typing::enum_type>(enum_type),
+            m_compiler.m_translation_unit.global_context()
+        ));
+    }
+
+    m_compiler.m_translation_unit.declare_enum(std::move(enum_type));
 }
 
 void compiler::implement_type_declarations::visit(const ast::struct_declaration& node) {

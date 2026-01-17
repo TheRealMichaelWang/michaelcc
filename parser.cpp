@@ -653,6 +653,9 @@ std::unique_ptr<ast::ast_element> parser::parse_statement() {
     case MICHAELCC_TOKEN_INT:
     case MICHAELCC_TOKEN_FLOAT:
     case MICHAELCC_TOKEN_DOUBLE:
+    case MICHAELCC_TOKEN_STRUCT:
+    case MICHAELCC_TOKEN_UNION:
+    case MICHAELCC_TOKEN_ENUM:
         return std::make_unique<ast::variable_declaration>(parse_variable_declaration());
     default: {
         if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER && has_typedef(current_token().string())) {
@@ -878,17 +881,41 @@ std::vector<std::unique_ptr<ast::ast_element>> michaelcc::parser::parse_all()
 {
     while (!end())
     {
+        size_t backup = m_token_index;
+        auto backup_loc = current_loc;
+
         switch (current_token().type())
         {
-        case MICHAELCC_TOKEN_STRUCT:
-            m_result.push_back(parse_struct_declaration());
+        case MICHAELCC_TOKEN_STRUCT: {
+            auto struct_decl = parse_struct_declaration();
+            if (struct_decl->fields().empty()) {
+                m_token_index = backup;
+                current_loc = backup_loc;
+                goto parse_as_function_or_variable_declaration;
+            }
+            m_result.emplace_back(std::move(struct_decl));
             break;
-        case MICHAELCC_TOKEN_UNION:
-            m_result.push_back(parse_union_declaration());
+        }
+        case MICHAELCC_TOKEN_UNION: {
+            auto union_decl = parse_union_declaration();
+            if (union_decl->members().empty()) {
+                m_token_index = backup;
+                current_loc = backup_loc;
+                goto parse_as_function_or_variable_declaration;
+            }
+            m_result.emplace_back(std::move(union_decl));
             break;
-        case MICHAELCC_TOKEN_ENUM:
-            m_result.push_back(parse_enum_declaration());
+        }
+        case MICHAELCC_TOKEN_ENUM: {
+            auto enum_decl = parse_enum_declaration();
+            if (enum_decl->enumerators().empty()) {
+                m_token_index = backup;
+                current_loc = backup_loc;
+                goto parse_as_function_or_variable_declaration;
+            }
+            m_result.emplace_back(std::move(enum_decl));
             break;
+        }
         case MICHAELCC_TOKEN_TYPEDEF: {
             auto typedef_decl = parse_typedef_declaration();
             // Register typedef internally for type substitution
@@ -910,11 +937,9 @@ std::vector<std::unique_ptr<ast::ast_element>> michaelcc::parser::parse_all()
         case MICHAELCC_TOKEN_FLOAT:
         case MICHAELCC_TOKEN_DOUBLE:
         case MICHAELCC_TOKEN_IDENTIFIER:
-        case MICHAELCC_TOKEN_VOID: {
+        case MICHAELCC_TOKEN_VOID: 
+        parse_as_function_or_variable_declaration: {
             // Try to parse as function prototype or declaration
-            size_t backup = m_token_index;
-            auto backup_loc = current_loc;
-
             auto return_type = parse_type();
             if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
                 std::string func_name = current_token().string();
