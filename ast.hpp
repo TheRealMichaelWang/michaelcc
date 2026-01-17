@@ -41,6 +41,7 @@ namespace michaelcc {
         class arithmetic_operator;
         class unary_operation;
         class conditional_expression;
+        class cast_expression;
         class function_call;
         class initializer_list_expression;
         class variable_declaration;
@@ -78,6 +79,7 @@ namespace michaelcc {
             arithmetic_operator,
             unary_operation,
             conditional_expression,
+            cast_expression,
             function_call,
             initializer_list_expression,
             variable_declaration,
@@ -126,6 +128,7 @@ namespace michaelcc {
             arithmetic_operator,
             unary_operation,
             conditional_expression,
+            cast_expression,
             function_call,
             initializer_list_expression
         >;
@@ -161,6 +164,7 @@ namespace michaelcc {
             const arithmetic_operator,
             const unary_operation,
             const conditional_expression,
+            const cast_expression,
             const function_call,
             const initializer_list_expression
         >;
@@ -894,6 +898,33 @@ namespace michaelcc {
                 m_condition->accept(v);
                 m_true_expr->accept(v);
                 m_false_expr->accept(v);
+            }
+        };
+
+        class cast_expression final : public ast_element {
+        private:
+            std::unique_ptr<ast_element> m_target_type;
+            std::unique_ptr<ast_element> m_operand;
+
+        public:
+            cast_expression(std::unique_ptr<ast_element>&& target_type,
+                std::unique_ptr<ast_element>&& operand,
+                source_location&& location)
+                : ast_element(std::move(location)),
+                m_target_type(std::move(target_type)),
+                m_operand(std::move(operand)) {}
+
+            const std::unique_ptr<ast_element>& target_type() const noexcept { return m_target_type; }
+            const std::unique_ptr<ast_element>& operand() const noexcept { return m_operand; }
+
+            std::unique_ptr<ast_element> clone() const override {
+                return std::make_unique<cast_expression>(m_target_type->clone(), m_operand->clone(), source_location(location()));
+            }
+
+            void accept(visitor& v) const override {
+                v.visit(*this);
+                m_target_type->accept(v);
+                m_operand->accept(v);
             }
         };
 
