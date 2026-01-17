@@ -113,6 +113,31 @@ uint8_t michaelcc::parser::parse_type_qualifiers()
     }
 }
 
+bool michaelcc::parser::is_type_start() const {
+    switch (current_token().type()) {
+    case MICHAELCC_TOKEN_VOID:
+    case MICHAELCC_TOKEN_CHAR:
+    case MICHAELCC_TOKEN_SHORT:
+    case MICHAELCC_TOKEN_INT:
+    case MICHAELCC_TOKEN_LONG:
+    case MICHAELCC_TOKEN_FLOAT:
+    case MICHAELCC_TOKEN_DOUBLE:
+    case MICHAELCC_TOKEN_SIGNED:
+    case MICHAELCC_TOKEN_UNSIGNED:
+    case MICHAELCC_TOKEN_STRUCT:
+    case MICHAELCC_TOKEN_UNION:
+    case MICHAELCC_TOKEN_ENUM:
+    case MICHAELCC_TOKEN_CONST:
+    case MICHAELCC_TOKEN_VOLATILE:
+    case MICHAELCC_TOKEN_RESTRICT:
+        return true;
+    case MICHAELCC_TOKEN_IDENTIFIER:
+        return has_typedef(current_token().string());
+    default:
+        return false;
+    }
+}
+
 std::unique_ptr<ast::ast_element> parser::parse_int_type() {
     source_location location = current_loc;
     std::vector<token_type> type_keywords;
@@ -384,6 +409,13 @@ std::unique_ptr<ast::ast_element> michaelcc::parser::parse_value()
         break;
 	case MICHAELCC_TOKEN_OPEN_PAREN: {
 		next_token();
+		if (is_type_start()) {
+			auto cast_type = parse_type();
+			match_token(MICHAELCC_TOKEN_CLOSE_PAREN);
+			next_token();
+			auto operand = parse_value();
+			return std::make_unique<ast::cast_expression>(std::move(cast_type), std::move(operand), std::move(location));
+		}
 		std::unique_ptr<ast::ast_element> expression = parse_expression();
 		match_token(MICHAELCC_TOKEN_CLOSE_PAREN);
 		next_token();

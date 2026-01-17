@@ -48,6 +48,7 @@ namespace michaelcc {
 
 		uint8_t parse_storage_class();
 		uint8_t parse_type_qualifiers();
+		bool is_type_start() const;
 		std::unique_ptr<ast::ast_element> parse_int_type();
 		std::unique_ptr<ast::ast_element> parse_type(const bool parse_pointer=true);
 
