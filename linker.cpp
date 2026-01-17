@@ -6,7 +6,8 @@
 using namespace michaelcc;
 
 void compiler::forward_declare_types::visit(const ast::struct_declaration& node) {
-    if (node.fields().empty()) return; // skip structs with no implementation
+    // Skip struct references (empty fields) or anonymous structs (no name)
+    if (node.fields().empty() || !node.struct_name().has_value()) return;
 
     if (m_compiler.m_translation_unit.lookup_struct(node.struct_name().value()) != nullptr) {
         throw m_compiler.panic("Redeclaration of struct " + node.struct_name().value(), node.location());
@@ -25,7 +26,8 @@ void compiler::forward_declare_types::visit(const ast::struct_declaration& node)
 }
 
 void compiler::forward_declare_types::visit(const ast::union_declaration& node) {
-    if (node.members().empty()) return; // skip unions with no implementation
+    // Skip union references (empty members) or anonymous unions (no name)
+    if (node.members().empty() || !node.union_name().has_value()) return;
 
     if (m_compiler.m_translation_unit.lookup_union(node.union_name().value()) != nullptr) {
         throw m_compiler.panic("Redeclaration of union " + node.union_name().value(), node.location());
@@ -44,7 +46,8 @@ void compiler::forward_declare_types::visit(const ast::union_declaration& node) 
 }
 
 void compiler::forward_declare_types::visit(const ast::enum_declaration& node) {
-    if (node.enumerators().empty()) return; // skip enums with no implementation
+    // Skip enum references (empty enumerators) or anonymous enums (no name)
+    if (node.enumerators().empty() || !node.enum_name().has_value()) return;
 
     if (m_compiler.m_translation_unit.lookup_enum(node.enum_name().value()) != nullptr) {
         throw m_compiler.panic("Redeclaration of enum " + node.enum_name().value(), node.location());
@@ -69,6 +72,9 @@ void compiler::forward_declare_types::visit(const ast::enum_declaration& node) {
 }
 
 void compiler::implement_type_declarations::visit(const ast::struct_declaration& node) {
+    // Skip anonymous structs or struct references without fields - they're handled inline during type resolution
+    if (!node.struct_name().has_value() || node.fields().empty()) { return; }
+
     auto struct_type = m_compiler.m_translation_unit.lookup_struct(node.struct_name().value());
     if (struct_type == nullptr) {
         throw m_compiler.panic("Undefined struct " + node.struct_name().value(), node.location());
@@ -76,8 +82,6 @@ void compiler::implement_type_declarations::visit(const ast::struct_declaration&
     if (struct_type->is_implemented()) {
         throw m_compiler.panic("Struct " + node.struct_name().value() + " already implemented", node.location());
     }
-
-    if (node.fields().empty()) { return; } // skip structs with no implementation
 
     std::vector<typing::qual_type> field_types;
     field_types.reserve(node.fields().size());
@@ -91,6 +95,9 @@ void compiler::implement_type_declarations::visit(const ast::struct_declaration&
 }
 
 void compiler::implement_type_declarations::visit(const ast::union_declaration& node) {
+    // Skip anonymous unions or union references without members - they're handled inline during type resolution
+    if (!node.union_name().has_value() || node.members().empty()) { return; }
+
     auto union_type = m_compiler.m_translation_unit.lookup_union(node.union_name().value());
 
     if (union_type == nullptr) {
@@ -99,8 +106,6 @@ void compiler::implement_type_declarations::visit(const ast::union_declaration& 
     if (union_type->is_implemented()) {
         throw m_compiler.panic("Union " + node.union_name().value() + " already implemented", node.location());
     }
-
-    if (node.members().empty()) { return; } // skip unions with no implementation
 
     std::vector<typing::qual_type> member_types;
     member_types.reserve(node.members().size());

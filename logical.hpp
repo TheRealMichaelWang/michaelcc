@@ -1100,15 +1100,18 @@ namespace michaelcc {
             translation_unit() : m_global_context(std::make_shared<symbol_context>()) {}
 
             void declare_struct(std::unique_ptr<typing::struct_type>&& struct_type) {
-                m_structs[struct_type->name().value()] = std::shared_ptr<typing::struct_type>(std::move(struct_type));
+                std::string name = struct_type->name().value();
+                m_structs[name] = std::shared_ptr<typing::struct_type>(std::move(struct_type));
             }
 
             void declare_union(std::unique_ptr<typing::union_type>&& union_type) {
-                m_unions[union_type->name().value()] = std::shared_ptr<typing::union_type>(std::move(union_type));
+                std::string name = union_type->name().value();
+                m_unions[name] = std::shared_ptr<typing::union_type>(std::move(union_type));
             }
 
             void declare_enum(std::unique_ptr<typing::enum_type>&& enum_type) {
-                m_enums[enum_type->name().value()] = std::shared_ptr<typing::enum_type>(std::move(enum_type));
+                std::string name = enum_type->name().value();
+                m_enums[name] = std::shared_ptr<typing::enum_type>(std::move(enum_type));
             }
 
             std::shared_ptr<typing::struct_type> lookup_struct(const std::string& name) {

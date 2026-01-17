@@ -12,7 +12,7 @@ using namespace std;
 int main()
 {
     cout << "Michael C Compiler" << endl;
-	ifstream infile("../../tests/control_flow.c");
+	ifstream infile("../../tests/data_structures.c");
 	
 	if (!infile.is_open()) {
 		cerr << "Failed to open file!" << endl;
@@ -23,7 +23,7 @@ int main()
 	ss << infile.rdbuf();
 
 	try {
-		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/control_flow.c");
+		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/data_structures.c");
 		preprocessor.preprocess();
 		vector<michaelcc::token> tokens = preprocessor.result();
 
@@ -43,6 +43,8 @@ int main()
 			.m_long_long_size = 8,
 			.m_float_size = 4,
 			.m_double_size = 8,
+			.m_default_alignment = 1,
+			.m_max_alignment = 16,
 		});
 
 		compiler.compile(ast);
