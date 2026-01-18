@@ -434,6 +434,47 @@ void compiler::address_of_compiler::handle_default(const ast::ast_element& node)
     throw panic(ss.str(), node.location());
 }
 
+std::unique_ptr<logical_ir::expression> compiler::default_value_resolver::dispatch(const typing::int_type& type) {
+    return std::make_unique<logical_ir::integer_constant>(
+        0, 
+        typing::qual_type::owning(std::make_shared<typing::int_type>(type.int_qualifiers(), type.type_class()), m_qual_type.propagate_qualifiers())
+    );
+}
+
+std::unique_ptr<logical_ir::expression> compiler::default_value_resolver::dispatch(const typing::float_type& type) {
+    return std::make_unique<logical_ir::floating_constant>(
+        0.0, 
+        typing::qual_type::owning(std::make_shared<typing::float_type>(type.type_class()), m_qual_type.propagate_qualifiers())
+    );
+}
+
+std::unique_ptr<logical_ir::expression> compiler::default_value_resolver::dispatch(const typing::pointer_type& type) {
+    return std::make_unique<logical_ir::type_cast>(
+        std::make_unique<logical_ir::integer_constant>(0, typing::qual_type::owning(std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS))),
+        typing::qual_type::owning(std::make_shared<typing::pointer_type>(type.pointee_type()), m_qual_type.propagate_qualifiers())
+    );
+}
+
+std::unique_ptr<logical_ir::expression> compiler::default_value_resolver::dispatch(const typing::function_pointer_type& type) {
+    return std::make_unique<logical_ir::type_cast>(
+        std::make_unique<logical_ir::integer_constant>(0, typing::qual_type::owning(std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS))),
+        typing::qual_type::owning(std::make_shared<typing::function_pointer_type>(type.return_type(), type.parameter_types()), m_qual_type.propagate_qualifiers())
+    );
+}
+
+std::unique_ptr<logical_ir::expression> compiler::default_value_resolver::dispatch(const typing::struct_type& type) {
+    std::vector<logical_ir::struct_initializer::member_initializer> member_values;
+    member_values.reserve(type.fields().size());
+    for (const typing::member& member : type.fields()) {
+        auto default_value = m_compiler.resolve_default_value(member.member_type);
+        if (!default_value) {
+            return nullptr;
+        }
+        member_values.emplace_back(logical_ir::struct_initializer::member_initializer{member.name, std::move(default_value)});
+    }
+    return std::make_unique<logical_ir::struct_initializer>(std::move(member_values), std::static_pointer_cast<typing::struct_type>(m_qual_type.type()));
+}
+
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::int_literal& node) {
     if (m_target_type && m_target_type->is_same_type<typing::int_type>()) {
         return std::make_unique<logical_ir::integer_constant>(node.value(), typing::qual_type(m_target_type.value()));
@@ -516,7 +557,13 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
 
 std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::get_property& node) {
     std::unique_ptr<logical_ir::expression> base = m_compiler.compile_expression(*node.struct_expr());
-    typing::qual_type base_type = base->get_type();
+
+    if (node.is_pointer_dereference() && !base->get_type().is_same_type<typing::pointer_type>()) {
+        std::ostringstream ss;
+        ss << "Expression \"" << ast::to_c_string(node) << "\" is a dereferenced to get " << node.property_name() << " but is not a pointer.";
+        throw panic(ss.str(), node.location());
+    }
+    typing::qual_type base_type = node.is_pointer_dereference() ? std::static_pointer_cast<typing::pointer_type>(base->get_type().type())->pointee_type() : base->get_type();
 
     std::shared_ptr<typing::struct_type> struct_type = std::dynamic_pointer_cast<typing::struct_type>(base_type.type());
     if (struct_type) {
@@ -548,7 +595,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     }
 
     std::ostringstream ss;
-    ss << "Expression \"" << ast::to_c_string(node) << "\" is not a struct or union.";
+    ss << "Expression \"" << ast::to_c_string(node) << "\" is not a struct or union but is a " << base_type.to_string() << ".";
     throw panic(ss.str(), node.location());
 }
 
@@ -1091,8 +1138,13 @@ std::optional<typing::qual_type> compiler::arbitrate_types(const typing::qual_ty
 }
 
 typing::qual_type compiler::resolve_type(const ast::ast_element& node, bool allow_vla) {
-    type_resolver type_resolver(*this, allow_vla);
-    return type_resolver(node);
+    type_resolver m_type_resolver(*this, allow_vla);
+    return m_type_resolver(node);
+}
+
+std::unique_ptr<logical_ir::expression> compiler::resolve_default_value(const typing::qual_type& type) const noexcept {
+    default_value_resolver m_default_value_resolver(*this, typing::qual_type(type));
+    return m_default_value_resolver(*type.type());
 }
 
 std::unique_ptr<logical_ir::expression> compiler::compile_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type, bool is_type_hint) {
@@ -1159,9 +1211,13 @@ logical_ir::variable_declaration compiler::compile_variable_declaration(const as
         );
     }
     else {
-        std::ostringstream ss;
-        ss << "Variable \"" << node.identifier() << "\" is not initialized.";
-        throw panic(ss.str(), node.location());
+        auto default_value = resolve_default_value(type);
+        if (!default_value) {
+            std::ostringstream ss;
+            ss << "Default value for type " << type.to_string() << " is not available. No mechanism provided to initialize variable " << node.identifier() << ".";
+            throw panic(ss.str(), node.location());
+        }
+        return logical_ir::variable_declaration(std::move(variable), std::move(default_value));
     }
 }
 
