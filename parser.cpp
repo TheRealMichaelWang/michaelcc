@@ -375,7 +375,7 @@ std::unique_ptr<ast::ast_element> michaelcc::parser::parse_set_destination()
 		break;
 	case MICHAELCC_TOKEN_ASTERISK:
         next_token();
-		return std::make_unique<ast::dereference_operator>(parse_value(), std::move(location));
+		return std::make_unique<ast::dereference_operator>(parse_value(false), std::move(location));
 	default: {
 		std::stringstream ss;
 		ss << "Unexpected token " << token_to_str(current_token().type());
@@ -386,7 +386,7 @@ std::unique_ptr<ast::ast_element> michaelcc::parser::parse_set_destination()
 	return parse_set_accessors(std::move(value));
 }
 
-std::unique_ptr<ast::ast_element> michaelcc::parser::parse_value()
+std::unique_ptr<ast::ast_element> michaelcc::parser::parse_value(bool allow_set)
 {
 	source_location location = current_loc;
     std::unique_ptr<ast::ast_element> value;
@@ -453,7 +453,7 @@ std::unique_ptr<ast::ast_element> michaelcc::parser::parse_value()
     }
     default: {
         std::unique_ptr<ast::ast_element> destination = parse_set_destination();
-        if (current_token().type() == MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR) {
+        if (current_token().type() == MICHAELCC_TOKEN_ASSIGNMENT_OPERATOR && allow_set) {
             next_token();
             return std::make_unique<ast::set_operator>(std::move(destination), parse_expression(), std::move(location));
         }
