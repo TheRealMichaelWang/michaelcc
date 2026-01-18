@@ -39,12 +39,10 @@ int extract_tagged_int(struct TaggedValue tv) {
 }
 
 int main() {
-    union IntOrFloat iof;
-    iof.as_int = 42;
+    union IntOrFloat iof = { 42 };
     int i = iof.as_int;
     
-    union Value v;
-    v.integer = 0x12345678;
+    union Value v = { 0x12345678 };
     
     int full = v.integer;
     char low_byte = v.byte;
@@ -53,10 +51,7 @@ int main() {
     set_int(&v, 100);
     int after_set = v.integer;
     
-    struct TaggedValue tv;
-    tv.tag = 0;
-    tv.value.integer = 999;
-    
+    struct TaggedValue tv = { 0, { 999 } };
     int extracted = extract_tagged_int(tv);
     
     return 0;
