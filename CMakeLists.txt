@@ -16,6 +16,6 @@ add_executable(michaelcc
     preprocessor.cpp
     print.cpp
     parser.cpp
-    compiler.cpp
+    semantic.cpp
     linker.cpp
 )

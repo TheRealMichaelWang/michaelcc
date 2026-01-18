@@ -1,4 +1,4 @@
-#include "compiler.hpp"
+#include "semantic.hpp"
 #include "ast.hpp"
 #include "logical.hpp"
 #include "tokens.hpp"
@@ -14,7 +14,7 @@
 
 using namespace michaelcc;
 
-void compiler::check_layout_dependencies(const std::shared_ptr<typing::base_type>& type) {
+void semantic_lowerer::check_layout_dependencies(const std::shared_ptr<typing::base_type>& type) {
     // Track the current path from root to detect true cycles
     // A cycle occurs when we try to add a type that's already IN the current DFS path
     std::set<std::shared_ptr<typing::base_type>> in_current_path;
@@ -77,7 +77,7 @@ void compiler::check_layout_dependencies(const std::shared_ptr<typing::base_type
     check_recursive(type, path);
 }
 
-const compiler::type_layout_info compiler::type_layout_calculator::dispatch(typing::int_type& type) {
+const semantic_lowerer::type_layout_info semantic_lowerer::type_layout_calculator::dispatch(typing::int_type& type) {
     size_t size;
     switch (type.type_class()) {
         case typing::CHAR_INT_CLASS:
@@ -100,7 +100,7 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(typi
     return { size, std::min<size_t>(size, m_platform_info.m_max_alignment) };
 }
 
-const compiler::type_layout_info compiler::type_layout_calculator::dispatch(typing::float_type& type) {
+const semantic_lowerer::type_layout_info semantic_lowerer::type_layout_calculator::dispatch(typing::float_type& type) {
     switch (type.type_class()) {
         case typing::FLOAT_FLOAT_CLASS:
             return { 4, std::min<size_t>(4, m_platform_info.m_max_alignment) };
@@ -110,7 +110,7 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(typi
     throw std::runtime_error("Invalid float type class");
 }
 
-const compiler::type_layout_info compiler::type_layout_calculator::dispatch(typing::struct_type& type) {
+const semantic_lowerer::type_layout_info semantic_lowerer::type_layout_calculator::dispatch(typing::struct_type& type) {
     if (m_declared_info.contains(&type)) {
         return m_declared_info.at(&type);
     }
@@ -155,7 +155,7 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(typi
     return m_declared_info.at(&type);
 }
 
-const compiler::type_layout_info compiler::type_layout_calculator::dispatch(typing::union_type& type) {
+const semantic_lowerer::type_layout_info semantic_lowerer::type_layout_calculator::dispatch(typing::union_type& type) {
     if (m_declared_info.contains(&type)) {
         return m_declared_info.at(&type);
     }
@@ -178,7 +178,7 @@ const compiler::type_layout_info compiler::type_layout_calculator::dispatch(typi
     return m_declared_info.at(&type);
 }
 
-typing::qual_type compiler::type_resolver::resolve_int_type(const ast::type_specifier& type) {
+typing::qual_type semantic_lowerer::type_resolver::resolve_int_type(const ast::type_specifier& type) {
     uint8_t int_qualifiers = typing::NO_INT_QUALIFIER;
     typing::int_class int_class = typing::INT_INT_CLASS;
     
@@ -230,7 +230,7 @@ typing::qual_type compiler::type_resolver::resolve_int_type(const ast::type_spec
     return typing::qual_type(std::make_shared<typing::int_type>(int_qualifiers, int_class));
 }
 
-typing::qual_type compiler::type_resolver::dispatch(const ast::type_specifier& type) {
+typing::qual_type semantic_lowerer::type_resolver::dispatch(const ast::type_specifier& type) {
     if (type.type_keywords().size() == 1) {
         switch (type.type_keywords()[0]) {
             case MICHAELCC_TOKEN_VOID:
@@ -246,18 +246,18 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::type_specifier& t
     return resolve_int_type(type);
 }
 
-typing::qual_type compiler::type_resolver::dispatch(const ast::qualified_type& type) {
+typing::qual_type semantic_lowerer::type_resolver::dispatch(const ast::qualified_type& type) {
     auto inner_qual = (*this)(*type.inner_type());
     return typing::qual_type(inner_qual.type(), inner_qual.qualifiers() | type.qualifiers());
 }
 
-typing::qual_type compiler::type_resolver::dispatch(const ast::derived_type& type) {
+typing::qual_type semantic_lowerer::type_resolver::dispatch(const ast::derived_type& type) {
     switch (type.type_kind()) {
         case ast::derived_type::kind::POINTER:
             // Use owning reference - primitives need to stay alive, and named types 
             // (structs/unions/enums) are kept alive by the translation_unit
             return typing::qual_type(std::make_shared<typing::pointer_type>(
-                m_compiler.resolve_type(*type.inner_type())
+                m_lowerer.resolve_type(*type.inner_type())
             ));
         case ast::derived_type::kind::ARRAY:
             if (type.array_size()) {
@@ -266,7 +266,7 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::derived_type& typ
                     ss << "Variable length array is not allowed in this context.";
                     throw panic(ss.str(), type.location());
                 }
-                m_vla_dimensions.push_back(m_compiler.compile_expression(*type.array_size().value()));
+                m_vla_dimensions.push_back(m_lowerer.lower_expression(*type.array_size().value()));
             }
             // Use owning reference for element type
             return typing::qual_type(std::make_shared<typing::array_type>(
@@ -277,20 +277,20 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::derived_type& typ
     }
 }
 
-typing::qual_type compiler::type_resolver::dispatch(const ast::function_type& type) {
+typing::qual_type semantic_lowerer::type_resolver::dispatch(const ast::function_type& type) {
     std::vector<typing::qual_type> param_types;
     param_types.reserve(type.parameters().size());
     for (const auto& param : type.parameters()) {
-        param_types.push_back(m_compiler.resolve_type(*param.param_type));
+        param_types.push_back(m_lowerer.resolve_type(*param.param_type));
     }
     return typing::qual_type(std::make_shared<typing::function_pointer_type>(
-        m_compiler.resolve_type(*type.return_type()), param_types
+        m_lowerer.resolve_type(*type.return_type()), param_types
     ));
 }
 
-typing::qual_type compiler::type_resolver::dispatch(const ast::struct_declaration& type) {
+typing::qual_type semantic_lowerer::type_resolver::dispatch(const ast::struct_declaration& type) {
     if (type.struct_name().has_value()) {
-        auto struct_type = m_compiler.m_translation_unit.lookup_struct(type.struct_name().value());
+        auto struct_type = m_lowerer.m_translation_unit.lookup_struct(type.struct_name().value());
         if (!struct_type) {
             std::ostringstream ss;
             ss << "Struct \"" << type.struct_name().value() << "\" not found.";
@@ -304,19 +304,19 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::struct_declaratio
     for (const auto& field : type.fields()) {
         fields.emplace_back(typing::member{
             field.identifier(),
-            m_compiler.resolve_type(*field.type())
+            m_lowerer.resolve_type(*field.type())
         });
     }
 
     auto my_struct_type = std::make_shared<typing::struct_type>(std::nullopt, std::move(fields));
-    m_compiler.m_type_layout_calculator(*my_struct_type); //implement layout
+    m_lowerer.m_type_layout_calculator(*my_struct_type); //implement layout
 
     return typing::qual_type::owning(my_struct_type);
 }
 
-typing::qual_type compiler::type_resolver::dispatch(const ast::union_declaration& type) {
+typing::qual_type semantic_lowerer::type_resolver::dispatch(const ast::union_declaration& type) {
     if (type.union_name().has_value()) {
-        auto union_type = m_compiler.m_translation_unit.lookup_union(type.union_name().value());
+        auto union_type = m_lowerer.m_translation_unit.lookup_union(type.union_name().value());
         if (!union_type) {
             std::ostringstream ss;
             ss << "Union \"" << type.union_name().value() << "\" not found.";
@@ -330,19 +330,19 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::union_declaration
     for (const auto& member : type.members()) {
         members.emplace_back(typing::member{
             member.member_name,
-            m_compiler.resolve_type(*member.member_type),
+            m_lowerer.resolve_type(*member.member_type),
             0
         });
     }
     auto my_union_type = std::make_shared<typing::union_type>(std::nullopt, std::move(members));
-    m_compiler.m_type_layout_calculator(*my_union_type); //implement layout
+    m_lowerer.m_type_layout_calculator(*my_union_type); //implement layout
     
     return typing::qual_type::owning(my_union_type);
 }
 
-typing::qual_type compiler::type_resolver::dispatch(const ast::enum_declaration& type) {
+typing::qual_type semantic_lowerer::type_resolver::dispatch(const ast::enum_declaration& type) {
     if (type.enum_name().has_value()) {
-        auto enum_type = m_compiler.m_translation_unit.lookup_enum(type.enum_name().value());
+        auto enum_type = m_lowerer.m_translation_unit.lookup_enum(type.enum_name().value());
         if (!enum_type) {
             std::ostringstream ss;
             ss << "Enum \"" << type.enum_name().value() << "\" not found.";
@@ -366,14 +366,14 @@ typing::qual_type compiler::type_resolver::dispatch(const ast::enum_declaration&
     return typing::qual_type::owning(std::make_shared<typing::enum_type>(std::nullopt, std::move(enumerators)));
 }
 
-void compiler::type_resolver::handle_default(const ast::ast_element& node) {
+void semantic_lowerer::type_resolver::handle_default(const ast::ast_element& node) {
     std::ostringstream ss;
     ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid type.";
     throw panic(ss.str(), node.location());
 }
 
-std::unique_ptr<logical_ir::expression> compiler::address_of_compiler::dispatch(const ast::variable_reference& node) {
-    auto symbol = m_compiler.m_symbol_explorer.lookup(node.identifier());
+std::unique_ptr<logical_ir::expression> semantic_lowerer::address_resolver::dispatch(const ast::variable_reference& node) {
+    auto symbol = m_lowerer.m_symbol_explorer.lookup(node.identifier());
     if (symbol == nullptr) {
         std::ostringstream ss;
         ss << "Symbol \"" << node.identifier() << "\" not found.";
@@ -395,8 +395,8 @@ std::unique_ptr<logical_ir::expression> compiler::address_of_compiler::dispatch(
     throw panic(ss.str(), node.location());
 }
 
-std::unique_ptr<logical_ir::expression> compiler::address_of_compiler::dispatch(const ast::get_index& node) {
-    std::unique_ptr<logical_ir::array_index> array_index = dynamic_unique_cast<logical_ir::array_index>(m_compiler.compile_expression(node));
+std::unique_ptr<logical_ir::expression> semantic_lowerer::address_resolver::dispatch(const ast::get_index& node) {
+    std::unique_ptr<logical_ir::array_index> array_index = dynamic_unique_cast<logical_ir::array_index>(m_lowerer.lower_expression(node));
 
     if (array_index == nullptr) {
         std::ostringstream ss;
@@ -406,8 +406,8 @@ std::unique_ptr<logical_ir::expression> compiler::address_of_compiler::dispatch(
     return std::make_unique<logical_ir::address_of>(std::move(array_index));
 }
 
-std::unique_ptr<logical_ir::expression> compiler::address_of_compiler::dispatch(const ast::get_property& node) {
-    std::unique_ptr<logical_ir::member_access> member_access = dynamic_unique_cast<logical_ir::member_access>(m_compiler.compile_expression(node));
+std::unique_ptr<logical_ir::expression> semantic_lowerer::address_resolver::dispatch(const ast::get_property& node) {
+    std::unique_ptr<logical_ir::member_access> member_access = dynamic_unique_cast<logical_ir::member_access>(m_lowerer.lower_expression(node));
     if (member_access == nullptr) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(node) << "\" is not a member access.";
@@ -416,8 +416,8 @@ std::unique_ptr<logical_ir::expression> compiler::address_of_compiler::dispatch(
     return std::make_unique<logical_ir::address_of>(std::move(member_access));
 }
 
-std::unique_ptr<logical_ir::expression> compiler::address_of_compiler::dispatch(const ast::dereference_operator& node) {
-    std::unique_ptr<logical_ir::dereference> dereference = dynamic_unique_cast<logical_ir::dereference>(m_compiler.compile_expression(node));
+std::unique_ptr<logical_ir::expression> semantic_lowerer::address_resolver::dispatch(const ast::dereference_operator& node) {
+    std::unique_ptr<logical_ir::dereference> dereference = dynamic_unique_cast<logical_ir::dereference>(m_lowerer.lower_expression(node));
     if (dereference == nullptr) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(node) << "\" is not a dereference operator.";
@@ -428,45 +428,45 @@ std::unique_ptr<logical_ir::expression> compiler::address_of_compiler::dispatch(
     return operand;
 }
 
-void compiler::address_of_compiler::handle_default(const ast::ast_element& node) {
+void semantic_lowerer::address_resolver::handle_default(const ast::ast_element& node) {
     std::ostringstream ss;
     ss << "Cannot get the address of \"" << ast::to_c_string(node) << "\".";
     throw panic(ss.str(), node.location());
 }
 
-std::unique_ptr<logical_ir::expression> compiler::default_value_resolver::dispatch(const typing::int_type& type) {
+std::unique_ptr<logical_ir::expression> semantic_lowerer::default_value_resolver::dispatch(const typing::int_type& type) {
     return std::make_unique<logical_ir::integer_constant>(
         0, 
         typing::qual_type::owning(std::make_shared<typing::int_type>(type.int_qualifiers(), type.type_class()), m_qual_type.propagate_qualifiers())
     );
 }
 
-std::unique_ptr<logical_ir::expression> compiler::default_value_resolver::dispatch(const typing::float_type& type) {
+std::unique_ptr<logical_ir::expression> semantic_lowerer::default_value_resolver::dispatch(const typing::float_type& type) {
     return std::make_unique<logical_ir::floating_constant>(
         0.0, 
         typing::qual_type::owning(std::make_shared<typing::float_type>(type.type_class()), m_qual_type.propagate_qualifiers())
     );
 }
 
-std::unique_ptr<logical_ir::expression> compiler::default_value_resolver::dispatch(const typing::pointer_type& type) {
+std::unique_ptr<logical_ir::expression> semantic_lowerer::default_value_resolver::dispatch(const typing::pointer_type& type) {
     return std::make_unique<logical_ir::type_cast>(
         std::make_unique<logical_ir::integer_constant>(0, typing::qual_type::owning(std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS))),
         typing::qual_type::owning(std::make_shared<typing::pointer_type>(type.pointee_type()), m_qual_type.propagate_qualifiers())
     );
 }
 
-std::unique_ptr<logical_ir::expression> compiler::default_value_resolver::dispatch(const typing::function_pointer_type& type) {
+std::unique_ptr<logical_ir::expression> semantic_lowerer::default_value_resolver::dispatch(const typing::function_pointer_type& type) {
     return std::make_unique<logical_ir::type_cast>(
         std::make_unique<logical_ir::integer_constant>(0, typing::qual_type::owning(std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS))),
         typing::qual_type::owning(std::make_shared<typing::function_pointer_type>(type.return_type(), type.parameter_types()), m_qual_type.propagate_qualifiers())
     );
 }
 
-std::unique_ptr<logical_ir::expression> compiler::default_value_resolver::dispatch(const typing::struct_type& type) {
+std::unique_ptr<logical_ir::expression> semantic_lowerer::default_value_resolver::dispatch(const typing::struct_type& type) {
     std::vector<logical_ir::struct_initializer::member_initializer> member_values;
     member_values.reserve(type.fields().size());
     for (const typing::member& member : type.fields()) {
-        auto default_value = m_compiler.resolve_default_value(member.member_type);
+        auto default_value = m_lowerer.resolve_default_value(member.member_type);
         if (!default_value) {
             return nullptr;
         }
@@ -475,7 +475,7 @@ std::unique_ptr<logical_ir::expression> compiler::default_value_resolver::dispat
     return std::make_unique<logical_ir::struct_initializer>(std::move(member_values), std::static_pointer_cast<typing::struct_type>(m_qual_type.type()));
 }
 
-std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::int_literal& node) {
+std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::dispatch(const ast::int_literal& node) {
     if (m_target_type && m_target_type->is_same_type<typing::int_type>()) {
         return std::make_unique<logical_ir::integer_constant>(node.value(), typing::qual_type(m_target_type.value()));
     };
@@ -484,7 +484,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     );
 }
 
-std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::float_literal& node) {
+std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::dispatch(const ast::float_literal& node) {
     if (m_target_type && m_target_type->is_same_type<typing::float_type>()) {
         return std::make_unique<logical_ir::floating_constant>(node.value(), typing::qual_type(m_target_type.value()));
     };
@@ -493,7 +493,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     );
 }
 
-std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::double_literal& node) {
+std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::dispatch(const ast::double_literal& node) {
     if (m_target_type && m_target_type->is_same_type<typing::float_type>()) {
         return std::make_unique<logical_ir::floating_constant>(node.value(), typing::qual_type(m_target_type.value()));
     };
@@ -502,13 +502,13 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     );
 }
 
-std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::string_literal& node) {
-    size_t index = m_compiler.m_translation_unit.add_string(std::string(node.value()));
+std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::dispatch(const ast::string_literal& node) {
+    size_t index = m_lowerer.m_translation_unit.add_string(std::string(node.value()));
     return std::make_unique<logical_ir::string_constant>(index);
 }
 
-std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::variable_reference& node) {
-    auto symbol = m_compiler.m_symbol_explorer.lookup(node.identifier());
+std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::dispatch(const ast::variable_reference& node) {
+    auto symbol = m_lowerer.m_symbol_explorer.lookup(node.identifier());
 
     if (symbol == nullptr) {
         std::ostringstream ss;
@@ -536,17 +536,17 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     throw panic(ss.str(), node.location());
 }
 
-std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::get_index& node) {
-    std::unique_ptr<logical_ir::expression> pointer = m_compiler.compile_expression(*node.pointer());
-    std::unique_ptr<logical_ir::expression> index = m_compiler.compile_expression(*node.index(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS), true);
+std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::dispatch(const ast::get_index& node) {
+    std::unique_ptr<logical_ir::expression> pointer = m_lowerer.lower_expression(*node.pointer());
+    std::unique_ptr<logical_ir::expression> index = m_lowerer.lower_expression(*node.index(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS), true);
 
-    if (!m_compiler.is_indexable_type(pointer->get_type())) {
+    if (!m_lowerer.is_indexable_type(pointer->get_type())) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(node) << "\" is not an indexable type.";
         throw panic(ss.str(), node.location());
     }
 
-    if (!m_compiler.is_index_type(index->get_type())) {
+    if (!m_lowerer.is_index_type(index->get_type())) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(node) << "\" is not an index type.";
         throw panic(ss.str(), node.location());
@@ -555,8 +555,8 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     return std::make_unique<logical_ir::array_index>(std::move(pointer), std::move(index));
 }
 
-std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::get_property& node) {
-    std::unique_ptr<logical_ir::expression> base = m_compiler.compile_expression(*node.struct_expr());
+std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::dispatch(const ast::get_property& node) {
+    std::unique_ptr<logical_ir::expression> base = m_lowerer.lower_expression(*node.struct_expr());
 
     if (node.is_pointer_dereference() && !base->get_type().is_same_type<typing::pointer_type>()) {
         std::ostringstream ss;
@@ -599,10 +599,10 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     throw panic(ss.str(), node.location());
 }
 
-std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::set_operator& node) {
+std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::dispatch(const ast::set_operator& node) {
     const ast::variable_reference* variable_reference = dynamic_cast<const ast::variable_reference*>(node.destination().get());
     if (variable_reference) {
-        auto symbol = m_compiler.m_symbol_explorer.lookup(variable_reference->identifier());
+        auto symbol = m_lowerer.m_symbol_explorer.lookup(variable_reference->identifier());
         if (symbol == nullptr) {
             std::ostringstream ss;
             ss << "Symbol \"" << variable_reference->identifier() << "\" not found.";
@@ -620,21 +620,21 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
             throw panic(ss.str(), node.location());
         }
 
-        return std::make_unique<logical_ir::set_variable>(std::move(variable), m_compiler.compile_expression(*node.value(), variable->get_type()));
+        return std::make_unique<logical_ir::set_variable>(std::move(variable), m_lowerer.lower_expression(*node.value(), variable->get_type()));
     }
 
-    std::unique_ptr<logical_ir::expression> destination = m_compiler.m_address_of_compiler(*node.destination());
+    std::unique_ptr<logical_ir::expression> destination = m_lowerer.m_address_resolver(*node.destination());
     std::shared_ptr<typing::pointer_type> pointer_type = std::static_pointer_cast<typing::pointer_type>(destination->get_type().type());
     if (destination->get_type().is_const()) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(node) << "\" is const and cannot be assigned to.";
         throw panic(ss.str(), node.location());
     }
-    return std::make_unique<logical_ir::set_address>(std::move(destination), m_compiler.compile_expression(*node.value(), pointer_type->pointee_type()));
+    return std::make_unique<logical_ir::set_address>(std::move(destination), m_lowerer.lower_expression(*node.value(), pointer_type->pointee_type()));
 }
 
-std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::dereference_operator& node) {
-    std::unique_ptr<logical_ir::expression> pointer = m_compiler.compile_expression(*node.pointer());
+std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::dispatch(const ast::dereference_operator& node) {
+    std::unique_ptr<logical_ir::expression> pointer = m_lowerer.lower_expression(*node.pointer());
     if (!pointer->get_type().is_same_type<typing::pointer_type>()) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(node) << "\" is not a pointer.";
@@ -643,25 +643,25 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     return std::make_unique<logical_ir::dereference>(std::move(pointer));
 }
 
-std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::get_reference& node) {
-    return m_compiler.m_address_of_compiler(*node.item());
+std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::dispatch(const ast::get_reference& node) {
+    return m_lowerer.m_address_resolver(*node.item());
 }
 
-std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::arithmetic_operator& node) {
+std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::dispatch(const ast::arithmetic_operator& node) {
     if (node.operation() == MICHAELCC_TOKEN_INCREMENT_BY || node.operation() == MICHAELCC_TOKEN_DECREMENT_BY) {
-        std::unique_ptr<logical_ir::expression> destination = m_compiler.m_address_of_compiler(*node.left());
+        std::unique_ptr<logical_ir::expression> destination = m_lowerer.m_address_resolver(*node.left());
         if (destination == nullptr) {
             std::ostringstream ss;
             ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid destination for increment or decrement.";
             throw panic(ss.str(), node.location());
         }
-        return std::make_unique<logical_ir::var_increment_operator>(std::move(destination), m_compiler.compile_expression(*node.right()));
+        return std::make_unique<logical_ir::var_increment_operator>(std::move(destination), m_lowerer.lower_expression(*node.right()));
     }
 
-    std::unique_ptr<logical_ir::expression> left = m_compiler.compile_expression(*node.left());
-    std::unique_ptr<logical_ir::expression> right = m_compiler.compile_expression(*node.right());
+    std::unique_ptr<logical_ir::expression> left = m_lowerer.lower_expression(*node.left());
+    std::unique_ptr<logical_ir::expression> right = m_lowerer.lower_expression(*node.right());
 
-    std::optional<typing::qual_type> result = m_compiler.arbitrate_types(
+    std::optional<typing::qual_type> result = m_lowerer.arbitrate_types(
         left->get_type(), 
         right->get_type(), 
         (
@@ -684,11 +684,11 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     );
 }
 
-std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::unary_operation& node) {
+std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::dispatch(const ast::unary_operation& node) {
     switch (node.get_operator()) {
         case MICHAELCC_TOKEN_MINUS: {
-            auto operand = m_compiler.compile_expression(*node.operand(), m_target_type, true);
-            if (!m_compiler.is_numeric_type(operand->get_type())) {
+            auto operand = m_lowerer.lower_expression(*node.operand(), m_target_type, true);
+            if (!m_lowerer.is_numeric_type(operand->get_type())) {
                 std::ostringstream ss;
                 ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid numeric type.";
                 throw panic(ss.str(), node.location());
@@ -699,7 +699,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
             );
         }
         case MICHAELCC_TOKEN_NOT: {
-            auto operand = m_compiler.compile_expression(*node.operand(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS), true);
+            auto operand = m_lowerer.lower_expression(*node.operand(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS), true);
             if (!operand->get_type().is_same_type<typing::int_type>()) {
                 std::ostringstream ss;
                 ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid conditional type.";
@@ -708,7 +708,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
             return std::make_unique<logical_ir::unary_operation>(node.get_operator(), std::move(operand));
         }
         case MICHAELCC_TOKEN_TILDE: {
-            auto operand = m_compiler.compile_expression(*node.operand(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS), true);
+            auto operand = m_lowerer.lower_expression(*node.operand(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS), true);
             if (!operand->get_type().is_same_type<typing::int_type>()) {
                 std::ostringstream ss;
                 ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid integer type.";
@@ -723,10 +723,10 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     }
 }
 
-std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::conditional_expression& node) {
-    std::unique_ptr<logical_ir::expression> condition = m_compiler.compile_expression(*node.condition());
-    std::unique_ptr<logical_ir::expression> true_expr = m_compiler.compile_expression(*node.true_expr());
-    std::unique_ptr<logical_ir::expression> false_expr = m_compiler.compile_expression(*node.false_expr());
+std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::dispatch(const ast::conditional_expression& node) {
+    std::unique_ptr<logical_ir::expression> condition = m_lowerer.lower_expression(*node.condition());
+    std::unique_ptr<logical_ir::expression> true_expr = m_lowerer.lower_expression(*node.true_expr());
+    std::unique_ptr<logical_ir::expression> false_expr = m_lowerer.lower_expression(*node.false_expr());
 
     if (!condition->get_type().is_same_type<typing::int_type>()) {
         std::ostringstream ss;
@@ -734,7 +734,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
         throw panic(ss.str(), node.location());
     }
 
-    std::optional<typing::qual_type> result = m_compiler.arbitrate_types(true_expr->get_type(), false_expr->get_type());
+    std::optional<typing::qual_type> result = m_lowerer.arbitrate_types(true_expr->get_type(), false_expr->get_type());
     if (!result) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid conditional expression.";
@@ -749,11 +749,11 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     );
 }
 
-std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::cast_expression& node) {
-    std::unique_ptr<logical_ir::expression> operand = m_compiler.compile_expression(*node.operand());
-    auto target_type = m_compiler.resolve_type(*node.target_type());
+std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::dispatch(const ast::cast_expression& node) {
+    std::unique_ptr<logical_ir::expression> operand = m_lowerer.lower_expression(*node.operand());
+    auto target_type = m_lowerer.resolve_type(*node.target_type());
 
-    std::optional<typing::qual_type> result = m_compiler.arbitrate_types(operand->get_type(), target_type);
+    std::optional<typing::qual_type> result = m_lowerer.arbitrate_types(operand->get_type(), target_type);
     if (!result) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid cast expression.";
@@ -764,16 +764,16 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     return std::make_unique<logical_ir::type_cast>(std::move(operand), std::move(target_type));
 }
 
-std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::function_call& node) {
+std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::dispatch(const ast::function_call& node) {
     std::vector<std::unique_ptr<logical_ir::expression>> arguments;
     arguments.reserve(node.arguments().size());
     for (const auto& argument : node.arguments()) {
-        arguments.push_back(m_compiler.compile_expression(*argument));
+        arguments.push_back(m_lowerer.lower_expression(*argument));
     }
 
     ast::variable_reference* variable_reference = dynamic_cast<ast::variable_reference*>(node.callee().get());
     if (variable_reference) {
-        auto symbol = m_compiler.m_symbol_explorer.lookup(variable_reference->identifier());
+        auto symbol = m_lowerer.m_symbol_explorer.lookup(variable_reference->identifier());
         if (symbol == nullptr) {
             std::ostringstream ss;
             ss << "Symbol \"" << variable_reference->identifier() << "\" not found.";
@@ -799,7 +799,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
         }
     }
 
-    std::unique_ptr<logical_ir::expression> callee = m_compiler.compile_expression(*node.callee());
+    std::unique_ptr<logical_ir::expression> callee = m_lowerer.lower_expression(*node.callee());
     std::shared_ptr<typing::function_pointer_type> function_pointer = std::dynamic_pointer_cast<typing::function_pointer_type>(callee->get_type().type());
     if (function_pointer == nullptr) {
         std::ostringstream ss;
@@ -824,7 +824,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     return std::make_unique<logical_ir::function_call>(std::move(callee), std::move(arguments));
 }
 
-std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(const ast::initializer_list_expression& node) {
+std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::dispatch(const ast::initializer_list_expression& node) {
     std::shared_ptr<typing::struct_type> struct_type = std::dynamic_pointer_cast<typing::struct_type>(m_target_type->type());
     if (struct_type) {
         std::vector<logical_ir::struct_initializer::member_initializer> member_initializers;
@@ -839,7 +839,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
         for (size_t i = 0; i < members.size(); i++) {
             member_initializers.emplace_back(logical_ir::struct_initializer::member_initializer{
                 members[i].name,
-                m_compiler.compile_expression(*node.initializers()[i], members[i].member_type)
+                m_lowerer.lower_expression(*node.initializers()[i], members[i].member_type)
             });
         }
         return std::make_unique<logical_ir::struct_initializer>(std::move(member_initializers), std::move(struct_type));
@@ -853,7 +853,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
             throw panic(ss.str(), node.location());
         }
 
-        std::unique_ptr<logical_ir::expression> initializer = m_compiler.compile_expression(*node.initializers()[0]);
+        std::unique_ptr<logical_ir::expression> initializer = m_lowerer.lower_expression(*node.initializers()[0]);
         std::optional<typing::qual_type> target_type = std::nullopt;
 
         for (const auto& member : union_type->members()) {
@@ -875,7 +875,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
         std::vector<std::unique_ptr<logical_ir::expression>> initializers;
         initializers.reserve(node.initializers().size());
         for (const auto& initializer : node.initializers()) {
-            initializers.push_back(m_compiler.compile_expression(*initializer, array_type->element_type()));
+            initializers.push_back(m_lowerer.lower_expression(*initializer, array_type->element_type()));
         }
         return std::make_unique<logical_ir::array_initializer>(std::move(initializers), typing::qual_type(array_type->element_type()));
     }
@@ -885,15 +885,15 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
     throw panic(ss.str(), node.location());
 }
 
-void compiler::expression_compiler::handle_default(const ast::ast_element& node) {
+void semantic_lowerer::expression_resolver::handle_default(const ast::ast_element& node) {
     std::ostringstream ss;
     ss << "\"" << ast::to_c_string(node) << "\" is not a valid expression.";
     throw panic(ss.str(), node.location());
 }
 
-std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::context_block& node) {
+std::unique_ptr<logical_ir::statement> semantic_lowerer::statement_resolver::dispatch(const ast::context_block& node) {
     std::shared_ptr<logical_ir::control_block> control_block = std::make_shared<logical_ir::control_block>();
-    m_compiler.m_symbol_explorer.visit(control_block);
+    m_lowerer.m_symbol_explorer.visit(control_block);
 
     std::vector<std::unique_ptr<logical_ir::statement>> statements;
     statements.reserve(node.statements().size());
@@ -901,18 +901,18 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
         statements.push_back((*this)(*statement));
     }
 
-    m_compiler.m_symbol_explorer.exit();
+    m_lowerer.m_symbol_explorer.exit();
     control_block->implement(std::move(statements));
     return std::make_unique<logical_ir::statement_block>(std::move(control_block));
 }
 
-std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::for_loop& node) {
+std::unique_ptr<logical_ir::statement> semantic_lowerer::statement_resolver::dispatch(const ast::for_loop& node) {
     std::shared_ptr<logical_ir::control_block> outer_control_block = std::make_shared<logical_ir::control_block>();
-    m_compiler.m_symbol_explorer.visit(outer_control_block);
+    m_lowerer.m_symbol_explorer.visit(outer_control_block);
 
     std::vector<std::unique_ptr<logical_ir::statement>> outer_statements;
     outer_statements.emplace_back((*this)(*node.initial_statement()));
-    std::unique_ptr<logical_ir::expression> condition = m_compiler.compile_expression(*node.condition(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS), true);
+    std::unique_ptr<logical_ir::expression> condition = m_lowerer.lower_expression(*node.condition(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS), true);
     if (!condition->get_type().is_same_type<typing::int_type>()) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(*node.condition()) << "\" is not a valid condition.";
@@ -921,13 +921,13 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
 
     m_current_loop_depth++;
     std::shared_ptr<logical_ir::control_block> inner_control_block = std::make_shared<logical_ir::control_block>();
-    m_compiler.m_symbol_explorer.visit(inner_control_block);
+    m_lowerer.m_symbol_explorer.visit(inner_control_block);
     std::vector<std::unique_ptr<logical_ir::statement>> inner_statements;
     inner_statements.reserve(node.body().statements().size());
     for (const auto& statement : node.body().statements()) {
         inner_statements.emplace_back((*this)(*statement));
     }
-    m_compiler.m_symbol_explorer.exit();
+    m_lowerer.m_symbol_explorer.exit();
     m_current_loop_depth--;
     inner_statements.emplace_back((*this)(*node.increment_statement()));
     inner_control_block->implement(std::move(inner_statements));
@@ -937,9 +937,9 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     return std::make_unique<logical_ir::statement_block>(std::move(outer_control_block));
 }
 
-std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::do_block& node) {
+std::unique_ptr<logical_ir::statement> semantic_lowerer::statement_resolver::dispatch(const ast::do_block& node) {
     std::shared_ptr<logical_ir::control_block> control_block = std::make_shared<logical_ir::control_block>();
-    m_compiler.m_symbol_explorer.visit(control_block);
+    m_lowerer.m_symbol_explorer.visit(control_block);
 
     m_current_loop_depth++;
     std::vector<std::unique_ptr<logical_ir::statement>> statements;
@@ -949,7 +949,7 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     }
     control_block->implement(std::move(statements));
 
-    std::unique_ptr<logical_ir::expression> condition = m_compiler.compile_expression(*node.condition(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS));
+    std::unique_ptr<logical_ir::expression> condition = m_lowerer.lower_expression(*node.condition(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS));
     if (!condition->get_type().is_same_type<typing::int_type>()) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(*node.condition()) << "\" is not a valid condition.";
@@ -957,12 +957,12 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     }
 
     m_current_loop_depth--;
-    m_compiler.m_symbol_explorer.exit();
+    m_lowerer.m_symbol_explorer.exit();
     return std::make_unique<logical_ir::loop_statement>(std::move(control_block), std::move(condition), false);
 }
 
-std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::while_block& node) {
-    std::unique_ptr<logical_ir::expression> condition = m_compiler.compile_expression(*node.condition(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS));
+std::unique_ptr<logical_ir::statement> semantic_lowerer::statement_resolver::dispatch(const ast::while_block& node) {
+    std::unique_ptr<logical_ir::expression> condition = m_lowerer.lower_expression(*node.condition(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS));
     if (!condition->get_type().is_same_type<typing::int_type>()) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(*node.condition()) << "\" is not a valid condition.";
@@ -970,7 +970,7 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     }
 
     std::shared_ptr<logical_ir::control_block> control_block = std::make_shared<logical_ir::control_block>();
-    m_compiler.m_symbol_explorer.visit(control_block);
+    m_lowerer.m_symbol_explorer.visit(control_block);
 
     m_current_loop_depth++;
     std::vector<std::unique_ptr<logical_ir::statement>> statements;
@@ -981,12 +981,12 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     control_block->implement(std::move(statements));
 
     m_current_loop_depth--;
-    m_compiler.m_symbol_explorer.exit();
+    m_lowerer.m_symbol_explorer.exit();
     return std::make_unique<logical_ir::loop_statement>(std::move(control_block), std::move(condition), true);
 }
 
-std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::if_block& node) {
-    std::unique_ptr<logical_ir::expression> condition = m_compiler.compile_expression(*node.condition(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS));
+std::unique_ptr<logical_ir::statement> semantic_lowerer::statement_resolver::dispatch(const ast::if_block& node) {
+    std::unique_ptr<logical_ir::expression> condition = m_lowerer.lower_expression(*node.condition(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS));
     if (!condition->get_type().is_same_type<typing::int_type>()) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(*node.condition()) << "\" is not a valid condition.";
@@ -994,7 +994,7 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     }
 
     std::shared_ptr<logical_ir::control_block> then_control_block = std::make_shared<logical_ir::control_block>();
-    m_compiler.m_symbol_explorer.visit(then_control_block);
+    m_lowerer.m_symbol_explorer.visit(then_control_block);
 
     std::vector<std::unique_ptr<logical_ir::statement>> then_statements;
     then_statements.reserve(node.body().statements().size());
@@ -1003,12 +1003,12 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     }
     then_control_block->implement(std::move(then_statements));
 
-    m_compiler.m_symbol_explorer.exit();
+    m_lowerer.m_symbol_explorer.exit();
     return std::make_unique<logical_ir::if_statement>(std::move(condition), std::move(then_control_block), nullptr);
 }
 
-std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::if_else_block& node) {
-    std::unique_ptr<logical_ir::expression> condition = m_compiler.compile_expression(*node.condition(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS));
+std::unique_ptr<logical_ir::statement> semantic_lowerer::statement_resolver::dispatch(const ast::if_else_block& node) {
+    std::unique_ptr<logical_ir::expression> condition = m_lowerer.lower_expression(*node.condition(), std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS));
     if (!condition->get_type().is_same_type<typing::int_type>()) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(*node.condition()) << "\" is not a valid condition.";
@@ -1016,7 +1016,7 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     }
 
     std::shared_ptr<logical_ir::control_block> then_control_block = std::make_shared<logical_ir::control_block>();
-    m_compiler.m_symbol_explorer.visit(then_control_block);
+    m_lowerer.m_symbol_explorer.visit(then_control_block);
 
     std::vector<std::unique_ptr<logical_ir::statement>> then_statements;
     then_statements.reserve(node.true_body().statements().size());
@@ -1025,10 +1025,10 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     }
     then_control_block->implement(std::move(then_statements));
 
-    m_compiler.m_symbol_explorer.exit();
+    m_lowerer.m_symbol_explorer.exit();
 
     std::shared_ptr<logical_ir::control_block> else_control_block = std::make_shared<logical_ir::control_block>();
-    m_compiler.m_symbol_explorer.visit(else_control_block);
+    m_lowerer.m_symbol_explorer.visit(else_control_block);
 
     std::vector<std::unique_ptr<logical_ir::statement>> else_statements;
     else_statements.reserve(node.false_body().statements().size());
@@ -1037,12 +1037,12 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     }
     else_control_block->implement(std::move(else_statements));
 
-    m_compiler.m_symbol_explorer.exit();
+    m_lowerer.m_symbol_explorer.exit();
     return std::make_unique<logical_ir::if_statement>(std::move(condition), std::move(then_control_block), std::move(else_control_block));
 }
 
-std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::return_statement& node) {
-    std::shared_ptr<logical_ir::function_definition> function = m_compiler.m_symbol_explorer.is_in_context<logical_ir::function_definition>();
+std::unique_ptr<logical_ir::statement> semantic_lowerer::statement_resolver::dispatch(const ast::return_statement& node) {
+    std::shared_ptr<logical_ir::function_definition> function = m_lowerer.m_symbol_explorer.is_in_context<logical_ir::function_definition>();
     if (function == nullptr) {
         std::ostringstream ss;
         ss << "Return statement is not in a function context.";
@@ -1050,12 +1050,12 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     }
     
     return std::make_unique<logical_ir::return_statement>(
-        m_compiler.compile_expression(*node.value(), function->return_type()), 
+        m_lowerer.lower_expression(*node.value(), function->return_type()), 
         function
     );
 }
 
-std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::break_statement& node) {
+std::unique_ptr<logical_ir::statement> semantic_lowerer::statement_resolver::dispatch(const ast::break_statement& node) {
     if (node.depth() > m_current_loop_depth) {
         std::ostringstream ss;
         ss << "Break statement depth is greater than the current loop depth.";
@@ -1064,7 +1064,7 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     return std::make_unique<logical_ir::break_statement>(node.depth());
 }
 
-std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(const ast::continue_statement& node) {
+std::unique_ptr<logical_ir::statement> semantic_lowerer::statement_resolver::dispatch(const ast::continue_statement& node) {
     if (node.depth() > m_current_loop_depth) {
         std::ostringstream ss;
         ss << "Continue statement depth is greater than the current loop depth.";
@@ -1073,13 +1073,13 @@ std::unique_ptr<logical_ir::statement> compiler::statement_compiler::dispatch(co
     return std::make_unique<logical_ir::continue_statement>(node.depth());
 }
 
-void compiler::statement_compiler::handle_default(const ast::ast_element& node) {
+void semantic_lowerer::statement_resolver::handle_default(const ast::ast_element& node) {
     std::ostringstream ss;
     ss << "\"" << ast::to_c_string(node) << "\" is not a valid statement.";
     throw panic(ss.str(), node.location());
 }
 
-std::optional<typing::qual_type> compiler::arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, type_arbitartion_mode mode) const noexcept {
+std::optional<typing::qual_type> semantic_lowerer::arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, type_arbitartion_mode mode) const noexcept {
     if (left == right) {
         if (mode == MICHAELCC_ARBITRATE_NONE) {
             return left;
@@ -1137,18 +1137,18 @@ std::optional<typing::qual_type> compiler::arbitrate_types(const typing::qual_ty
     return std::nullopt;
 }
 
-typing::qual_type compiler::resolve_type(const ast::ast_element& node, bool allow_vla) {
+typing::qual_type semantic_lowerer::resolve_type(const ast::ast_element& node, bool allow_vla) {
     type_resolver m_type_resolver(*this, allow_vla);
     return m_type_resolver(node);
 }
 
-std::unique_ptr<logical_ir::expression> compiler::resolve_default_value(const typing::qual_type& type) const noexcept {
+std::unique_ptr<logical_ir::expression> semantic_lowerer::resolve_default_value(const typing::qual_type& type) const noexcept {
     default_value_resolver m_default_value_resolver(*this, typing::qual_type(type));
     return m_default_value_resolver(*type.type());
 }
 
-std::unique_ptr<logical_ir::expression> compiler::compile_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type, bool is_type_hint) {
-    expression_compiler expression_compiler(*this, target_type);
+std::unique_ptr<logical_ir::expression> semantic_lowerer::lower_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type, bool is_type_hint) {
+    expression_resolver expression_compiler(*this, target_type);
     std::unique_ptr<logical_ir::expression> expression = expression_compiler(node);
 
     if (target_type && !is_type_hint) {
@@ -1168,7 +1168,7 @@ std::unique_ptr<logical_ir::expression> compiler::compile_expression(const ast::
     return expression;
 }
 
-logical_ir::variable_declaration compiler::compile_variable_declaration(const ast::variable_declaration& node, bool is_global) {
+logical_ir::variable_declaration semantic_lowerer::lower_variable_declaration(const ast::variable_declaration& node, bool is_global) {
     type_resolver var_type_resolver(*this, true);
     typing::qual_type type = var_type_resolver(*node.type());
 
@@ -1194,7 +1194,7 @@ logical_ir::variable_declaration compiler::compile_variable_declaration(const as
 
         return logical_ir::variable_declaration(
             std::move(variable), 
-            compile_expression(*node.set_value().value(), type)
+            lower_expression(*node.set_value().value(), type)
         );
     }
     else if (var_type_resolver.vla_dimensions().size() > 0) {
@@ -1221,7 +1221,7 @@ logical_ir::variable_declaration compiler::compile_variable_declaration(const as
     }
 }
 
-std::shared_ptr<logical_ir::function_definition> compiler::compile_function_declaration(const ast::function_declaration& node) {
+std::shared_ptr<logical_ir::function_definition> semantic_lowerer::lower_function_declaration(const ast::function_declaration& node) {
     std::shared_ptr<logical_ir::function_definition> function = std::dynamic_pointer_cast<logical_ir::function_definition>(
         m_symbol_explorer.lookup(node.function_name())
     );
@@ -1250,7 +1250,7 @@ std::shared_ptr<logical_ir::function_definition> compiler::compile_function_decl
     std::vector<std::unique_ptr<logical_ir::statement>> statements;
     statements.reserve(node.function_body().statements().size());
     for (const auto& statement : node.function_body().statements()) {
-        statements.emplace_back(m_statement_compiler(*statement));
+        statements.emplace_back(m_statement_resolver(*statement));
     }
     function->implement(std::move(statements));
     m_symbol_explorer.exit();
@@ -1258,7 +1258,7 @@ std::shared_ptr<logical_ir::function_definition> compiler::compile_function_decl
     return function;
 }
 
-void compiler::compile(const std::vector<std::unique_ptr<ast::ast_element>>& ast) {
+void semantic_lowerer::lower(const std::vector<std::unique_ptr<ast::ast_element>>& ast) {
     forward_declare_types forward_declare_types_pass(*this);
     for (const auto& element : ast) {
         element->accept(forward_declare_types_pass);
@@ -1288,11 +1288,11 @@ void compiler::compile(const std::vector<std::unique_ptr<ast::ast_element>>& ast
     for (const auto& element : ast) {
         auto variable_declaration = dynamic_cast<ast::variable_declaration*>(element.get());
         if (variable_declaration) {
-            m_translation_unit.add_static_variable_declaration(compile_variable_declaration(*variable_declaration, true));
+            m_translation_unit.add_static_variable_declaration(lower_variable_declaration(*variable_declaration, true));
         }
         auto function_declaration = dynamic_cast<ast::function_declaration*>(element.get());
         if (function_declaration) {
-            compile_function_declaration(*function_declaration);
+            lower_function_declaration(*function_declaration);
         }
     }
     m_symbol_explorer.exit();

@@ -3,7 +3,7 @@
 #include "preprocessor.hpp"
 #include "ast.hpp"
 #include "parser.hpp"
-#include "compiler.hpp"
+#include "semantic.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -35,7 +35,7 @@ int main()
 			cout << michaelcc::ast::to_c_string(*element) << endl;
 		}
 
-		michaelcc::compiler compiler(michaelcc::compiler::platform_info{
+		michaelcc::semantic_lowerer lowerer(michaelcc::semantic_lowerer::platform_info{
 			.m_pointer_size = 8,
 			.m_int_size = 4,
 			.m_short_size = 2,
@@ -47,8 +47,8 @@ int main()
 			.m_max_alignment = 16,
 		});
 
-		compiler.compile(ast);
-		auto translation_unit = compiler.release_translation_unit();
+		lowerer.lower(ast);
+		auto translation_unit = lowerer.release_translation_unit();
 
 		cout << michaelcc::logical_ir::to_tree_string(translation_unit) << endl;
 

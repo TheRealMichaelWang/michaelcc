@@ -1,5 +1,5 @@
-#ifndef MICHAELCC_COMPILER_HPP
-#define MICHAELCC_COMPILER_HPP
+#ifndef MICHAELCC_lowerer_HPP
+#define MICHAELCC_lowerer_HPP
 
 #include "ast.hpp"
 #include "errors.hpp"
@@ -10,7 +10,7 @@
 #include <vector>
 
 namespace michaelcc {
-    class compiler {
+    class semantic_lowerer {
     public:
         struct platform_info {
             const size_t m_pointer_size;
@@ -36,14 +36,14 @@ namespace michaelcc {
             MICHAELCC_ARBITRATE_COMPARE = 3,
         };
 
-        logical_ir::variable_declaration compile_variable_declaration(const ast::variable_declaration& node, bool is_global);
+        logical_ir::variable_declaration lower_variable_declaration(const ast::variable_declaration& node, bool is_global);
         
         class forward_declare_types final : public ast::visitor {
         private:
-            compiler& m_compiler;
+            semantic_lowerer& m_lowerer;
 
         public:
-            forward_declare_types(compiler& compiler) : m_compiler(compiler) { }
+            forward_declare_types(semantic_lowerer& lowerer) : m_lowerer(lowerer) { }
 
             void visit(const ast::struct_declaration& node) override;
 
@@ -54,10 +54,10 @@ namespace michaelcc {
 
         class implement_type_declarations final : public ast::visitor {
         private:
-            compiler& m_compiler;
+            semantic_lowerer& m_lowerer;
 
         public:
-            implement_type_declarations(compiler& compiler) : m_compiler(compiler) { }
+            implement_type_declarations(semantic_lowerer& lowerer) : m_lowerer(lowerer) { }
 
             void visit(const ast::struct_declaration& node) override;
 
@@ -66,11 +66,11 @@ namespace michaelcc {
 
         class forward_declare_functions final : public ast::visitor {
         private:
-            compiler& m_compiler;
+            semantic_lowerer& m_lowerer;
 
             void forward_declare_function(const std::string& function_name, const ast::ast_element& return_type, const std::vector<ast::function_parameter>& parameters, const source_location& location);
         public:
-            forward_declare_functions(compiler& compiler) : m_compiler(compiler) { }
+            forward_declare_functions(semantic_lowerer& lowerer) : m_lowerer(lowerer) { }
 
             void visit(const ast::function_declaration& node) override {
                 forward_declare_function(node.function_name(), *node.return_type(), node.parameters(), node.location());
@@ -183,11 +183,11 @@ namespace michaelcc {
         class type_resolver final : public ast::const_type_dispatcher<typing::qual_type> {
         private:
             bool m_allow_vla;
-            compiler& m_compiler;
+            semantic_lowerer& m_lowerer;
             std::vector<std::unique_ptr<logical_ir::expression>> m_vla_dimensions;
 
         public:
-            type_resolver(compiler& compiler, bool allow_vla) : m_allow_vla(allow_vla), m_compiler(compiler) { }
+            type_resolver(semantic_lowerer& lowerer, bool allow_vla) : m_allow_vla(allow_vla), m_lowerer(lowerer) { }
 
             typing::qual_type resolve_int_type(const ast::type_specifier& type);
 
@@ -207,12 +207,12 @@ namespace michaelcc {
         };
 
 
-        class address_of_compiler final : public ast::const_expression_dispatcher<std::unique_ptr<logical_ir::expression>> {
+        class address_resolver final : public ast::const_expression_dispatcher<std::unique_ptr<logical_ir::expression>> {
         private:
-            compiler& m_compiler;
+            semantic_lowerer& m_lowerer;
 
         public:
-            address_of_compiler(compiler& compiler) : m_compiler(compiler) { }
+            address_resolver(semantic_lowerer& lowerer) : m_lowerer(lowerer) { }
 
         protected:
             std::unique_ptr<logical_ir::expression> dispatch(const ast::int_literal& node) override { handle_default(node); return nullptr; }
@@ -237,10 +237,10 @@ namespace michaelcc {
 
         class default_value_resolver final : public typing::const_type_dispatcher<std::unique_ptr<logical_ir::expression>> {
         private:
-            const compiler& m_compiler;
+            const semantic_lowerer& m_lowerer;
             typing::qual_type m_qual_type;
         public:
-            default_value_resolver(const compiler& compiler, typing::qual_type&& qual_type) : m_compiler(compiler), m_qual_type(std::move(qual_type)) { }
+            default_value_resolver(const semantic_lowerer& lowerer, typing::qual_type&& qual_type) : m_lowerer(lowerer), m_qual_type(std::move(qual_type)) { }
 
             std::unique_ptr<logical_ir::expression> dispatch(const typing::void_type& type) override { return nullptr; }
 
@@ -254,13 +254,13 @@ namespace michaelcc {
             std::unique_ptr<logical_ir::expression> dispatch(const typing::union_type& type) override { return nullptr; }
         };
 
-        class expression_compiler final : public ast::const_expression_dispatcher<std::unique_ptr<logical_ir::expression>> {
+        class expression_resolver final : public ast::const_expression_dispatcher<std::unique_ptr<logical_ir::expression>> {
         private:
             std::optional<typing::qual_type> m_target_type;
-            compiler& m_compiler;
+            semantic_lowerer& m_lowerer;
 
         public:
-            expression_compiler(compiler& compiler, std::optional<typing::qual_type> target_type = std::nullopt) : m_target_type(target_type), m_compiler(compiler) { }
+            expression_resolver(semantic_lowerer& lowerer, std::optional<typing::qual_type> target_type = std::nullopt) : m_target_type(target_type), m_lowerer(lowerer) { }
 
         protected:
             std::unique_ptr<logical_ir::expression> dispatch(const ast::int_literal& node) override;
@@ -283,13 +283,13 @@ namespace michaelcc {
             void handle_default(const ast::ast_element& node) override;
         };
 
-        class statement_compiler final : public ast::const_statement_dispatcher<std::unique_ptr<logical_ir::statement>> {
+        class statement_resolver final : public ast::const_statement_dispatcher<std::unique_ptr<logical_ir::statement>> {
         private:
-            compiler& m_compiler;
+            semantic_lowerer& m_lowerer;
             int m_current_loop_depth;
 
         public:
-            statement_compiler(compiler& compiler) : m_compiler(compiler), m_current_loop_depth(0) { }
+            statement_resolver(semantic_lowerer& lowerer) : m_lowerer(lowerer), m_current_loop_depth(0) { }
 
         protected:
             std::unique_ptr<logical_ir::statement> dispatch(const ast::context_block& node) override;
@@ -301,27 +301,14 @@ namespace michaelcc {
             std::unique_ptr<logical_ir::statement> dispatch(const ast::return_statement& node) override;
             std::unique_ptr<logical_ir::statement> dispatch(const ast::break_statement& node) override;
             std::unique_ptr<logical_ir::statement> dispatch(const ast::continue_statement& node) override;
-            std::unique_ptr<logical_ir::statement> dispatch(const ast::set_operator& node) override { return std::make_unique<logical_ir::expression_statement>(m_compiler.compile_expression(node)); }
-            std::unique_ptr<logical_ir::statement> dispatch(const ast::function_call& node) override { return std::make_unique<logical_ir::expression_statement>(m_compiler.compile_expression(node)); }
+            std::unique_ptr<logical_ir::statement> dispatch(const ast::set_operator& node) override { return std::make_unique<logical_ir::expression_statement>(m_lowerer.lower_expression(node)); }
+            std::unique_ptr<logical_ir::statement> dispatch(const ast::function_call& node) override { return std::make_unique<logical_ir::expression_statement>(m_lowerer.lower_expression(node)); }
             std::unique_ptr<logical_ir::statement> dispatch(const ast::variable_declaration& node) override {
-                return std::make_unique<logical_ir::variable_declaration>(m_compiler.compile_variable_declaration(node, false));
+                return std::make_unique<logical_ir::variable_declaration>(m_lowerer.lower_variable_declaration(node, false));
             }
 
             void handle_default(const ast::ast_element& node) override;
         };
-
-        /*class top_level_compiler : public ast::visitor {
-        private:
-            compiler& m_compiler;
-
-        public:
-            top_level_compiler(compiler& compiler) : m_compiler(compiler) { }
-
-            void visit(const ast::variable_declaration& node) override {
-                m_compiler.m_translation_unit.add_static_variable_declaration(m_compiler.compile_variable_declaration(node, true));
-            }
-            void visit(const ast::function_declaration& node) override;
-        };*/
 
         static compilation_error panic(const std::string& msg, const source_location& location) noexcept {
             return compilation_error(msg, location);
@@ -332,8 +319,8 @@ namespace michaelcc {
 
         layout_dependency_getter m_layout_dependency_getter;
         type_layout_calculator m_type_layout_calculator;
-        address_of_compiler m_address_of_compiler;
-        statement_compiler m_statement_compiler;
+        address_resolver m_address_resolver;
+        statement_resolver m_statement_resolver;
 
         logical_ir::symbol_explorer m_symbol_explorer;
 
@@ -357,20 +344,20 @@ namespace michaelcc {
         
         typing::qual_type resolve_type(const ast::ast_element& node, bool allow_vla=false);
         std::unique_ptr<logical_ir::expression> resolve_default_value(const typing::qual_type& type) const noexcept;
-        std::unique_ptr<logical_ir::expression> compile_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type = std::nullopt, bool is_type_hint=false);
+        std::unique_ptr<logical_ir::expression> lower_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type = std::nullopt, bool is_type_hint=false);
     
-        std::shared_ptr<logical_ir::function_definition> compile_function_declaration(const ast::function_declaration& node);
+        std::shared_ptr<logical_ir::function_definition> lower_function_declaration(const ast::function_declaration& node);
     public:
-        compiler(const platform_info platform_info) 
+        semantic_lowerer(const platform_info platform_info) 
             : m_translation_unit(), m_platform_info(platform_info), 
             m_layout_dependency_getter(m_translation_unit), 
             m_type_layout_calculator(m_platform_info),
-            m_address_of_compiler(*this),
-            m_statement_compiler(*this),
+            m_address_resolver(*this),
+            m_statement_resolver(*this),
             m_symbol_explorer() { }
 
 
-        void compile(const std::vector<std::unique_ptr<ast::ast_element>>& ast);
+        void lower(const std::vector<std::unique_ptr<ast::ast_element>>& ast);
 
         const logical_ir::translation_unit& get_translation_unit() const { return m_translation_unit; }
 

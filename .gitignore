@@ -2,6 +2,5 @@
 /.vs
 /out
 .clangd
-.clangd
 .vscode/
 .cache/
