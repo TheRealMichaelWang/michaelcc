@@ -57,7 +57,7 @@ namespace michaelcc {
 		std::unique_ptr<ast::ast_element> parse_set_accessors(std::unique_ptr<ast::ast_element>&& initial_value);
 		std::unique_ptr<ast::ast_element> parse_set_destination();
 
-		std::unique_ptr<ast::ast_element> parse_value();
+		std::unique_ptr<ast::ast_element> parse_value(bool allow_set=true);
 		std::unique_ptr<ast::ast_element> parse_expression(int min_precedence=0);
 
 		std::unique_ptr<ast::ast_element> parse_statement();
