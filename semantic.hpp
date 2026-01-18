@@ -1,9 +1,10 @@
-#ifndef MICHAELCC_lowerer_HPP
-#define MICHAELCC_lowerer_HPP
+#ifndef MICHAELCC_SEMANTIC_HPP
+#define MICHAELCC_SEMANTIC_HPP
 
 #include "ast.hpp"
 #include "errors.hpp"
 #include "logical.hpp"
+#include "platform.hpp"
 #include "typing.hpp"
 #include <memory>
 #include <optional>
@@ -11,23 +12,6 @@
 
 namespace michaelcc {
     class semantic_lowerer {
-    public:
-        struct platform_info {
-            const size_t m_pointer_size;
-
-            const size_t m_int_size;
-            const size_t m_short_size;
-            const size_t m_long_size;
-            const size_t m_long_long_size;
-
-            const size_t m_float_size;
-            const size_t m_double_size;
-
-            const size_t m_default_alignment;
-            const size_t m_max_alignment;
-
-            const bool optimize_struct_layout = true;
-        };
     private:
         enum type_arbitartion_mode {
             MICHAELCC_ARBITRATE_NONE = 0,
@@ -147,13 +131,13 @@ namespace michaelcc {
             const platform_info& m_platform_info;
 
             const type_layout_info pointer_layout = {
-                .size=m_platform_info.m_pointer_size,
-                .alignment=std::min<size_t>(m_platform_info.m_pointer_size, m_platform_info.m_max_alignment)
+                .size=m_platform_info.pointer_size,
+                .alignment=std::min<size_t>(m_platform_info.pointer_size, m_platform_info.max_alignment)
             };
 
             const type_layout_info int_layout = {
-                .size=m_platform_info.m_int_size,
-                .alignment=std::min<size_t>(m_platform_info.m_int_size, m_platform_info.m_max_alignment)
+                .size=m_platform_info.int_size,
+                .alignment=std::min<size_t>(m_platform_info.int_size, m_platform_info.max_alignment)
             };
 
         public:

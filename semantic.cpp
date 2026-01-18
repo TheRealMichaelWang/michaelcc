@@ -84,28 +84,28 @@ const semantic_lowerer::type_layout_info semantic_lowerer::type_layout_calculato
             size = 1;
             break;
         case typing::SHORT_INT_CLASS:
-            size = m_platform_info.m_short_size;
+            size = m_platform_info.short_size;
             break;
         case typing::INT_INT_CLASS:
             size = (type.int_qualifiers() & typing::LONG_INT_QUALIFIER)
-                ? m_platform_info.m_long_size
-                : m_platform_info.m_int_size;
+                ? m_platform_info.long_size
+                : m_platform_info.int_size;
             break;
         case typing::LONG_INT_CLASS:
-            size = m_platform_info.m_long_long_size;
+            size = m_platform_info.long_long_size;
             break;
         default:
             throw std::runtime_error("Invalid int type class");
     }
-    return { size, std::min<size_t>(size, m_platform_info.m_max_alignment) };
+    return { size, std::min<size_t>(size, m_platform_info.max_alignment) };
 }
 
 const semantic_lowerer::type_layout_info semantic_lowerer::type_layout_calculator::dispatch(typing::float_type& type) {
     switch (type.type_class()) {
         case typing::FLOAT_FLOAT_CLASS:
-            return { 4, std::min<size_t>(4, m_platform_info.m_max_alignment) };
+            return { 4, std::min<size_t>(4, m_platform_info.max_alignment) };
         case typing::DOUBLE_FLOAT_CLASS:
-            return { 8, std::min<size_t>(8, m_platform_info.m_max_alignment) };
+            return { 8, std::min<size_t>(8, m_platform_info.max_alignment) };
     }
     throw std::runtime_error("Invalid float type class");
 }
@@ -169,7 +169,7 @@ const semantic_lowerer::type_layout_info semantic_lowerer::type_layout_calculato
         max_alignment = std::max(max_alignment, member_layout.alignment);
     }
 
-    max_alignment = std::min<size_t>(max_alignment, m_platform_info.m_max_alignment);
+    max_alignment = std::min<size_t>(max_alignment, m_platform_info.max_alignment);
     
     // Pad size to alignment
     size_t size = max_size + (max_alignment - (max_size % max_alignment)) % max_alignment;

@@ -35,16 +35,15 @@ int main()
 			cout << michaelcc::ast::to_c_string(*element) << endl;
 		}
 
-		michaelcc::semantic_lowerer lowerer(michaelcc::semantic_lowerer::platform_info{
-			.m_pointer_size = 8,
-			.m_int_size = 4,
-			.m_short_size = 2,
-			.m_long_size = 4,
-			.m_long_long_size = 8,
-			.m_float_size = 4,
-			.m_double_size = 8,
-			.m_default_alignment = 1,
-			.m_max_alignment = 16,
+		michaelcc::semantic_lowerer lowerer(michaelcc::platform_info{
+			.pointer_size = 8,
+			.short_size = 2,
+			.int_size = 4,
+			.long_size = 4,
+			.long_long_size = 8,
+			.float_size = 4,
+			.double_size = 8,
+			.max_alignment = 16,
 		});
 
 		lowerer.lower(ast);
