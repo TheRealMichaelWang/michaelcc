@@ -145,6 +145,84 @@ namespace michaelcc {
 			const function_definition
 		>;
 
+		template<typename ReturnType>
+		using expression_dispatcher = generic_dispatcher<ReturnType, expression,
+			integer_constant,
+			floating_constant,
+			string_constant,
+			variable_reference,
+			function_reference,
+			var_increment_operator,
+			arithmetic_operator,
+			unary_operation,
+			type_cast,
+			address_of,
+			dereference,
+			member_access,
+			array_index,
+			array_initializer,
+			allocate_array,
+			struct_initializer,
+			union_initializer,
+			function_call,
+			conditional_expression,
+			set_address,
+			set_variable,
+			enumerator_literal
+		>;
+
+		template<typename ReturnType>
+		using const_expression_dispatcher = generic_dispatcher<ReturnType, const expression,
+			const integer_constant,
+			const floating_constant,
+			const string_constant,
+			const variable_reference,
+			const function_reference,
+			const var_increment_operator,
+			const arithmetic_operator,
+			const unary_operation,
+			const type_cast,
+			const address_of,
+			const dereference,
+			const member_access,
+			const array_index,
+			const array_initializer,
+			const allocate_array,
+			const struct_initializer,
+			const union_initializer,
+			const function_call,
+			const conditional_expression,
+			const set_address,
+			const set_variable,
+			const enumerator_literal
+		>;
+
+		template<typename ReturnType>
+		using statement_dispatcher = generic_dispatcher<ReturnType, statement,
+			expression_statement,
+			assignment_statement,
+			variable_declaration,
+			return_statement,
+			if_statement,
+			loop_statement,
+			break_statement,
+			continue_statement,
+			statement_block
+		>;
+
+		template<typename ReturnType>
+		using const_statement_dispatcher = generic_dispatcher<ReturnType, const statement,
+			const expression_statement,
+			const assignment_statement,
+			const variable_declaration,
+			const return_statement,
+			const if_statement,
+			const loop_statement,
+			const break_statement,
+			const continue_statement,
+			const statement_block
+		>;
+
 		class variable final : public symbol, public mutable_visitable_base<visitor>, public const_visitable_base<const_visitor> {
 		private:
             uint8_t m_qualifiers;
