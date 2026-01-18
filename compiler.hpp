@@ -214,6 +214,7 @@ namespace michaelcc {
         public:
             address_of_compiler(compiler& compiler) : m_compiler(compiler) { }
 
+        protected:
             std::unique_ptr<logical_ir::expression> dispatch(const ast::int_literal& node) override { handle_default(node); return nullptr; }
             std::unique_ptr<logical_ir::expression> dispatch(const ast::float_literal& node) override { handle_default(node); return nullptr; }
             std::unique_ptr<logical_ir::expression> dispatch(const ast::double_literal& node) override { handle_default(node); return nullptr; }
@@ -234,6 +235,25 @@ namespace michaelcc {
             void handle_default(const ast::ast_element& node) override;
         };
 
+        class default_value_resolver final : public typing::const_type_dispatcher<std::unique_ptr<logical_ir::expression>> {
+        private:
+            const compiler& m_compiler;
+            typing::qual_type m_qual_type;
+        public:
+            default_value_resolver(const compiler& compiler, typing::qual_type&& qual_type) : m_compiler(compiler), m_qual_type(std::move(qual_type)) { }
+
+            std::unique_ptr<logical_ir::expression> dispatch(const typing::void_type& type) override { return nullptr; }
+
+            std::unique_ptr<logical_ir::expression> dispatch(const typing::int_type& type) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const typing::float_type& type) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const typing::pointer_type& type) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const typing::array_type& type) override { return nullptr; }
+            std::unique_ptr<logical_ir::expression> dispatch(const typing::enum_type& type) override { return nullptr; }
+            std::unique_ptr<logical_ir::expression> dispatch(const typing::function_pointer_type& type) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const typing::struct_type& type) override;
+            std::unique_ptr<logical_ir::expression> dispatch(const typing::union_type& type) override { return nullptr; }
+        };
+
         class expression_compiler final : public ast::const_expression_dispatcher<std::unique_ptr<logical_ir::expression>> {
         private:
             std::optional<typing::qual_type> m_target_type;
@@ -242,6 +262,7 @@ namespace michaelcc {
         public:
             expression_compiler(compiler& compiler, std::optional<typing::qual_type> target_type = std::nullopt) : m_target_type(target_type), m_compiler(compiler) { }
 
+        protected:
             std::unique_ptr<logical_ir::expression> dispatch(const ast::int_literal& node) override;
             std::unique_ptr<logical_ir::expression> dispatch(const ast::float_literal& node) override;
             std::unique_ptr<logical_ir::expression> dispatch(const ast::double_literal& node) override;
@@ -335,6 +356,7 @@ namespace michaelcc {
         std::optional<typing::qual_type> arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, type_arbitartion_mode mode = MICHAELCC_ARBITRATE_NONE) const noexcept;
         
         typing::qual_type resolve_type(const ast::ast_element& node, bool allow_vla=false);
+        std::unique_ptr<logical_ir::expression> resolve_default_value(const typing::qual_type& type) const noexcept;
         std::unique_ptr<logical_ir::expression> compile_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type = std::nullopt, bool is_type_hint=false);
     
         std::shared_ptr<logical_ir::function_definition> compile_function_declaration(const ast::function_declaration& node);

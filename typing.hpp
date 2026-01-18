@@ -71,6 +71,18 @@ namespace michaelcc {
             function_pointer_type,
             struct_type,
             union_type> {};
+
+            template<typename ReturnType>
+        class const_type_dispatcher : public generic_dispatcher<ReturnType, const base_type, 
+            const void_type, 
+            const int_type, 
+            const float_type, 
+            const pointer_type, 
+            const array_type, 
+            const enum_type, 
+            const function_pointer_type,
+            const struct_type,
+            const union_type> {};
         
         class base_type {
         public:
