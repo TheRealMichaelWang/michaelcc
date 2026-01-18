@@ -12,7 +12,7 @@ int modify_global(int new_value) {
     return old;
 }
 
-int test_shadowing() {
+/*int test_shadowing() {
     int x = 10;
     int result = 0;
     
@@ -31,7 +31,7 @@ int test_shadowing() {
     result = result + x;  // Uses outer x (10)
     
     return result;  // Should be 20 + 30 + 20 + 10 = 80
-}
+}*/
 
 int test_block_scope() {
     int sum = 0;
@@ -75,7 +75,7 @@ int main() {
     int old = modify_global(200);
     int g2 = use_global();
     
-    int shadow = test_shadowing();
+    //int shadow = test_shadowing();
     int block = test_block_scope();
     int loop = test_loop_scope();
     

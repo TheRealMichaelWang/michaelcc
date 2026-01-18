@@ -311,8 +311,28 @@ namespace michaelcc {
                 }
 
                 const int_type& other_int = static_cast<const int_type&>(other);
-                return m_int_qualifiers == other_int.int_qualifiers() 
-                    && m_class == other_int.type_class();
+                // Strict signedness matching - unsigned -> signed requires explicit cast
+                if (is_unsigned() != other_int.is_unsigned()) {
+                    return false;
+                }
+                // Compute effective size rank for proper comparison
+                // C standard integer conversion rank:
+                //   char (0) < short (1) < int (2) < long (3) < long long (4)
+                // int_class: CHAR=0, SHORT=1, INT=2, LONG=3 (represents long long)
+                // LONG_INT_QUALIFIER on INT_INT_CLASS makes it "long int" (rank 3)
+                auto size_rank = [](int_class cls, bool is_long) -> int {
+                    switch (cls) {
+                        case CHAR_INT_CLASS:  return 0;  // char
+                        case SHORT_INT_CLASS: return 1;  // short
+                        case INT_INT_CLASS:   return is_long ? 3 : 2;  // long int vs int
+                        case LONG_INT_CLASS:  return 4;  // long long
+                        default: return -1;
+                    }
+                };
+                int this_rank = size_rank(m_class, is_long());
+                int other_rank = size_rank(other_int.type_class(), other_int.is_long());
+                // Allow smaller or equal rank to be assigned to this type
+                return this_rank >= other_rank;
             }
 
             void to_string(std::ostringstream& ss) const override {
@@ -344,7 +364,7 @@ namespace michaelcc {
                 }
 
                 const float_type& other_float = static_cast<const float_type&>(other);
-                return m_class == other_float.type_class();
+                return m_class >= other_float.type_class();
             }
 
             void to_string(std::ostringstream& ss) const override {
