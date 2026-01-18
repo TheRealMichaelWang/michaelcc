@@ -530,7 +530,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
             throw panic(ss.str(), node.location());
         }
 
-        return std::make_unique<logical_ir::member_access>(std::move(base), *field);
+        return std::make_unique<logical_ir::member_access>(std::move(base), *field, node.is_pointer_dereference());
     }
 
     std::shared_ptr<typing::union_type> union_type = std::dynamic_pointer_cast<typing::union_type>(base_type.type());
@@ -544,7 +544,7 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
             ss << "Union \"" << union_type->name().value() << "\" does not have a member named \"" << node.property_name() << "\".";
             throw panic(ss.str(), node.location());
         }
-        return std::make_unique<logical_ir::member_access>(std::move(base), *member);
+        return std::make_unique<logical_ir::member_access>(std::move(base), *member, node.is_pointer_dereference());
     }
 
     std::ostringstream ss;
@@ -734,12 +734,6 @@ std::unique_ptr<logical_ir::expression> compiler::expression_compiler::dispatch(
         }
         std::shared_ptr<logical_ir::function_definition> function = std::dynamic_pointer_cast<logical_ir::function_definition>(symbol);
         if (function) {
-            if (!function->is_implemented()) {
-                std::ostringstream ss;
-                ss << "Function \"" << function->name() << "\" is not implemented and thus cannot be called.";
-                throw panic(ss.str(), node.location());
-            }
-
             if (function->parameters().size() != arguments.size()) {
                 std::ostringstream ss;
                 ss << "Function \"" << function->name() << "\" expects " << function->parameters().size() << " arguments, but " << arguments.size() << " were provided.";

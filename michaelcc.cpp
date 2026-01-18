@@ -12,7 +12,7 @@ using namespace std;
 int main()
 {
     cout << "Michael C Compiler" << endl;
-	ifstream infile("../../tests/enums.c");
+	ifstream infile("../../tests/nested_structs.c");
 	
 	if (!infile.is_open()) {
 		cerr << "Failed to open file!" << endl;
@@ -23,7 +23,7 @@ int main()
 	ss << infile.rdbuf();
 
 	try {
-		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/enums.c");
+		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/nested_structs.c");
 		preprocessor.preprocess();
 		vector<michaelcc::token> tokens = preprocessor.result();
 

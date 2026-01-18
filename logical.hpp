@@ -386,12 +386,15 @@ namespace michaelcc {
 		private:
 			std::unique_ptr<expression> m_base;
 			const typing::member m_member;
+
+			bool m_is_dereference;
 		public:
-			member_access(std::unique_ptr<expression>&& base, const typing::member member)
-				: m_base(std::move(base)), m_member(member) {}
+			member_access(std::unique_ptr<expression>&& base, const typing::member member, bool is_dereference = false)
+				: m_base(std::move(base)), m_member(member), m_is_dereference(is_dereference) {}
 
 			const std::unique_ptr<expression>& base() const noexcept { return m_base; }
 			const typing::member& member() const noexcept { return m_member; }
+			bool is_dereference() const noexcept { return m_is_dereference; }
 			const typing::qual_type get_type() const override { return m_member.member_type.to_owning(m_base->get_type().propagate_qualifiers()); }
 
 			void mutable_accept(visitor& v) override {
