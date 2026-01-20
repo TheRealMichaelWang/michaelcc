@@ -7,6 +7,14 @@
 #include <memory>
 #include <format>
 
+template <typename Derived, typename Base>
+std::unique_ptr<Derived> dynamic_unique_cast(std::unique_ptr<Base>&& base) {
+    if (Derived* d = dynamic_cast<Derived*>(base.get())) {
+        base.release(); // Relinquish ownership from base
+        return std::unique_ptr<Derived>(d); // Take ownership in new type
+    }
+    return nullptr; // Cast failed; base still owns the original object
+}
 namespace michaelcc {
     template<typename... NodeTypes>
     class const_generic_visitor;
@@ -95,16 +103,45 @@ namespace michaelcc {
         }
     };
 
+    template<typename BaseType, typename... NodeTypes>
+    class generic_transformer;
+
+    template<typename BaseType>
+    class generic_transformer<BaseType> {
+    public:
+        virtual ~generic_transformer() = default;
+
+        std::unique_ptr<BaseType> operator()(std::unique_ptr<BaseType>&& node) {
+            handle_default(node);
+            return nullptr;
+        }
+
+    protected:
+        // Sentinel for the using declaration chain - never called
+        void dispatch() {}
+    };
+
+    template<typename BaseType, typename NodeType, typename... Rest>
+    requires std::derived_from<NodeType, BaseType>
+    class generic_transformer<BaseType, NodeType, Rest...> : public generic_transformer<BaseType, Rest...> {
+    protected:
+
+        using generic_transformer<BaseType, Rest...>::dispatch;
+        virtual std::unique_ptr<BaseType> dispatch(std::unique_ptr<NodeType>&& node) = 0;
+
+    public:
+        std::unique_ptr<BaseType> operator()(std::unique_ptr<BaseType>&& node) {
+            std::unique_ptr<NodeType> n = dynamic_unique_cast<NodeType>(std::move(node));
+            if (n) {
+                return dispatch(std::move(n));
+            }
+            return generic_transformer<BaseType, Rest...>::operator()(std::move(node));
+        }
+    };
+
     template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 }
 
-template <typename Derived, typename Base>
-std::unique_ptr<Derived> dynamic_unique_cast(std::unique_ptr<Base>&& base) {
-    if (Derived* d = dynamic_cast<Derived*>(base.get())) {
-        base.release(); // Relinquish ownership from base
-        return std::unique_ptr<Derived>(d); // Take ownership in new type
-    }
-    return nullptr; // Cast failed; base still owns the original object
-}
+
 
 #endif

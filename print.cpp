@@ -910,14 +910,6 @@ public:
         after_print(1);
     }
 
-    // assignment_statement: 2 children (destination, value)
-    void visit(const logical_ir::assignment_statement& node) override {
-        before_print();
-        print_indent();
-        m_out << "assignment_statement\n";
-        after_print(2);
-    }
-
     // local_declaration: 1 + (initializer ? 1 : 0)
     void visit(const logical_ir::variable_declaration& node) override {
         before_print();

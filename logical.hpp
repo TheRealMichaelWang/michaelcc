@@ -41,7 +41,6 @@ namespace michaelcc {
 		class set_address;
 		class set_variable;
 		class expression_statement;
-		class assignment_statement;
 		class variable_declaration;
 		class return_statement;
 		class if_statement;
@@ -78,7 +77,6 @@ namespace michaelcc {
 			set_address,
 			set_variable,
 			expression_statement,
-			assignment_statement,
 			variable_declaration,
 			return_statement,
 			if_statement,
@@ -122,7 +120,6 @@ namespace michaelcc {
 			set_address,
 			set_variable,
 			expression_statement,
-			assignment_statement,
 			variable_declaration,
 			return_statement,
 			if_statement,
@@ -197,30 +194,67 @@ namespace michaelcc {
 			const enumerator_literal
 		>;
 
+		using expression_transformer = generic_transformer<expression,
+			integer_constant,
+			floating_constant,
+			string_constant,
+			variable_reference,
+			function_reference,
+			var_increment_operator,
+			arithmetic_operator,
+			unary_operation,
+			type_cast,
+			address_of,
+			dereference,
+			member_access,
+			array_index,
+			array_initializer,
+			allocate_array,
+			struct_initializer,
+			union_initializer,
+			function_call,
+			conditional_expression,
+			set_address,
+			set_variable,
+			enumerator_literal
+		>;
+
 		template<typename ReturnType>
 		using statement_dispatcher = generic_dispatcher<ReturnType, statement,
 			expression_statement,
-			assignment_statement,
 			variable_declaration,
 			return_statement,
 			if_statement,
 			loop_statement,
 			break_statement,
 			continue_statement,
-			statement_block
+			statement_block,
+			expression_statement
 		>;
 
 		template<typename ReturnType>
 		using const_statement_dispatcher = generic_dispatcher<ReturnType, const statement,
 			const expression_statement,
-			const assignment_statement,
 			const variable_declaration,
 			const return_statement,
 			const if_statement,
 			const loop_statement,
 			const break_statement,
 			const continue_statement,
-			const statement_block
+			const statement_block,
+			const expression_statement
+		>;
+
+		using statement_transformer = generic_transformer<statement,
+			expression_statement,
+			variable_declaration,
+			return_statement,
+			if_statement,
+			loop_statement,
+			break_statement,
+			continue_statement,
+			statement_block,
+			expression_statement
 		>;
 
 		class variable final : public symbol, public mutable_visitable_base<visitor>, public const_visitable_base<const_visitor> {
@@ -249,6 +283,8 @@ namespace michaelcc {
 			virtual const typing::qual_type get_type() const = 0;
 			virtual void mutable_accept(visitor& v) override = 0;
 			virtual void accept(const_visitor& v) const override = 0;
+
+			virtual std::unique_ptr<expression> clone() const = 0;
 		};
 
 		class integer_constant final : public expression {
@@ -267,6 +303,10 @@ namespace michaelcc {
 
 			void mutable_accept(visitor& v) override { v.visit(*this); }
 			void accept(const_visitor& v) const override { v.visit(*this); }
+
+			std::unique_ptr<expression> clone() const override {
+				return std::make_unique<integer_constant>(m_value, typing::qual_type(m_type));
+			}
 		};
 
 		class floating_constant final : public expression {
@@ -285,6 +325,10 @@ namespace michaelcc {
 
 			void mutable_accept(visitor& v) override { v.visit(*this); }
 			void accept(const_visitor& v) const override { v.visit(*this); }
+
+			std::unique_ptr<expression> clone() const override {
+				return std::make_unique<floating_constant>(m_value, typing::qual_type(m_type));
+			}
 		};
 
 		class string_constant final : public expression {
@@ -304,6 +348,10 @@ namespace michaelcc {
 
 			void mutable_accept(visitor& v) override { v.visit(*this); }
 			void accept(const_visitor& v) const override { v.visit(*this); }
+
+			std::unique_ptr<expression> clone() const override {
+				return std::make_unique<string_constant>(m_index);
+			}
 		};
 
 		class variable_reference final : public expression {
@@ -321,8 +369,11 @@ namespace michaelcc {
 
 			void mutable_accept(visitor& v) override { v.visit(*this); }
 			void accept(const_visitor& v) const override { v.visit(*this); }
+		
+			std::unique_ptr<expression> clone() const override {
+				return std::make_unique<variable_reference>(std::shared_ptr<variable>(m_variable));
+			}
 		};
-
 
 		class var_increment_operator final : public expression {
 		public:
@@ -344,6 +395,22 @@ namespace michaelcc {
 
 			void mutable_accept(visitor& v) override { v.visit(*this); }
 			void accept(const_visitor& v) const override { v.visit(*this); }
+
+			std::unique_ptr<expression> clone() const override {
+				destination_type destination = std::visit( overloaded {
+					[this](const std::unique_ptr<expression>& destination) -> destination_type {
+						return destination->clone();
+					},
+					[this](const std::shared_ptr<variable>& destination) -> destination_type {
+						return std::shared_ptr<variable>(destination);
+					}
+				}, m_destination);
+				std::optional<std::unique_ptr<expression>> increment_amount = std::nullopt;
+				if (m_increment_amount) {
+					increment_amount = m_increment_amount.value()->clone();
+				}
+				return std::make_unique<var_increment_operator>(std::move(destination), std::move(increment_amount));
+			}
 		};
 
 		class arithmetic_operator final : public expression {
@@ -380,6 +447,10 @@ namespace michaelcc {
 				m_left->accept(v);
 				m_right->accept(v);
 			}
+
+			std::unique_ptr<expression> clone() const override {
+				return std::make_unique<arithmetic_operator>(m_operator, m_left->clone(), m_right->clone(), typing::qual_type(m_result_type));
+			}
 		};
 
 		class unary_operation final : public expression {
@@ -406,6 +477,10 @@ namespace michaelcc {
 				v.visit(*this);
 				m_operand->accept(v);
 			}
+
+			std::unique_ptr<expression> clone() const override {
+				return std::make_unique<unary_operation>(m_operator, m_operand->clone());
+			}
 		};
 
 		class type_cast final : public expression {
@@ -427,6 +502,10 @@ namespace michaelcc {
 			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_operand->accept(v);
+			}
+
+			std::unique_ptr<expression> clone() const override {
+				return std::make_unique<type_cast>(m_operand->clone(), typing::qual_type(m_target_type));
 			}
 		};
 
@@ -458,6 +537,10 @@ namespace michaelcc {
 				v.visit(*this);
 				m_operand->accept(v);
 			}
+
+			std::unique_ptr<expression> clone() const override {
+				return std::make_unique<dereference>(m_operand->clone());
+			}
 		};
 
 		class member_access final : public expression {
@@ -483,6 +566,10 @@ namespace michaelcc {
 			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_base->accept(v);
+			}
+
+			std::unique_ptr<expression> clone() const override {
+				return std::make_unique<member_access>(m_base->clone(), m_member, m_is_dereference);
 			}
 		};
 
@@ -523,6 +610,10 @@ namespace michaelcc {
 				v.visit(*this);
 				m_base->accept(v);
 				m_index->accept(v);
+			}
+
+			std::unique_ptr<expression> clone() const override {
+				return std::make_unique<array_index>(m_base->clone(), m_index->clone());
 			}
 		};
 
@@ -572,6 +663,20 @@ namespace michaelcc {
 					operand->accept(v);
 				}, m_operand);
 			}
+
+			std::unique_ptr<expression> clone() const override {
+				return std::visit(overloaded {
+					[this](const std::shared_ptr<variable>& operand) -> std::unique_ptr<address_of> {
+						return std::make_unique<address_of>(std::shared_ptr<variable>(operand));
+					},
+					[this](const std::unique_ptr<array_index>& operand) -> std::unique_ptr<address_of> {
+						return std::make_unique<address_of>(dynamic_unique_cast<array_index>(operand->clone()));
+					},
+					[this](const std::unique_ptr<member_access>& operand) -> std::unique_ptr<address_of> {
+						return std::make_unique<address_of>(dynamic_unique_cast<member_access>(operand->clone()));
+					},
+				}, m_operand);
+			}
 		};
 
 		class conditional_expression final : public expression {
@@ -611,6 +716,10 @@ namespace michaelcc {
 				m_then_expression->accept(v);
 				m_else_expression->accept(v);
 			}
+
+			std::unique_ptr<expression> clone() const override {
+				return std::make_unique<conditional_expression>(m_condition->clone(), m_then_expression->clone(), m_else_expression->clone(), typing::qual_type(m_result_type));
+			}
 		};
 
 		class set_address final : public expression {
@@ -638,6 +747,10 @@ namespace michaelcc {
 				m_destination->accept(v);
 				m_value->accept(v);
 			}
+
+			std::unique_ptr<expression> clone() const override {
+				return std::make_unique<set_address>(m_destination->clone(), m_value->clone());
+			}
 		};
 
 		class set_variable final : public expression {
@@ -663,6 +776,10 @@ namespace michaelcc {
 				v.visit(*this);
 				m_variable->accept(v);
 				m_value->accept(v);
+			}
+
+			std::unique_ptr<expression> clone() const override {
+				return std::make_unique<set_variable>(std::shared_ptr(m_variable), m_value->clone());
 			}
 		};
 
@@ -690,6 +807,8 @@ namespace michaelcc {
 				}
 				m_statements = std::move(statements);
 			}
+
+			void transform_statements(statement_transformer& transformer);
 
 			const std::vector<std::unique_ptr<statement>>& statements() const noexcept { return m_statements; }
 
@@ -756,31 +875,6 @@ namespace michaelcc {
 			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_expression->accept(v);
-			}
-		};
-
-		class assignment_statement final : public statement {
-		private:
-			std::unique_ptr<expression> m_destination;
-			std::unique_ptr<expression> m_value;
-		public:
-			assignment_statement(std::unique_ptr<expression>&& destination,
-				std::unique_ptr<expression>&& value)
-				: m_destination(std::move(destination)), m_value(std::move(value)) {}
-
-			const std::unique_ptr<expression>& destination() const noexcept { return m_destination; }
-			const std::unique_ptr<expression>& value() const noexcept { return m_value; }
-
-			void mutable_accept(visitor& v) override {
-				v.visit(*this);
-				m_destination->mutable_accept(v);
-				m_value->mutable_accept(v);
-			}
-
-			void accept(const_visitor& v) const override {
-				v.visit(*this);
-				m_destination->accept(v);
-				m_value->accept(v);
 			}
 		};
 
@@ -1000,6 +1094,10 @@ namespace michaelcc {
 			void mutable_accept(visitor& v) override { v.visit(*this); }
 
 			void accept(const_visitor& v) const override { v.visit(*this); }
+
+			std::unique_ptr<expression> clone() const override {
+				return std::make_unique<function_reference>(std::shared_ptr<function_definition>(m_function));
+			}
 		};
 
 		class array_initializer final : public expression {
@@ -1028,6 +1126,15 @@ namespace michaelcc {
 				for (const auto& initializer : m_initializers) {
 					initializer->accept(v);
 				}
+			}
+
+			std::unique_ptr<expression> clone() const override {
+				std::vector<std::unique_ptr<expression>> cloned_initializers;
+				cloned_initializers.reserve(m_initializers.size());
+				for (const auto& initializer : m_initializers) {
+					cloned_initializers.emplace_back(initializer->clone());
+				}
+				return std::make_unique<array_initializer>(std::move(cloned_initializers), typing::qual_type(m_element_type));
 			}
 		};
 
@@ -1058,6 +1165,15 @@ namespace michaelcc {
 					dimension->accept(v);
 				}
 			}
+
+			std::unique_ptr<expression> clone() const override {
+				std::vector<std::unique_ptr<expression>> cloned_dimensions;
+				cloned_dimensions.reserve(m_dimensions.size());
+				for (const auto& dimension : m_dimensions) {
+					cloned_dimensions.emplace_back(dimension->clone());
+				}
+				return std::make_unique<allocate_array>(std::move(cloned_dimensions), typing::qual_type(m_element_type));
+			}
 		};
 		
 		class struct_initializer final : public expression {
@@ -1075,6 +1191,8 @@ namespace michaelcc {
 
 			const std::vector<member_initializer>& initializers() const noexcept { return m_initializers; }
 
+			const std::shared_ptr<typing::struct_type>& struct_type() const noexcept { return m_struct_type; }
+
 			const typing::qual_type get_type() const override {
 				return typing::qual_type::weak(m_struct_type);
 			}
@@ -1091,6 +1209,15 @@ namespace michaelcc {
 				for (const auto& initializer : m_initializers) {
 					initializer.initializer->accept(v);
 				}
+			}
+
+			std::unique_ptr<expression> clone() const override {
+				std::vector<member_initializer> cloned_initializers;
+				cloned_initializers.reserve(m_initializers.size());
+				for (const auto& initializer : m_initializers) {
+					cloned_initializers.emplace_back(initializer.member_name, initializer.initializer->clone());
+				}
+				return std::make_unique<struct_initializer>(std::move(cloned_initializers), std::shared_ptr<typing::struct_type>(m_struct_type));
 			}
 		};
 
@@ -1121,6 +1248,10 @@ namespace michaelcc {
 				v.visit(*this);
 				m_initializer->accept(v);
 			}
+
+			std::unique_ptr<expression> clone() const override {
+				return std::make_unique<union_initializer>(m_initializer->clone(), std::shared_ptr<typing::union_type>(m_union_type), typing::qual_type(m_target_type));
+			}
 		};
 
 		class enumerator_literal final : public expression {
@@ -1145,6 +1276,10 @@ namespace michaelcc {
 			void accept(const_visitor& v) const override {
 				v.visit(*this);
 			}
+
+			std::unique_ptr<expression> clone() const override {
+				return std::make_unique<enumerator_literal>(typing::enum_type::enumerator(m_enumerator.name, m_enumerator.value), std::shared_ptr<typing::enum_type>(m_enum_type));
+			}
 		};
 
 		class enumerator_symbol final : public symbol {
@@ -1162,8 +1297,8 @@ namespace michaelcc {
 				return std::format("enumerator {} of enum {}", m_enumerator.name, m_enum_type->name().value());
 			}
 
-			std::unique_ptr<enumerator_literal> to_literal() const {
-				return std::make_unique<enumerator_literal>(typing::enum_type::enumerator(m_enumerator.name, m_enumerator.value), m_enum_type);
+			std::unique_ptr<expression> to_literal() const {
+				return std::make_unique<enumerator_literal>(typing::enum_type::enumerator(m_enumerator.name, m_enumerator.value), std::shared_ptr<typing::enum_type>(m_enum_type));
 			}
 		};
 
@@ -1213,6 +1348,24 @@ namespace michaelcc {
 				for (const auto& arg : m_arguments) {
 					arg->accept(v);
 				}
+			}
+
+			std::unique_ptr<expression> clone() const override {
+				callable cloned_callee = std::visit(overloaded {
+					[this](const std::shared_ptr<function_definition>& function) -> callable {
+						return std::shared_ptr<function_definition>(function);
+					},
+					[this](const std::shared_ptr<expression>& expression) -> callable {
+						return expression->clone();
+					}
+				}, m_callee);
+
+				std::vector<std::unique_ptr<expression>> cloned_arguments;
+				cloned_arguments.reserve(m_arguments.size());
+				for (const auto& arg : m_arguments) {
+					cloned_arguments.emplace_back(arg->clone());
+				}
+				return std::make_unique<function_call>(std::move(cloned_callee), std::move(cloned_arguments));
 			}
 		};
 
@@ -1320,6 +1473,13 @@ namespace michaelcc {
 				}
 			}
 		};
+
+		// Out-of-line definition - must be after statement types are complete
+		inline void control_block::transform_statements(statement_transformer& transformer) {
+			for (size_t i = 0; i < m_statements.size(); i++) {
+				m_statements[i] = transformer(std::move(m_statements[i]));
+			}
+		}
 
 		// Utility function to print the IR as a tree
 		std::string to_tree_string(const translation_unit& unit);
