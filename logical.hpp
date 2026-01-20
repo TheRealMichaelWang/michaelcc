@@ -228,8 +228,7 @@ namespace michaelcc {
 			loop_statement,
 			break_statement,
 			continue_statement,
-			statement_block,
-			expression_statement
+			statement_block
 		>;
 
 		template<typename ReturnType>
@@ -241,8 +240,7 @@ namespace michaelcc {
 			const loop_statement,
 			const break_statement,
 			const continue_statement,
-			const statement_block,
-			const expression_statement
+			const statement_block
 		>;
 
 		using statement_transformer = generic_transformer<statement,
@@ -253,8 +251,7 @@ namespace michaelcc {
 			loop_statement,
 			break_statement,
 			continue_statement,
-			statement_block,
-			expression_statement
+			statement_block
 		>;
 
 		class variable final : public symbol, public mutable_visitable_base<visitor>, public const_visitable_base<const_visitor> {

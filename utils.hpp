@@ -112,7 +112,6 @@ namespace michaelcc {
         virtual ~generic_transformer() = default;
 
         std::unique_ptr<BaseType> operator()(std::unique_ptr<BaseType>&& node) {
-            handle_default(node);
             return nullptr;
         }
 
