@@ -9,7 +9,7 @@
 
 #include "tokens.hpp"
 #include "errors.hpp"
-#include "typing.hpp"
+#include "logic/typing.hpp"
 #include "utils.hpp"
 
 namespace michaelcc {

@@ -1,5 +1,5 @@
+#include "syntax/preprocessor.hpp"
 #include <sstream>
-#include "preprocessor.hpp"
 
 using namespace michaelcc;
 

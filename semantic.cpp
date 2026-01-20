@@ -1,8 +1,8 @@
-#include "semantic.hpp"
-#include "ast.hpp"
-#include "logical.hpp"
-#include "tokens.hpp"
-#include "typing.hpp"
+#include "logic/semantic.hpp"
+#include "syntax/ast.hpp"
+#include "logic/logical.hpp"
+#include "syntax/tokens.hpp"
+#include "logic/typing.hpp"
 #include <cstdint>
 #include <functional>
 #include <memory>

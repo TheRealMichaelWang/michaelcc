@@ -1,7 +1,7 @@
-#include "tokens.hpp"
-#include "ast.hpp"
-#include "typing.hpp"
-#include "logical.hpp"
+#include "syntax/tokens.hpp"
+#include "syntax/ast.hpp"
+#include "logic/typing.hpp"
+#include "logic/logical.hpp"
 #include <cctype>
 #include <iomanip>
 

@@ -1,6 +1,6 @@
-#include "parser.hpp"
-#include "tokens.hpp"
-#include "typing.hpp"
+#include "syntax/parser.hpp"
+#include "syntax/tokens.hpp"
+#include "logic/typing.hpp"
 #include <cstdint>
 #include <sstream>
 

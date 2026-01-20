@@ -1,6 +1,6 @@
-#include "ast.hpp"
-#include "semantic.hpp"
-#include "logical.hpp"
+#include "syntax/ast.hpp"
+#include "logic/semantic.hpp"
+#include "logic/logical.hpp"
 #include <memory>
 
 using namespace michaelcc;

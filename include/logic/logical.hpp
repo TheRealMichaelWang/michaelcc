@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <variant>
 #include "errors.hpp"
-#include "tokens.hpp"
+#include "syntax/tokens.hpp"
 #include "symbols.hpp"
 #include "typing.hpp"
 #include "utils.hpp"

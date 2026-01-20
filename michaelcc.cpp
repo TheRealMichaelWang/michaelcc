@@ -1,9 +1,9 @@
 ﻿// michaelcc.cpp : Defines the entry point for the application.
 
-#include "preprocessor.hpp"
-#include "ast.hpp"
-#include "parser.hpp"
-#include "semantic.hpp"
+#include "syntax/preprocessor.hpp"
+#include "syntax/ast.hpp"
+#include "syntax/parser.hpp"
+#include "logic/semantic.hpp"
 #include <fstream>
 #include <iostream>
 

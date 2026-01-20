@@ -1,11 +1,11 @@
 #ifndef MICHAELCC_SEMANTIC_HPP
 #define MICHAELCC_SEMANTIC_HPP
 
-#include "ast.hpp"
-#include "errors.hpp"
-#include "logical.hpp"
+#include "syntax/ast.hpp"
+#include "logic/logical.hpp"
+#include "logic/typing.hpp"
 #include "platform.hpp"
-#include "typing.hpp"
+#include "errors.hpp"
 #include <memory>
 #include <optional>
 #include <vector>
