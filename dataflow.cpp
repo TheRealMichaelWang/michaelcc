@@ -1,6 +1,8 @@
 #include "logic/dataflow.hpp"
 #include "logic/logical.hpp"
 #include "logic/typing.hpp"
+#include "logic/logical.hpp"
+#include <memory>
 
 namespace michaelcc {
     namespace dataflow {
@@ -338,10 +340,33 @@ namespace michaelcc {
         std::unique_ptr<logical_ir::statement> default_statement_transformer::dispatch(const logical_ir::statement_block& node) {
             return std::make_unique<logical_ir::statement_block>(m_pass.transform_control_block(*node.control_block()));
         }
+    }
 
-        // transform_pass::transform method
-        void transform_pass::transform(const logical_ir::translation_unit& unit) {
-            
+    namespace logical_ir {
+        void translation_unit::transform(expression_transformer& expression_transformer, statement_transformer& statement_transformer) {
+            for(variable_declaration& declaration : m_static_variable_declarations) {
+                auto transformed = statement_transformer(declaration);
+                std::unique_ptr<variable_declaration> new_declaration = dynamic_unique_cast<variable_declaration>(std::move(transformed));
+                if (!new_declaration) {
+                    throw std::runtime_error("Failed to transform static variable declaration");
+                }
+                
+                declaration = std::move(*new_declaration);
+            }
+
+            for (auto& symbol : m_global_context->symbols()) {
+                std::shared_ptr<function_definition> function = std::dynamic_pointer_cast<function_definition>(symbol);
+                if (function) {
+                    function->transform(expression_transformer, statement_transformer);
+                }
+            }
+        }
+
+        void control_block::transform(expression_transformer& expression_transformer, statement_transformer& statement_transformer) {
+            for (auto& statement : m_statements) {
+                auto transformed = statement_transformer(*statement);
+                statement = std::move(transformed);
+            }
         }
     }
 }

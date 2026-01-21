@@ -81,7 +81,9 @@ namespace michaelcc {
                 std::function<std::string(const std::string&)> variable_name_transformer = [](const std::string& name) { return std::format("_{}", name); },
                 std::vector<replace_variable_context> replace_variable_contexts = {});
 
-            void transform(const logical_ir::translation_unit& unit);
+            void transform(logical_ir::translation_unit& unit) {
+                unit.transform(*m_expression_pass, *m_statement_pass);
+            }
         };
 
         class default_expression_transformer : public logical_ir::expression_transformer {
@@ -113,8 +115,10 @@ namespace michaelcc {
         class default_statement_transformer : public logical_ir::statement_transformer {
         private:
             transform_pass& m_pass;
+
         public:
             default_statement_transformer(transform_pass& pass) : m_pass(pass) { }
+
         protected:
             std::unique_ptr<logical_ir::statement> dispatch(const logical_ir::expression_statement& node) override;
             std::unique_ptr<logical_ir::statement> dispatch(const logical_ir::variable_declaration& node) override;

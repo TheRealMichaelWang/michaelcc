@@ -797,6 +797,8 @@ namespace michaelcc {
 					stmt->accept(v);
 				}
 			}
+			
+			void transform(expression_transformer& expression_transformer, statement_transformer& statement_transformer);
 		};
 
 		class statement_block final : public statement {
@@ -1434,6 +1436,8 @@ namespace michaelcc {
 					}
 				}
 			}
+
+			void transform(expression_transformer& expression_transformer, statement_transformer& statement_transformer);
 		};
 
 		// Utility function to print the IR as a tree
