@@ -50,12 +50,8 @@ int main()
 		lowerer.lower(ast);
 		auto translation_unit = lowerer.release_translation_unit();
 
-		cout << "Translation Unit Before Constant Folding" << endl;
-		cout << michaelcc::logical_ir::to_tree_string(translation_unit) << endl;
-
 		michaelcc::dataflow::constant_folding_pass.transform(translation_unit);
 
-		cout << "Translation Unit After Constant Folding" << endl;
 		cout << michaelcc::logical_ir::to_tree_string(translation_unit) << endl;
 
 		/*for (const auto& symbol : translation_unit.global_symbols()) {
