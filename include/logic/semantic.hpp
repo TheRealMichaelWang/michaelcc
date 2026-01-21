@@ -24,7 +24,9 @@ namespace michaelcc {
             return type.is_same_type<typing::int_type>() || type.is_same_type<typing::float_type>();
         }
 
-        static std::optional<typing::qual_type> arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, type_arbitration_mode mode = ARBITRATE_NONE) noexcept;
+        static std::optional<typing::qual_type> arbitrate_operand_type(const typing::qual_type& left, const typing::qual_type& right, type_arbitration_mode mode = ARBITRATE_NONE) noexcept;
+
+        static std::optional<typing::qual_type> arbitrate_return_type(const typing::qual_type& left, const typing::qual_type& right, type_arbitration_mode mode = ARBITRATE_NONE) noexcept;
 
         static type_arbitration_mode get_arbitration_mode(token_type op) noexcept {
             if (op >= MICHAELCC_TOKEN_EQUALS && op <= MICHAELCC_TOKEN_LESS_EQUAL) {

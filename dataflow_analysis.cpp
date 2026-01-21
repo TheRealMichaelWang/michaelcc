@@ -96,7 +96,7 @@ namespace michaelcc {
                     uint64_t right_val = right_int->value();
                     uint64_t result_val = 0;
                     
-                    auto common_type = semantic_lowerer::arbitrate_types(left_int->get_type(), right_int->get_type(), mode);
+                    auto common_type = semantic_lowerer::arbitrate_operand_type(left_int->get_type(), right_int->get_type(), mode);
                     if (!common_type) return node;
                     typing::qual_type result_type;
 
@@ -215,7 +215,7 @@ namespace michaelcc {
 
                 // Float + Float
                 if (left_float && right_float) {
-                    auto common_type = semantic_lowerer::arbitrate_types(left_float->get_type(), right_float->get_type(), mode);
+                    auto common_type = semantic_lowerer::arbitrate_operand_type(left_float->get_type(), right_float->get_type(), mode);
                     if (!common_type) return node;
 
                     auto result = fold_float_arithmetic(
@@ -231,7 +231,7 @@ namespace michaelcc {
                 if (left_float && right_int) {
                     typing::int_type* int_type = static_cast<typing::int_type*>(right_int->get_type().type().get());
 
-                    auto common_type = semantic_lowerer::arbitrate_types(left_float->get_type(), right_int->get_type(), mode);
+                    auto common_type = semantic_lowerer::arbitrate_operand_type(left_float->get_type(), right_int->get_type(), mode);
                     if (!common_type) return node;
 
                     double right_val = int_type->is_unsigned() 
@@ -251,7 +251,7 @@ namespace michaelcc {
                 if (left_int && right_float) {
                     typing::int_type* int_type = static_cast<typing::int_type*>(left_int->get_type().type().get());
 
-                    auto common_type = semantic_lowerer::arbitrate_types(left_int->get_type(), right_float->get_type(), mode);
+                    auto common_type = semantic_lowerer::arbitrate_operand_type(left_int->get_type(), right_float->get_type(), mode);
                     if (!common_type) return node;
 
                     double left_val = int_type->is_unsigned()

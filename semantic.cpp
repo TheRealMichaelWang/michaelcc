@@ -662,32 +662,28 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
     std::unique_ptr<logical_ir::expression> right = m_lowerer.lower_expression(*node.right());
 
     auto mode = semantic_lowerer::get_arbitration_mode(node.operation());
-    std::optional<typing::qual_type> result = semantic_lowerer::arbitrate_types(
+    std::optional<typing::qual_type> operand_type = semantic_lowerer::arbitrate_operand_type(
         left->get_type(), 
         right->get_type(), 
         mode
     );
-    if (!result) {
+    std::optional<typing::qual_type> return_type = semantic_lowerer::arbitrate_return_type(
+        left->get_type(),
+        right->get_type(),
+        mode
+    );
+    if (!operand_type || !return_type) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid arithmetic operation (" << token_to_str(node.operation()) << "). ";
         ss << "Cannot arbitrate types \"" << left->get_type().to_string() << "\" and \"" << right->get_type().to_string() << "\"";
         throw panic(ss.str(), node.location());
     }
 
-    if (mode == ARBITRATE_COMPARE || mode == ARBITRATE_LOGICAL) {
-        return std::make_unique<logical_ir::arithmetic_operator>(
-            node.operation(),
-            std::make_unique<logical_ir::type_cast>(std::move(left), typing::qual_type(result.value())), 
-            std::make_unique<logical_ir::type_cast>(std::move(right), typing::qual_type(result.value())), 
-            typing::qual_type(std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS))
-        );
-    }
-
     return std::make_unique<logical_ir::arithmetic_operator>(
         node.operation(),
-        std::make_unique<logical_ir::type_cast>(std::move(left), typing::qual_type(result.value())), 
-        std::make_unique<logical_ir::type_cast>(std::move(right), typing::qual_type(result.value())), 
-        std::move(result.value())
+        std::make_unique<logical_ir::type_cast>(std::move(left), typing::qual_type(operand_type.value())), 
+        std::make_unique<logical_ir::type_cast>(std::move(right), typing::qual_type(operand_type.value())), 
+        std::move(return_type.value())
     );
 }
 
@@ -741,7 +737,7 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
         throw panic(ss.str(), node.location());
     }
 
-    std::optional<typing::qual_type> result = semantic_lowerer::arbitrate_types(true_expr->get_type(), false_expr->get_type());
+    std::optional<typing::qual_type> result = semantic_lowerer::arbitrate_operand_type(true_expr->get_type(), false_expr->get_type());
     if (!result) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid conditional expression.";
@@ -760,7 +756,7 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
     std::unique_ptr<logical_ir::expression> operand = m_lowerer.lower_expression(*node.operand());
     auto target_type = m_lowerer.resolve_type(*node.target_type());
 
-    std::optional<typing::qual_type> result = semantic_lowerer::arbitrate_types(operand->get_type(), target_type);
+    std::optional<typing::qual_type> result = semantic_lowerer::arbitrate_operand_type(operand->get_type(), target_type);
     if (!result) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid cast expression.";
@@ -1086,7 +1082,7 @@ void semantic_lowerer::statement_resolver::handle_default(const ast::ast_element
     throw panic(ss.str(), node.location());
 }
 
-std::optional<typing::qual_type> semantic_lowerer::arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, type_arbitration_mode mode) noexcept {
+std::optional<typing::qual_type> semantic_lowerer::arbitrate_operand_type(const typing::qual_type& left, const typing::qual_type& right, type_arbitration_mode mode) noexcept {
     if (left == right) {
         if (mode == ARBITRATE_NONE) {
             return left;
@@ -1142,6 +1138,13 @@ std::optional<typing::qual_type> semantic_lowerer::arbitrate_types(const typing:
     }
 
     return std::nullopt;
+}
+
+std::optional<typing::qual_type> semantic_lowerer::arbitrate_return_type(const typing::qual_type& left, const typing::qual_type& right, type_arbitration_mode mode) noexcept {
+    if (mode == ARBITRATE_LOGICAL || mode == ARBITRATE_COMPARE) {
+        return typing::qual_type(std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS));
+    }
+    return arbitrate_operand_type(left, right, mode);
 }
 
 typing::qual_type semantic_lowerer::resolve_type(const ast::ast_element& node, bool allow_vla) {
