@@ -193,32 +193,6 @@ namespace michaelcc {
 			const set_variable,
 			const enumerator_literal
 		>;
-
-		using expression_transformer = generic_transformer<expression,
-			integer_constant,
-			floating_constant,
-			string_constant,
-			variable_reference,
-			function_reference,
-			var_increment_operator,
-			arithmetic_operator,
-			unary_operation,
-			type_cast,
-			address_of,
-			dereference,
-			member_access,
-			array_index,
-			array_initializer,
-			allocate_array,
-			struct_initializer,
-			union_initializer,
-			function_call,
-			conditional_expression,
-			set_address,
-			set_variable,
-			enumerator_literal
-		>;
-
 		template<typename ReturnType>
 		using statement_dispatcher = generic_dispatcher<ReturnType, statement,
 			expression_statement,
@@ -243,16 +217,8 @@ namespace michaelcc {
 			const statement_block
 		>;
 
-		using statement_transformer = generic_transformer<statement,
-			expression_statement,
-			variable_declaration,
-			return_statement,
-			if_statement,
-			loop_statement,
-			break_statement,
-			continue_statement,
-			statement_block
-		>;
+		using expression_transformer = logical_ir::const_expression_dispatcher<std::unique_ptr<logical_ir::expression>>;
+        using statement_transformer = logical_ir::const_statement_dispatcher<std::unique_ptr<logical_ir::statement>>;
 
 		class variable final : public symbol, public mutable_visitable_base<visitor>, public const_visitable_base<const_visitor> {
 		private:
@@ -263,6 +229,7 @@ namespace michaelcc {
 			variable(std::string&& name, uint8_t qualifiers, typing::qual_type&& var_type, bool is_global, std::weak_ptr<symbol_context>&& context)
 				: symbol(std::move(name), std::move(context)), m_qualifiers(qualifiers), m_type(std::move(var_type)), m_is_global(is_global) {}
 
+			uint8_t qualifiers() const noexcept { return m_qualifiers; }
 			const typing::qual_type& get_type() const noexcept { return m_type; }
 			bool is_global() const noexcept { return m_is_global; }
 
@@ -805,8 +772,6 @@ namespace michaelcc {
 				m_statements = std::move(statements);
 			}
 
-			void transform_statements(statement_transformer& transformer);
-
 			const std::vector<std::unique_ptr<statement>>& statements() const noexcept { return m_statements; }
 
 			void mutable_accept(visitor& v) override {
@@ -862,7 +827,7 @@ namespace michaelcc {
 			explicit expression_statement(std::unique_ptr<expression>&& expr)
 				: m_expression(std::move(expr)) {}
 
-			const std::unique_ptr<expression>& get_expression() const noexcept { return m_expression; }
+			const std::unique_ptr<expression>& expression() const noexcept { return m_expression; }
 
 			void mutable_accept(visitor& v) override {
 				v.visit(*this);
@@ -883,7 +848,7 @@ namespace michaelcc {
 			variable_declaration(std::shared_ptr<variable>&& var, std::unique_ptr<expression>&& initializer = nullptr)
 				: m_variable(std::move(var)), m_initializer(std::move(initializer)) {}
 
-			const std::shared_ptr<variable>& get_variable() const noexcept { return m_variable; }
+			const std::shared_ptr<variable>& variable() const noexcept { return m_variable; }
 			const std::unique_ptr<expression>& initializer() const noexcept { return m_initializer; }
 
 			void mutable_accept(visitor& v) override {
@@ -1470,13 +1435,6 @@ namespace michaelcc {
 				}
 			}
 		};
-
-		// Out-of-line definition - must be after statement types are complete
-		inline void control_block::transform_statements(statement_transformer& transformer) {
-			for (size_t i = 0; i < m_statements.size(); i++) {
-				m_statements[i] = transformer(std::move(m_statements[i]));
-			}
-		}
 
 		// Utility function to print the IR as a tree
 		std::string to_tree_string(const translation_unit& unit);
