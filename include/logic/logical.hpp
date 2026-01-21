@@ -390,7 +390,7 @@ namespace michaelcc {
 				m_operand(std::move(operand)) { }
 
 			token_type get_operator() const noexcept { return m_operator; }
-            const expression* operand() const noexcept { return m_operand.get(); }
+            const std::unique_ptr<expression>& operand() const noexcept { return m_operand; }
 
             const typing::qual_type get_type() const override { return m_operand->get_type(); }
 

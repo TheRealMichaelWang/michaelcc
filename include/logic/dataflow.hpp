@@ -132,7 +132,7 @@ namespace michaelcc {
         };
 
         class default_expression_pass : public transform_pass::expression_pass {
-        protected:
+        public:
             std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::integer_constant& node) override { 
                 return std::make_unique<logical_ir::integer_constant>(node.value(), typing::qual_type(node.get_type())); 
             }
@@ -174,13 +174,7 @@ namespace michaelcc {
         };
 
         class default_statement_pass : public transform_pass::statement_pass {
-        private:
-            transform_pass& m_pass;
-
         public:
-            default_statement_pass(transform_pass& pass) : m_pass(pass) { }
-
-        protected:
             std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::expression_statement>&& node) override { return node; }
             std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::variable_declaration>&& node) override { return node; }
             std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::return_statement>&& node) override { return node; }
