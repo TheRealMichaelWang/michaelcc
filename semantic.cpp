@@ -661,14 +661,15 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
     std::unique_ptr<logical_ir::expression> left = m_lowerer.lower_expression(*node.left());
     std::unique_ptr<logical_ir::expression> right = m_lowerer.lower_expression(*node.right());
 
+    auto mode = (
+        (node.operation() >= MICHAELCC_TOKEN_EQUALS && node.operation() <= MICHAELCC_TOKEN_LESS_EQUAL) ? MICHAELCC_ARBITRATE_COMPARE : 
+        (node.operation() >= MICHAELCC_TOKEN_DOUBLE_OR && node.operation() <= MICHAELCC_TOKEN_DOUBLE_AND) ? MICHAELCC_ARBITRATE_LOGICAL : 
+        MICHAELCC_ARBITRATE_NUMERIC 
+    );
     std::optional<typing::qual_type> result = m_lowerer.arbitrate_types(
         left->get_type(), 
         right->get_type(), 
-        (
-            (node.operation() >= MICHAELCC_TOKEN_EQUALS && node.operation() <= MICHAELCC_TOKEN_LESS_EQUAL) ? MICHAELCC_ARBITRATE_COMPARE : 
-            (node.operation() >= MICHAELCC_TOKEN_DOUBLE_OR && node.operation() <= MICHAELCC_TOKEN_DOUBLE_AND) ? MICHAELCC_ARBITRATE_LOGICAL : 
-            MICHAELCC_ARBITRATE_NUMERIC 
-        )
+        mode
     );
     if (!result) {
         std::ostringstream ss;
@@ -676,6 +677,16 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
         ss << "Cannot arbitrate types \"" << left->get_type().to_string() << "\" and \"" << right->get_type().to_string() << "\"";
         throw panic(ss.str(), node.location());
     }
+
+    if (mode == MICHAELCC_ARBITRATE_COMPARE || mode == MICHAELCC_ARBITRATE_LOGICAL) {
+        return std::make_unique<logical_ir::arithmetic_operator>(
+            node.operation(),
+            std::make_unique<logical_ir::type_cast>(std::move(left), typing::qual_type(result.value())), 
+            std::make_unique<logical_ir::type_cast>(std::move(right), typing::qual_type(result.value())), 
+            typing::qual_type(std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS))
+        );
+    }
+
     return std::make_unique<logical_ir::arithmetic_operator>(
         node.operation(),
         std::make_unique<logical_ir::type_cast>(std::move(left), typing::qual_type(result.value())), 

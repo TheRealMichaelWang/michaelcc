@@ -22,5 +22,5 @@ add_executable(michaelcc
     semantic.cpp
     linker.cpp
     dataflow.cpp
-    constant_folding.cpp
+    dataflow_analysis.cpp
 )

@@ -4,6 +4,7 @@
 #include "syntax/ast.hpp"
 #include "syntax/parser.hpp"
 #include "logic/semantic.hpp"
+#include "logic/dataflow/constant_folding.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -12,7 +13,7 @@ using namespace std;
 int main()
 {
     cout << "Michael C Compiler" << endl;
-	ifstream infile("../../tests/unions.c");
+	ifstream infile("../../tests/constant_folding.c");
 	
 	if (!infile.is_open()) {
 		cerr << "Failed to open file!" << endl;
@@ -23,7 +24,7 @@ int main()
 	ss << infile.rdbuf();
 
 	try {
-		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/unions.c");
+		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/constant_folding.c");
 		preprocessor.preprocess();
 		vector<michaelcc::token> tokens = preprocessor.result();
 
@@ -48,6 +49,10 @@ int main()
 
 		lowerer.lower(ast);
 		auto translation_unit = lowerer.release_translation_unit();
+
+		cout << michaelcc::logical_ir::to_tree_string(translation_unit) << endl;
+
+		michaelcc::dataflow::constant_folding_pass.transform(translation_unit);
 
 		cout << michaelcc::logical_ir::to_tree_string(translation_unit) << endl;
 
