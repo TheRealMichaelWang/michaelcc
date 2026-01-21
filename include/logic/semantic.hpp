@@ -12,13 +12,31 @@
 
 namespace michaelcc {
     class semantic_lowerer {
-    private:
-        enum type_arbitartion_mode {
-            MICHAELCC_ARBITRATE_NONE = 0,
-            MICHAELCC_ARBITRATE_LOGICAL = 1,
-            MICHAELCC_ARBITRATE_NUMERIC = 2,
-            MICHAELCC_ARBITRATE_COMPARE = 3,
+    public:
+        enum type_arbitration_mode {
+            ARBITRATE_NONE = 0,
+            ARBITRATE_LOGICAL = 1,
+            ARBITRATE_NUMERIC = 2,
+            ARBITRATE_COMPARE = 3,
         };
+
+        static bool is_numeric_type(const typing::qual_type& type) noexcept {
+            return type.is_same_type<typing::int_type>() || type.is_same_type<typing::float_type>();
+        }
+
+        static std::optional<typing::qual_type> arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, type_arbitration_mode mode = ARBITRATE_NONE) noexcept;
+
+        static type_arbitration_mode get_arbitration_mode(token_type op) noexcept {
+            if (op >= MICHAELCC_TOKEN_EQUALS && op <= MICHAELCC_TOKEN_LESS_EQUAL) {
+                return ARBITRATE_COMPARE;
+            }
+            if (op >= MICHAELCC_TOKEN_DOUBLE_OR && op <= MICHAELCC_TOKEN_DOUBLE_AND) {
+                return ARBITRATE_LOGICAL;
+            }
+            return ARBITRATE_NUMERIC;
+        }
+
+    private:
 
         logical_ir::variable_declaration lower_variable_declaration(const ast::variable_declaration& node, bool is_global);
         
@@ -320,11 +338,6 @@ namespace michaelcc {
             return type.is_same_type<typing::array_type>() || type.is_same_type<typing::pointer_type>();
         }
 
-        bool is_numeric_type(const typing::qual_type& type) const noexcept {
-            return type.is_same_type<typing::int_type>() || type.is_same_type<typing::float_type>();
-        }
-
-        std::optional<typing::qual_type> arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, type_arbitartion_mode mode = MICHAELCC_ARBITRATE_NONE) const noexcept;
         
         typing::qual_type resolve_type(const ast::ast_element& node, bool allow_vla=false);
         std::unique_ptr<logical_ir::expression> resolve_default_value(const typing::qual_type& type) const noexcept;

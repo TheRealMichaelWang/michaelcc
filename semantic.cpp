@@ -661,12 +661,8 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
     std::unique_ptr<logical_ir::expression> left = m_lowerer.lower_expression(*node.left());
     std::unique_ptr<logical_ir::expression> right = m_lowerer.lower_expression(*node.right());
 
-    auto mode = (
-        (node.operation() >= MICHAELCC_TOKEN_EQUALS && node.operation() <= MICHAELCC_TOKEN_LESS_EQUAL) ? MICHAELCC_ARBITRATE_COMPARE : 
-        (node.operation() >= MICHAELCC_TOKEN_DOUBLE_OR && node.operation() <= MICHAELCC_TOKEN_DOUBLE_AND) ? MICHAELCC_ARBITRATE_LOGICAL : 
-        MICHAELCC_ARBITRATE_NUMERIC 
-    );
-    std::optional<typing::qual_type> result = m_lowerer.arbitrate_types(
+    auto mode = semantic_lowerer::get_arbitration_mode(node.operation());
+    std::optional<typing::qual_type> result = semantic_lowerer::arbitrate_types(
         left->get_type(), 
         right->get_type(), 
         mode
@@ -678,7 +674,7 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
         throw panic(ss.str(), node.location());
     }
 
-    if (mode == MICHAELCC_ARBITRATE_COMPARE || mode == MICHAELCC_ARBITRATE_LOGICAL) {
+    if (mode == ARBITRATE_COMPARE || mode == ARBITRATE_LOGICAL) {
         return std::make_unique<logical_ir::arithmetic_operator>(
             node.operation(),
             std::make_unique<logical_ir::type_cast>(std::move(left), typing::qual_type(result.value())), 
@@ -745,7 +741,7 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
         throw panic(ss.str(), node.location());
     }
 
-    std::optional<typing::qual_type> result = m_lowerer.arbitrate_types(true_expr->get_type(), false_expr->get_type());
+    std::optional<typing::qual_type> result = semantic_lowerer::arbitrate_types(true_expr->get_type(), false_expr->get_type());
     if (!result) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid conditional expression.";
@@ -764,7 +760,7 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
     std::unique_ptr<logical_ir::expression> operand = m_lowerer.lower_expression(*node.operand());
     auto target_type = m_lowerer.resolve_type(*node.target_type());
 
-    std::optional<typing::qual_type> result = m_lowerer.arbitrate_types(operand->get_type(), target_type);
+    std::optional<typing::qual_type> result = semantic_lowerer::arbitrate_types(operand->get_type(), target_type);
     if (!result) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid cast expression.";
@@ -1090,18 +1086,18 @@ void semantic_lowerer::statement_resolver::handle_default(const ast::ast_element
     throw panic(ss.str(), node.location());
 }
 
-std::optional<typing::qual_type> semantic_lowerer::arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, type_arbitartion_mode mode) const noexcept {
+std::optional<typing::qual_type> semantic_lowerer::arbitrate_types(const typing::qual_type& left, const typing::qual_type& right, type_arbitration_mode mode) noexcept {
     if (left == right) {
-        if (mode == MICHAELCC_ARBITRATE_NONE) {
+        if (mode == ARBITRATE_NONE) {
             return left;
         }
-        if (mode == MICHAELCC_ARBITRATE_LOGICAL && (left.is_same_type<typing::int_type>() || left.is_same_type<typing::pointer_type>() || left.is_same_type<typing::enum_type>())) {
+        if (mode == ARBITRATE_LOGICAL && (left.is_same_type<typing::int_type>() || left.is_same_type<typing::pointer_type>() || left.is_same_type<typing::enum_type>())) {
             return left;
         }
-        if (mode >= MICHAELCC_ARBITRATE_NUMERIC && (left.is_same_type<typing::int_type>() || left.is_same_type<typing::float_type>())) {
+        if (mode >= ARBITRATE_NUMERIC && (left.is_same_type<typing::int_type>() || left.is_same_type<typing::float_type>())) {
             return left;
         }
-        if (mode >= MICHAELCC_ARBITRATE_COMPARE && (left.is_same_type<typing::pointer_type>() || left.is_same_type<typing::enum_type>())) {
+        if (mode >= ARBITRATE_COMPARE && (left.is_same_type<typing::pointer_type>() || left.is_same_type<typing::enum_type>())) {
             return left;
         }
         return std::nullopt;
