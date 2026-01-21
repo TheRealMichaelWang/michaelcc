@@ -318,6 +318,64 @@ namespace michaelcc {
 
                 return node;
             }
+
+            std::unique_ptr<logical_ir::expression> expression_pass::dispatch(std::unique_ptr<logical_ir::type_cast>&& node) {
+                const auto& operand = node->operand();
+                const auto& target_type = node->get_type();
+
+                if (target_type.is_assignable_from(operand->get_type())) {
+                    return node->release_operand();
+                }
+
+                // Integer constant being cast
+                if (const auto* int_const = dynamic_cast<const logical_ir::integer_constant*>(operand.get())) {
+                    const auto* int_type = dynamic_cast<const typing::int_type*>(int_const->get_type().type().get());
+                    
+                    // Cast to integer type
+                    if (target_type.is_same_type<typing::int_type>()) {
+                        return std::make_unique<logical_ir::integer_constant>(
+                            int_const->value(),
+                            typing::qual_type(target_type)
+                        );
+                    }
+                    
+                    // Cast to float type
+                    if (target_type.is_same_type<typing::float_type>()) {
+                        double value = int_type->is_unsigned()
+                            ? static_cast<double>(int_const->value())
+                            : static_cast<double>(static_cast<int64_t>(int_const->value()));
+                        return std::make_unique<logical_ir::floating_constant>(
+                            value,
+                            typing::qual_type(target_type)
+                        );
+                    }
+                }
+
+                // Float constant being cast
+                if (const auto* float_const = dynamic_cast<const logical_ir::floating_constant*>(operand.get())) {
+                    // Cast to integer type
+                    if (target_type.is_same_type<typing::int_type>()) {
+                        const auto* target_int_type = static_cast<const typing::int_type*>(target_type.type().get());
+                        uint64_t value = target_int_type->is_unsigned()
+                            ? static_cast<uint64_t>(float_const->value())
+                            : static_cast<uint64_t>(static_cast<int64_t>(float_const->value()));
+                        return std::make_unique<logical_ir::integer_constant>(
+                            value,
+                            typing::qual_type(target_type)
+                        );
+                    }
+                    
+                    // Cast to float type
+                    if (target_type.is_same_type<typing::float_type>()) {
+                        return std::make_unique<logical_ir::floating_constant>(
+                            float_const->value(),
+                            typing::qual_type(target_type)
+                        );
+                    }
+                }
+
+                return node;
+            }
         }
     }
 }

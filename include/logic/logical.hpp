@@ -413,7 +413,8 @@ namespace michaelcc {
 			type_cast(std::unique_ptr<expression>&& operand, typing::qual_type&& target_type)
 				: m_operand(std::move(operand)), m_target_type(std::move(target_type)) {}
 
-			const expression* operand() const noexcept { return m_operand.get(); }
+			const std::unique_ptr<expression>& operand() const noexcept { return m_operand; }
+			std::unique_ptr<expression>&& release_operand() noexcept { return std::move(m_operand); }
 			const typing::qual_type get_type() const override { return m_target_type; }
 
 			void mutable_accept(visitor& v) override {
