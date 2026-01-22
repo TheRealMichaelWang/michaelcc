@@ -33,12 +33,12 @@ namespace michaelcc {
             return m_pass.m_expression_pass->dispatch(node);
         }
 
-        std::unique_ptr<logical_ir::expression> transform_pass::expression_traverser::dispatch(const logical_ir::var_increment_operator& node) {
+        std::unique_ptr<logical_ir::expression> transform_pass::expression_traverser::dispatch(const logical_ir::increment_operator& node) {
             auto destination = std::visit(overloaded{
-                [this](const std::unique_ptr<logical_ir::expression>& destination) -> logical_ir::var_increment_operator::destination_type {
+                [this](const std::unique_ptr<logical_ir::expression>& destination) -> logical_ir::increment_operator::destination_type {
                     return (*this)(*destination);
                 },
-                [this](const std::shared_ptr<logical_ir::variable>& destination) -> logical_ir::var_increment_operator::destination_type {
+                [this](const std::shared_ptr<logical_ir::variable>& destination) -> logical_ir::increment_operator::destination_type {
                     return m_pass.replace_variable(destination);
                 }
             }, node.destination());
@@ -48,7 +48,7 @@ namespace michaelcc {
                 increment_amount = std::make_optional((*this)(*(node.increment_amount().value())));
             }
 
-            auto to_transform = std::make_unique<logical_ir::var_increment_operator>(std::move(destination), std::move(increment_amount));
+            auto to_transform = std::make_unique<logical_ir::increment_operator>(std::move(destination), std::move(increment_amount));
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 

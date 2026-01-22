@@ -775,10 +775,10 @@ public:
     }
 
     // var_increment_operator: 0 children (doesn't visit destination/amount)
-    void visit(const logical_ir::var_increment_operator& node) override {
+    void visit(const logical_ir::increment_operator& node) override {
         before_print();
         print_indent();
-        m_out << "var_increment_operator\n";
+        m_out << "increment_operator\n";
         after_print(0);
     }
 

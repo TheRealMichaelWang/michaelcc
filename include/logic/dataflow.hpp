@@ -33,7 +33,7 @@ namespace michaelcc {
                 virtual std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::string_constant& node) = 0;
                 virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::variable_reference>&& node) = 0;
                 virtual std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::function_reference& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::var_increment_operator>&& node) = 0;
+                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::increment_operator>&& node) = 0;
                 virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::arithmetic_operator>&& node) = 0;
                 virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::unary_operation>&& node) = 0;
                 virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::type_cast>&& node) = 0;
@@ -91,7 +91,7 @@ namespace michaelcc {
                 std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::string_constant& node) override;
                 std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::variable_reference& node) override;
                 std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::function_reference& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::var_increment_operator& node) override;
+                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::increment_operator& node) override;
                 std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::arithmetic_operator& node) override;
                 std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::unary_operation& node) override;
                 std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::type_cast& node) override;
@@ -180,7 +180,7 @@ namespace michaelcc {
                 return std::make_unique<logical_ir::function_reference>(std::shared_ptr<logical_ir::function_definition>(node.get_function()));
             }
 
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::var_increment_operator>&& node) override { return node; }
+            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::increment_operator>&& node) override { return node; }
             std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::arithmetic_operator>&& node) override { return node; }
             std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::unary_operation>&& node) override { return node; }
             std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::type_cast>&& node) override { return node; }

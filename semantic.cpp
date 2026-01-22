@@ -655,7 +655,7 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
             ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid destination for increment or decrement.";
             throw panic(ss.str(), node.location());
         }
-        return std::make_unique<logical_ir::var_increment_operator>(std::move(destination), m_lowerer.lower_expression(*node.right()));
+        return std::make_unique<logical_ir::increment_operator>(std::move(destination), m_lowerer.lower_expression(*node.right()));
     }
 
     std::unique_ptr<logical_ir::expression> left = m_lowerer.lower_expression(*node.left());

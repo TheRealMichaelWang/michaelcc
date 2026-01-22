@@ -24,7 +24,7 @@ namespace michaelcc {
 		class string_constant;
 		class variable_reference;
 		class function_reference;
-		class var_increment_operator;
+		class increment_operator;
 		class arithmetic_operator;
 		class unary_operation;
 		class type_cast;
@@ -60,7 +60,7 @@ namespace michaelcc {
 			string_constant,
 			variable_reference,
 			function_reference,
-			var_increment_operator,
+			increment_operator,
 			arithmetic_operator,
 			unary_operation,
 			type_cast,
@@ -103,7 +103,7 @@ namespace michaelcc {
 			string_constant,
 			variable_reference,
 			function_reference,
-			var_increment_operator,
+			increment_operator,
 			arithmetic_operator,
 			unary_operation,
 			type_cast,
@@ -149,7 +149,7 @@ namespace michaelcc {
 			string_constant,
 			variable_reference,
 			function_reference,
-			var_increment_operator,
+			increment_operator,
 			arithmetic_operator,
 			unary_operation,
 			type_cast,
@@ -175,7 +175,7 @@ namespace michaelcc {
 			const string_constant,
 			const variable_reference,
 			const function_reference,
-			const var_increment_operator,
+			const increment_operator,
 			const arithmetic_operator,
 			const unary_operation,
 			const type_cast,
@@ -321,7 +321,7 @@ namespace michaelcc {
 			void accept(const_visitor& v) const override { v.visit(*this); }
 		};
 
-		class var_increment_operator final : public expression {
+		class increment_operator final : public expression {
 		public:
 			using destination_type = std::variant<std::unique_ptr<expression>, std::shared_ptr<variable>>;
 		private:
@@ -329,7 +329,7 @@ namespace michaelcc {
 			std::optional<std::unique_ptr<expression>> m_increment_amount;
 
 		public:
-			var_increment_operator(destination_type&& destination, std::optional<std::unique_ptr<expression>>&& increment_amount = std::nullopt)
+			increment_operator(destination_type&& destination, std::optional<std::unique_ptr<expression>>&& increment_amount = std::nullopt)
 				: m_destination(std::move(destination)), m_increment_amount(std::move(increment_amount)) {}
 
 			const destination_type& destination() const noexcept { return m_destination; }
