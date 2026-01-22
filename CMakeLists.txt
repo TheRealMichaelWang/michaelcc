@@ -24,4 +24,5 @@ add_executable(michaelcc
     dataflow.cpp
     constant_folding.cpp
     dead_code.cpp
+    constant_prop.cpp
 )
