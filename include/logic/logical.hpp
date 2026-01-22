@@ -802,6 +802,8 @@ namespace michaelcc {
 			const std::shared_ptr<variable>& variable() const noexcept { return m_variable; }
 			const std::unique_ptr<expression>& initializer() const noexcept { return m_initializer; }
 
+			std::unique_ptr<expression> release_initializer() noexcept { return std::move(m_initializer); }
+
 			void mutable_accept(visitor& v) override {
 				v.visit(*this);
 				m_variable->mutable_accept(v);

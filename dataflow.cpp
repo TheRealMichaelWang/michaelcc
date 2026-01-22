@@ -3,7 +3,6 @@
 #include "logic/typing.hpp"
 #include "logic/logical.hpp"
 #include <memory>
-#include <iostream>
 
 namespace michaelcc {
     namespace dataflow {
@@ -313,7 +312,6 @@ namespace michaelcc {
 
         int transform_pass::transform(logical_ir::translation_unit&unit, std::vector<std::unique_ptr<transform_pass>>& passes, int max_passes) {
             for (int i = 0; i < max_passes; i++) {
-                std::cout << "Pass " << i << " running" << std::endl;
                 for (auto& pass : passes) {
                     pass->reset();
                     pass->transform(unit);
@@ -359,6 +357,8 @@ namespace michaelcc {
                 auto transformed = statement_transformer(*statement);
                 statement = std::move(transformed);
             }
+            // Remove null statements (e.g., from constant propagation removing variable declarations)
+            std::erase_if(m_statements, [](const std::unique_ptr<statement>& stmt) { return stmt == nullptr; });
         }
     }
 }

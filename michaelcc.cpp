@@ -6,6 +6,7 @@
 #include "logic/semantic.hpp"
 #include "logic/dataflow/constant_folding.hpp"
 #include "logic/dataflow/dead_code.hpp"
+#include "logic/dataflow/constant_prop.hpp"
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -56,6 +57,7 @@ int main()
 		auto passes = std::vector<std::unique_ptr<michaelcc::dataflow::transform_pass>>();
 		passes.emplace_back(std::make_unique<michaelcc::dataflow::constant_folding_pass>());
 		passes.emplace_back(std::make_unique<michaelcc::dataflow::dead_code_pass>());
+		passes.emplace_back(std::make_unique<michaelcc::dataflow::constant_prop_pass>(translation_unit));
 		
 		int passes_run = michaelcc::dataflow::transform_pass::transform(translation_unit, passes);
 

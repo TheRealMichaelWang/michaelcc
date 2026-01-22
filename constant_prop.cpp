@@ -99,7 +99,7 @@ namespace michaelcc {
             auto& variable = node->variable();
             if (m_pass.can_remove_variable(variable)) {
                 mark_ir_mutated();
-                return nullptr;
+                return std::make_unique<logical_ir::expression_statement>(node->release_initializer());
             }
             if (m_pass.can_propagate_constant(variable)) {
                 if (auto initializer = dynamic_cast<const logical_ir::constant_expression*>(node->initializer().get())) {
