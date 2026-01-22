@@ -48,7 +48,6 @@ namespace michaelcc {
             public:
                 expression_pass(constant_prop_pass& pass) : m_pass(pass) {}
 
-            protected:
                 std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::set_variable>&& node) override;
                 std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::increment_operator>&& node) override;
                 std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::variable_reference>&& node) override;
@@ -61,7 +60,6 @@ namespace michaelcc {
             public:
                 statement_pass(constant_prop_pass& pass) : m_pass(pass) {}
 
-            protected:
                 std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::variable_declaration>&& node) override;
             };
 
