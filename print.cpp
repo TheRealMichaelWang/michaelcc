@@ -425,6 +425,49 @@ public:
         if (need_parens) m_out << ")";
     }
 
+    void visit(const unary_operation& node) override {
+        if (!m_print_requested) return;
+        m_print_requested = false;
+        
+        // Unary operators have high precedence
+        const int UNARY_PREC = 14;
+        bool need_parens = m_parent_precedence > UNARY_PREC;
+        
+        if (need_parens) m_out << "(";
+        m_out << token_to_str(node.get_operator());
+        
+        // Wrap operand in parens if it's also a unary op to avoid --x looking like predecrement
+        bool operand_is_unary = dynamic_cast<const unary_operation*>(node.operand().get()) != nullptr;
+        if (operand_is_unary) m_out << "(";
+        
+        int saved_prec = m_parent_precedence;
+        m_parent_precedence = UNARY_PREC;
+        print(*node.operand());
+        m_parent_precedence = saved_prec;
+        
+        if (operand_is_unary) m_out << ")";
+        if (need_parens) m_out << ")";
+    }
+
+    void visit(const cast_expression& node) override {
+        if (!m_print_requested) return;
+        m_print_requested = false;
+        
+        // Cast has high precedence (same as unary)
+        const int CAST_PREC = 14;
+        bool need_parens = m_parent_precedence > CAST_PREC;
+        
+        if (need_parens) m_out << "(";
+        m_out << "(";
+        print(*node.target_type());
+        m_out << ")";
+        int saved_prec = m_parent_precedence;
+        m_parent_precedence = CAST_PREC;
+        print(*node.operand());
+        m_parent_precedence = saved_prec;
+        if (need_parens) m_out << ")";
+    }
+
     void visit(const conditional_expression& node) override {
         if (!m_print_requested) return;
         m_print_requested = false;
