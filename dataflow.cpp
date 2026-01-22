@@ -3,6 +3,7 @@
 #include "logic/typing.hpp"
 #include "logic/logical.hpp"
 #include <memory>
+#include <iostream>
 
 namespace michaelcc {
     namespace dataflow {
@@ -308,6 +309,28 @@ namespace michaelcc {
                 }
             }
             return variable;
+        }
+
+        int transform_pass::transform(logical_ir::translation_unit&unit, std::vector<std::unique_ptr<transform_pass>>& passes, int max_passes) {
+            for (int i = 0; i < max_passes; i++) {
+                std::cout << "Pass " << i << " running" << std::endl;
+                for (auto& pass : passes) {
+                    pass->reset();
+                    pass->transform(unit);
+                }
+
+                bool any_pass_mutated = false;
+                for (auto& pass : passes) {
+                    if (pass->is_ir_mutated()) {
+                        any_pass_mutated = true;
+                        break;
+                    }
+                }
+                if (!any_pass_mutated) {
+                    return i;
+                }
+            }
+            return max_passes;
         }
     }
 

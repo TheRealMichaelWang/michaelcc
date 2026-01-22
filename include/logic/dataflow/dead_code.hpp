@@ -32,13 +32,14 @@ namespace michaelcc {
             }
         }
 
-        inline transform_pass dead_code_pass() {
-            return transform_pass(
+        class dead_code_pass final : public transform_pass {
+        public:
+            dead_code_pass() : transform_pass(
                 std::make_unique<dead_code::expression_pass>(), 
                 std::make_unique<dead_code::statement_pass>(), 
                 [](const std::string& name) { return name; }
-            );
-        }
+            ) { }
+        };
     }
 }
 

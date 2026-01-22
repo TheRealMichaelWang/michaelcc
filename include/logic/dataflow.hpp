@@ -2,11 +2,12 @@
 #define MICHAELCC_DATAFLOW_HPP
 
 #include "logical.hpp"
+#include "symbols.hpp"
+
 #include <memory>
 #include <unordered_set>
 #include <functional>
-#include "symbols.hpp"
-
+#include <vector>
 namespace michaelcc {
     namespace dataflow {
         class transform_pass {
@@ -140,6 +141,8 @@ namespace michaelcc {
                 std::function<std::string(const std::string&)> variable_name_transformer = [](const std::string& name) { return std::format("_{}", name); },
                 std::vector<replace_variable_context> replace_variable_contexts = {});
 
+            ~transform_pass() = default;
+
             void transform(logical_ir::translation_unit& unit) {
                 unit.transform(m_expression_traverser, m_statement_traverser);
                 m_is_ir_mutated = m_expression_pass->is_ir_mutated() || m_statement_pass->is_ir_mutated();
@@ -153,6 +156,8 @@ namespace michaelcc {
                 m_expression_pass->reset_mutation_flag();
                 m_statement_pass->reset_mutation_flag();
             }
+
+            static int transform(logical_ir::translation_unit&unit, std::vector<std::unique_ptr<transform_pass>>& passes, int max_passes = 1000);
         };
 
         class default_expression_pass : public transform_pass::expression_pass {

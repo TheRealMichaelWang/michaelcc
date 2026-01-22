@@ -1,4 +1,4 @@
-﻿// michaelcc.cpp : Defines the entry point for the application.
+// michaelcc.cpp : Defines the entry point for the application.
 
 #include "syntax/preprocessor.hpp"
 #include "syntax/ast.hpp"
@@ -8,13 +8,14 @@
 #include "logic/dataflow/dead_code.hpp"
 #include <fstream>
 #include <iostream>
+#include <vector>
 
 using namespace std;
 
 int main()
 {
     cout << "Michael C Compiler" << endl;
-	ifstream infile("../tests/constant_folding.c");
+	ifstream infile("../../tests/constant_folding.c");
 	
 	if (!infile.is_open()) {
 		cerr << "Failed to open file!" << endl;
@@ -25,7 +26,7 @@ int main()
 	ss << infile.rdbuf();
 
 	try {
-		michaelcc::preprocessor preprocessor(ss.str(), "../tests/constant_folding.c");
+		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/constant_folding.c");
 		preprocessor.preprocess();
 		vector<michaelcc::token> tokens = preprocessor.result();
 
@@ -51,16 +52,15 @@ int main()
 		lowerer.lower(ast);
 		auto translation_unit = lowerer.release_translation_unit();
 
-		auto pass = michaelcc::dataflow::constant_folding_pass();
-		auto dead_code_pass = michaelcc::dataflow::dead_code_pass();
-		do {
-			pass.reset();
-			dead_code_pass.reset();
-			pass.transform(translation_unit);
-			dead_code_pass.transform(translation_unit);
-		} while (pass.is_ir_mutated() || dead_code_pass.is_ir_mutated());
+
+		auto passes = std::vector<std::unique_ptr<michaelcc::dataflow::transform_pass>>();
+		passes.emplace_back(std::make_unique<michaelcc::dataflow::constant_folding_pass>());
+		passes.emplace_back(std::make_unique<michaelcc::dataflow::dead_code_pass>());
+		
+		int passes_run = michaelcc::dataflow::transform_pass::transform(translation_unit, passes);
 
 		cout << michaelcc::logical_ir::to_tree_string(translation_unit) << endl;
+		cout << "Passes run: " << passes_run << endl;
 
 		/*for (const auto& symbol : translation_unit.global_symbols()) {
 			cout << symbol->name() << endl;
