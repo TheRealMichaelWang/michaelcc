@@ -2,6 +2,7 @@
 #define MICHAELCC_DEAD_CODE_HPP
 
 #include "logic/dataflow.hpp"
+#include "logic/logical.hpp"
 
 namespace michaelcc {
     namespace dataflow {
@@ -15,6 +16,7 @@ namespace michaelcc {
             public:
                 std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::if_statement>&& node) override;
                 std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::loop_statement>&& node) override;
+                std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::expression_statement>&& node) override;
             };
 
             inline bool is_truey(const logical_ir::expression& expression) {

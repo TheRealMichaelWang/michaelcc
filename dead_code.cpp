@@ -39,6 +39,14 @@ namespace michaelcc {
                 
                 return node;
             }
+
+            std::unique_ptr<logical_ir::statement> statement_pass::dispatch(std::unique_ptr<logical_ir::expression_statement>&& node) {
+                if (node->expression() == nullptr || dynamic_cast<const logical_ir::constant_expression*>(node->expression().get()) != nullptr) {
+                    mark_ir_mutated();
+                    return nullptr;
+                }
+                return node;
+            }
         }
     }
 }

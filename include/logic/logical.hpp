@@ -1,6 +1,7 @@
 #ifndef MICHAELCC_LOGICAL_IR_HPP
 #define MICHAELCC_LOGICAL_IR_HPP
 
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <cstdint>
@@ -249,7 +250,14 @@ namespace michaelcc {
 			virtual void accept(const_visitor& v) const override = 0;
 		};
 
-		class integer_constant final : public expression {
+		class constant_expression : public expression {
+		public:
+			virtual ~constant_expression() = default;
+
+			virtual std::unique_ptr<constant_expression> clone() const = 0;
+		};
+
+		class integer_constant final : public constant_expression {
 		private:
 			uint64_t m_value;
 			typing::qual_type m_type;
@@ -265,9 +273,13 @@ namespace michaelcc {
 
 			void mutable_accept(visitor& v) override { v.visit(*this); }
 			void accept(const_visitor& v) const override { v.visit(*this); }
+
+			std::unique_ptr<constant_expression> clone() const override {
+				return std::make_unique<integer_constant>(m_value, typing::qual_type(m_type));
+			}
 		};
 
-		class floating_constant final : public expression {
+		class floating_constant final : public constant_expression {
 		private:
 			double m_value;
 			typing::qual_type m_type;
@@ -283,9 +295,13 @@ namespace michaelcc {
 
 			void mutable_accept(visitor& v) override { v.visit(*this); }
 			void accept(const_visitor& v) const override { v.visit(*this); }
+
+			std::unique_ptr<constant_expression> clone() const override {
+				return std::make_unique<floating_constant>(m_value, typing::qual_type(m_type));
+			}
 		};
 
-		class string_constant final : public expression {
+		class string_constant final : public constant_expression {
 		private:
 			size_t m_index;
 		public:
@@ -302,6 +318,10 @@ namespace michaelcc {
 
 			void mutable_accept(visitor& v) override { v.visit(*this); }
 			void accept(const_visitor& v) const override { v.visit(*this); }
+
+			std::unique_ptr<constant_expression> clone() const override {
+				return std::make_unique<string_constant>(m_index);
+			}
 		};
 
 		class variable_reference final : public expression {
@@ -338,6 +358,13 @@ namespace michaelcc {
 			const typing::qual_type get_type() const override { return std::visit([](auto&& destination) {
 				return destination->get_type();
 			}, m_destination); }
+
+			std::unique_ptr<expression> release_destination() noexcept { 
+				if (std::holds_alternative<std::unique_ptr<expression>>(m_destination)) {
+					return std::move(std::get<std::unique_ptr<expression>>(m_destination));
+				}
+				return nullptr;
+			}
 
 			void mutable_accept(visitor& v) override { v.visit(*this); }
 			void accept(const_visitor& v) const override { v.visit(*this); }
@@ -414,7 +441,7 @@ namespace michaelcc {
 				: m_operand(std::move(operand)), m_target_type(std::move(target_type)) {}
 
 			const std::unique_ptr<expression>& operand() const noexcept { return m_operand; }
-			std::unique_ptr<expression>&& release_operand() noexcept { return std::move(m_operand); }
+			std::unique_ptr<expression> release_operand() noexcept { return std::move(m_operand); }
 			const typing::qual_type get_type() const override { return m_target_type; }
 
 			void mutable_accept(visitor& v) override {
@@ -436,7 +463,7 @@ namespace michaelcc {
 
 			const std::unique_ptr<expression>& operand() const noexcept { return m_operand; }
 
-			std::unique_ptr<expression>&& release_operand() noexcept { return std::move(m_operand); }
+			std::unique_ptr<expression> release_operand() noexcept { return std::move(m_operand); }
 
 			const typing::qual_type get_type() const override {
                 auto operand_type = m_operand->get_type();
@@ -651,6 +678,8 @@ namespace michaelcc {
 
 			const std::shared_ptr<variable>& variable() const noexcept { return m_variable; }
 			const std::unique_ptr<expression>& value() const noexcept { return m_value; }
+
+			std::unique_ptr<expression> release_value() noexcept { return std::move(m_value); }
 
 			const typing::qual_type get_type() const override { return m_variable->get_type(); }
 
