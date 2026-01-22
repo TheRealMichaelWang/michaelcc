@@ -50,7 +50,12 @@ int main()
 		lowerer.lower(ast);
 		auto translation_unit = lowerer.release_translation_unit();
 
-		michaelcc::dataflow::constant_folding_pass.transform(translation_unit);
+		auto pass = michaelcc::dataflow::constant_folding_pass();
+		do {
+			pass.reset();
+			pass.transform(translation_unit);
+		} while (pass.is_ir_mutated());
+		pass.reset();
 
 		cout << michaelcc::logical_ir::to_tree_string(translation_unit) << endl;
 

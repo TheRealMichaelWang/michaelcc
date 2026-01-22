@@ -5,12 +5,6 @@
 
 namespace michaelcc {
     namespace dataflow {
-        transform_pass constant_folding_pass = transform_pass(
-            std::make_unique<constant_folding::expression_pass>(), 
-            std::make_unique<default_statement_pass>(), 
-            [](const std::string& name) { return name; }
-        );
-
         namespace constant_folding {
             // Helper to fold float arithmetic operations
             static std::unique_ptr<logical_ir::expression> fold_float_arithmetic(
@@ -154,6 +148,7 @@ namespace michaelcc {
                             return node;
                     }
 
+                    mark_ir_mutated();
                     return std::make_unique<logical_ir::integer_constant>(
                         result_val,
                         std::move(*result_type)
@@ -171,6 +166,9 @@ namespace michaelcc {
                         right_float->value(),
                         std::move(*result_type)
                     );
+                    if (result) {
+                        mark_ir_mutated();
+                    }
                     return result ? std::move(result) : std::move(node);
                 }
 
@@ -191,6 +189,9 @@ namespace michaelcc {
                         right_val,
                         std::move(*result_type)
                     );
+                    if (result) {
+                        mark_ir_mutated();
+                    }
                     return result ? std::move(result) : std::move(node);
                 }
 
@@ -211,6 +212,9 @@ namespace michaelcc {
                         right_float->value(),
                         std::move(*result_type)
                     );
+                    if (result) {
+                        mark_ir_mutated();
+                    }
                     return result ? std::move(result) : std::move(node);
                 }
 
@@ -230,16 +234,19 @@ namespace michaelcc {
                                 return node;
                             }
 
+                            mark_ir_mutated();
                             return std::make_unique<logical_ir::integer_constant>(
                                 -integer_constant->value(), 
                                 typing::qual_type(integer_constant->get_type())
                             );
                         case MICHAELCC_TOKEN_NOT:
+                            mark_ir_mutated();
                             return std::make_unique<logical_ir::integer_constant>(
                                 integer_constant->value() == 0 ? 1 : 0, 
                                 typing::qual_type(integer_constant->get_type())
                             );
                         case MICHAELCC_TOKEN_TILDE:
+                            mark_ir_mutated();
                             return std::make_unique<logical_ir::integer_constant>(
                                 ~integer_constant->value(), 
                                 typing::qual_type(integer_constant->get_type())
@@ -254,6 +261,7 @@ namespace michaelcc {
                 if (floating_constant) {
                     switch (node->get_operator()) {
                     case MICHAELCC_TOKEN_MINUS:
+                        mark_ir_mutated();
                         return std::make_unique<logical_ir::floating_constant>(
                             -floating_constant->value(), 
                             typing::qual_type(floating_constant->get_type())
@@ -271,6 +279,7 @@ namespace michaelcc {
                 const auto& target_type = node->get_type();
 
                 if (target_type.is_assignable_from(operand->get_type())) {
+                    mark_ir_mutated();
                     return node->release_operand();
                 }
 
@@ -280,6 +289,7 @@ namespace michaelcc {
                     
                     // Cast to integer type
                     if (target_type.is_same_type<typing::int_type>()) {
+                        mark_ir_mutated();
                         return std::make_unique<logical_ir::integer_constant>(
                             int_const->value(),
                             typing::qual_type(target_type)
@@ -291,6 +301,7 @@ namespace michaelcc {
                         double value = int_type->is_unsigned()
                             ? static_cast<double>(int_const->value())
                             : static_cast<double>(static_cast<int64_t>(int_const->value()));
+                        mark_ir_mutated();
                         return std::make_unique<logical_ir::floating_constant>(
                             value,
                             typing::qual_type(target_type)
@@ -306,6 +317,7 @@ namespace michaelcc {
                         uint64_t value = target_int_type->is_unsigned()
                             ? static_cast<uint64_t>(float_const->value())
                             : static_cast<uint64_t>(static_cast<int64_t>(float_const->value()));
+                        mark_ir_mutated();
                         return std::make_unique<logical_ir::integer_constant>(
                             value,
                             typing::qual_type(target_type)
@@ -314,6 +326,7 @@ namespace michaelcc {
                     
                     // Cast to float type
                     if (target_type.is_same_type<typing::float_type>()) {
+                        mark_ir_mutated();
                         return std::make_unique<logical_ir::floating_constant>(
                             float_const->value(),
                             typing::qual_type(target_type)

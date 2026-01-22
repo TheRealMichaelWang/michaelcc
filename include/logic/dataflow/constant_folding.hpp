@@ -15,7 +15,13 @@ namespace michaelcc {
             };
         }
 
-        extern transform_pass constant_folding_pass;
+        inline transform_pass constant_folding_pass() {
+            return transform_pass(
+                std::make_unique<constant_folding::expression_pass>(), 
+                std::make_unique<default_statement_pass>(), 
+                [](const std::string& name) { return name; }
+            );
+        }
     }
 }
 

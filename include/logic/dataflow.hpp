@@ -11,7 +11,19 @@ namespace michaelcc {
     namespace dataflow {
         class transform_pass {
         public:
-            class expression_pass {
+            class pass_mutator {
+                private:
+                    bool m_ir_mutated = false;
+    
+                public:
+                    bool is_ir_mutated() const noexcept { return m_ir_mutated; }
+                    void reset_mutation_flag() noexcept { m_ir_mutated = false; }
+
+                protected:
+                    void mark_ir_mutated() noexcept { m_ir_mutated = true; }
+            };
+
+            class expression_pass : public pass_mutator {
             public:
                 virtual ~expression_pass() = default;
 
@@ -39,7 +51,7 @@ namespace michaelcc {
                 virtual std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::enumerator_literal& node) = 0;
             };
 
-            class statement_pass {
+            class statement_pass : public pass_mutator {
             public:
                 virtual ~statement_pass() = default;
                 virtual std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::expression_statement>&& node) = 0;
@@ -62,6 +74,8 @@ namespace michaelcc {
             std::unique_ptr<statement_pass> m_statement_pass;
             std::vector<replace_variable_context> m_replace_variable_contexts;
             std::function<std::string(const std::string&)> m_variable_name_transformer;
+            
+            bool m_is_ir_mutated = false;
     
             class expression_traverser final : public logical_ir::expression_transformer {
             private:
@@ -128,6 +142,16 @@ namespace michaelcc {
 
             void transform(logical_ir::translation_unit& unit) {
                 unit.transform(m_expression_traverser, m_statement_traverser);
+                m_is_ir_mutated = m_expression_pass->is_ir_mutated() || m_statement_pass->is_ir_mutated();
+            }
+
+            bool is_ir_mutated() const noexcept { return m_is_ir_mutated; }
+
+            void reset() { 
+                m_replace_variable_contexts.clear(); 
+                m_is_ir_mutated = false; 
+                m_expression_pass->reset_mutation_flag();
+                m_statement_pass->reset_mutation_flag();
             }
         };
 
