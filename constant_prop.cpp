@@ -36,11 +36,19 @@ namespace michaelcc {
         }
 
         void variable_use_analyzer::visit(const logical_ir::variable_reference& node) {
+            if (m_dead_expressions.contains(&node)) {
+                return;
+            }
+
             auto& metrics = m_variable_metrics[node.get_variable()];
             metrics.num_uses++;
         }
 
         void variable_use_analyzer::visit(const logical_ir::address_of& node) {
+            if (m_dead_expressions.contains(&node)) {
+                return;
+            }
+            
             if (std::holds_alternative<std::shared_ptr<logical_ir::variable>>(node.operand())) {
                 auto& metrics = m_variable_metrics[std::get<std::shared_ptr<logical_ir::variable>>(node.operand())];
                 metrics.num_uses++;
