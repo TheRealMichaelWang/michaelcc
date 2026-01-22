@@ -5,6 +5,7 @@
 #include "syntax/parser.hpp"
 #include "logic/semantic.hpp"
 #include "logic/dataflow/constant_folding.hpp"
+#include "logic/dataflow/dead_code.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -51,11 +52,13 @@ int main()
 		auto translation_unit = lowerer.release_translation_unit();
 
 		auto pass = michaelcc::dataflow::constant_folding_pass();
+		auto dead_code_pass = michaelcc::dataflow::dead_code_pass();
 		do {
 			pass.reset();
+			dead_code_pass.reset();
 			pass.transform(translation_unit);
-		} while (pass.is_ir_mutated());
-		pass.reset();
+			dead_code_pass.transform(translation_unit);
+		} while (pass.is_ir_mutated() || dead_code_pass.is_ir_mutated());
 
 		cout << michaelcc::logical_ir::to_tree_string(translation_unit) << endl;
 
