@@ -52,6 +52,7 @@ namespace michaelcc {
             if (std::holds_alternative<std::shared_ptr<logical_ir::variable>>(node.operand())) {
                 auto& metrics = m_variable_metrics[std::get<std::shared_ptr<logical_ir::variable>>(node.operand())];
                 metrics.num_uses++;
+                metrics.is_mutated = true;
             }
         }
 

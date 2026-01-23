@@ -382,6 +382,11 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::address_resolver::disp
     
     std::shared_ptr<logical_ir::variable> variable = std::dynamic_pointer_cast<logical_ir::variable>(symbol);
     if (variable) {
+        if (variable->qualifiers() & typing::REGISTER_STORAGE_CLASS) {
+            std::ostringstream ss;
+            ss << "Variable \"" << node.identifier() << "\" is a register variable and cannot be captured as an address.";
+            throw panic(ss.str(), node.location());
+        }
         return std::make_unique<logical_ir::address_of>(std::move(variable));
     }
 
