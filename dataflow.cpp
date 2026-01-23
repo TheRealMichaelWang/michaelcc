@@ -174,8 +174,8 @@ namespace michaelcc {
             std::unique_ptr<logical_ir::expression> else_expression = (*this)(*node.else_expression());
             auto to_transform = std::make_unique<logical_ir::conditional_expression>(
                 std::move(condition),
-                std::make_unique<logical_ir::type_cast>(std::move(then_expression), typing::qual_type(node.get_type())),
-                std::make_unique<logical_ir::type_cast>(std::move(else_expression), typing::qual_type(node.get_type())),
+                std::move(then_expression),
+                std::move(else_expression),
                 typing::qual_type(node.get_type())
             );
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));

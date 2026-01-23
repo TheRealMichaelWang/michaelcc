@@ -722,7 +722,7 @@ namespace michaelcc {
 				m_value->accept(v);
 			}
 
-			bool has_side_effects() const override { return destination()->has_side_effects() || value()->has_side_effects(); }
+			bool has_side_effects() const override { return true; }
 		};
 
 		class set_variable final : public expression {
@@ -752,7 +752,7 @@ namespace michaelcc {
 				m_value->accept(v);
 			}
 
-			bool has_side_effects() const override { return value()->has_side_effects(); }
+			bool has_side_effects() const override { return true; }
 		};
 
 		class statement : public mutable_visitable_base<visitor>, public const_visitable_base<const_visitor> {
