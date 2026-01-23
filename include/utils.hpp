@@ -74,12 +74,11 @@ namespace michaelcc {
         virtual ~generic_dispatcher() = default;
 
         ReturnType operator()(BaseType& node) {
-            handle_default(node);
-            throw std::runtime_error("handle_default must throw");
+            return handle_default(node);
         }
 
     protected:
-        virtual void handle_default(const BaseType& node) {
+        virtual ReturnType handle_default(const BaseType& node) {
             throw std::runtime_error(std::format("No dispatch method for type {}", typeid(BaseType).name()));
         }
         // Sentinel for the using declaration chain - never called
@@ -92,7 +91,7 @@ namespace michaelcc {
     protected:
 
         using generic_dispatcher<ReturnType, BaseType, Rest...>::dispatch;
-        virtual ReturnType dispatch(NodeType& node) = 0;
+        virtual ReturnType dispatch(NodeType& node) { return this->handle_default(node); }
 
     public:
         ReturnType operator()(BaseType& node) {

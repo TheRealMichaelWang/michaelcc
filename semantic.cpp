@@ -3,6 +3,7 @@
 #include "logic/logical.hpp"
 #include "syntax/tokens.hpp"
 #include "logic/typing.hpp"
+#include "logic/analysis/return_analysis.hpp"
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -366,7 +367,7 @@ typing::qual_type semantic_lowerer::type_resolver::dispatch(const ast::enum_decl
     return typing::qual_type::owning(std::make_shared<typing::enum_type>(std::nullopt, std::move(enumerators)));
 }
 
-void semantic_lowerer::type_resolver::handle_default(const ast::ast_element& node) {
+typing::qual_type semantic_lowerer::type_resolver::handle_default(const ast::ast_element& node) {
     std::ostringstream ss;
     ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid type.";
     throw panic(ss.str(), node.location());
@@ -433,7 +434,7 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::address_resolver::disp
     return operand;
 }
 
-void semantic_lowerer::address_resolver::handle_default(const ast::ast_element& node) {
+std::unique_ptr<logical_ir::expression> semantic_lowerer::address_resolver::handle_default(const ast::ast_element& node) {
     std::ostringstream ss;
     ss << "Cannot get the address of \"" << ast::to_c_string(node) << "\".";
     throw panic(ss.str(), node.location());
@@ -893,7 +894,7 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
     throw panic(ss.str(), node.location());
 }
 
-void semantic_lowerer::expression_resolver::handle_default(const ast::ast_element& node) {
+std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::handle_default(const ast::ast_element& node) {
     std::ostringstream ss;
     ss << "\"" << ast::to_c_string(node) << "\" is not a valid expression.";
     throw panic(ss.str(), node.location());
@@ -1081,7 +1082,7 @@ std::unique_ptr<logical_ir::statement> semantic_lowerer::statement_resolver::dis
     return std::make_unique<logical_ir::continue_statement>(node.depth());
 }
 
-void semantic_lowerer::statement_resolver::handle_default(const ast::ast_element& node) {
+std::unique_ptr<logical_ir::statement> semantic_lowerer::statement_resolver::handle_default(const ast::ast_element& node) {
     std::ostringstream ss;
     ss << "\"" << ast::to_c_string(node) << "\" is not a valid statement.";
     throw panic(ss.str(), node.location());
@@ -1268,6 +1269,13 @@ std::shared_ptr<logical_ir::function_definition> semantic_lowerer::lower_functio
         statements.emplace_back(m_statement_resolver(*statement));
     }
     function->implement(std::move(statements));
+
+    if (!function->return_type().is_same_type<typing::void_type>() && !logical_ir::analysis::return_analysis::all_code_paths_return(*function)) {
+        std::ostringstream ss;
+        ss << "Function \"" << function->name() << "\" does not return a value on all code paths.";
+        throw panic(ss.str(), function->location());
+    }
+
     m_symbol_explorer.exit();
 
     return function;

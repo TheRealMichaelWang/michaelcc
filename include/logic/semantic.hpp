@@ -207,7 +207,7 @@ namespace michaelcc {
             typing::qual_type dispatch(const ast::union_declaration& type) override;
             typing::qual_type dispatch(const ast::enum_declaration& type) override;
 
-            void handle_default(const ast::ast_element& node) override;
+            typing::qual_type handle_default(const ast::ast_element& node) override;
         };
 
 
@@ -236,7 +236,7 @@ namespace michaelcc {
             std::unique_ptr<logical_ir::expression> dispatch(const ast::function_call& node) override { handle_default(node); return nullptr; }
             std::unique_ptr<logical_ir::expression> dispatch(const ast::initializer_list_expression& node) override { handle_default(node); return nullptr; }
 
-            void handle_default(const ast::ast_element& node) override;
+            std::unique_ptr<logical_ir::expression> handle_default(const ast::ast_element& node) override;
         };
 
         class default_value_resolver final : public typing::const_type_dispatcher<std::unique_ptr<logical_ir::expression>> {
@@ -284,7 +284,7 @@ namespace michaelcc {
             std::unique_ptr<logical_ir::expression> dispatch(const ast::function_call& node) override;
             std::unique_ptr<logical_ir::expression> dispatch(const ast::initializer_list_expression& node) override;
 
-            void handle_default(const ast::ast_element& node) override;
+            std::unique_ptr<logical_ir::expression> handle_default(const ast::ast_element& node) override;
         };
 
         class statement_resolver final : public ast::const_statement_dispatcher<std::unique_ptr<logical_ir::statement>> {
@@ -311,7 +311,7 @@ namespace michaelcc {
                 return std::make_unique<logical_ir::variable_declaration>(m_lowerer.lower_variable_declaration(node, false));
             }
 
-            void handle_default(const ast::ast_element& node) override;
+            std::unique_ptr<logical_ir::statement> handle_default(const ast::ast_element& node) override;
         };
 
         static compilation_error panic(const std::string& msg, const source_location& location) noexcept {
