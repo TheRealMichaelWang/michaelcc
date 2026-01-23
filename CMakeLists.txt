@@ -25,4 +25,5 @@ add_executable(michaelcc
     constant_folding.cpp
     dead_code.cpp
     constant_prop.cpp
+    ir_simplify.cpp
 )

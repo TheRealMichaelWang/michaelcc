@@ -1,0 +1,40 @@
+#include "logic/dataflow/ir_simplify.hpp"
+#include "logic/logical.hpp"
+#include <memory>
+#include <variant>
+
+namespace michaelcc {
+    namespace dataflow {
+        std::unique_ptr<logical_ir::expression> ir_simplify_pass::expression_pass::dispatch(std::unique_ptr<logical_ir::set_address>&& node) {
+            if (auto address_of = dynamic_cast<logical_ir::address_of*>(node->destination().get())) {
+                if (std::holds_alternative<std::shared_ptr<logical_ir::variable>>(address_of->operand())) {
+                    mark_ir_mutated();
+                    std::shared_ptr<logical_ir::variable> variable = std::get<std::shared_ptr<logical_ir::variable>>(address_of->operand());
+                    return std::make_unique<logical_ir::set_variable>(std::move(variable), node->release_value());
+                }
+            }
+            return node;
+        }
+
+        std::unique_ptr<logical_ir::expression> ir_simplify_pass::expression_pass::dispatch(std::unique_ptr<logical_ir::dereference>&& node) {
+            if (auto address_of = dynamic_cast<logical_ir::address_of*>(node->operand().get())) {
+                mark_ir_mutated();
+                return address_of->release_operand();
+            }
+
+            if (auto arithmetic_operator = dynamic_cast<logical_ir::arithmetic_operator*>(node->operand().get())) {
+                if (arithmetic_operator->get_operator() == MICHAELCC_TOKEN_PLUS) {
+                    if (arithmetic_operator->left()->get_type().is_same_type<typing::pointer_type>() && arithmetic_operator->right()->get_type().is_same_type<typing::int_type>()) {
+                        mark_ir_mutated();
+                        return std::make_unique<logical_ir::array_index>(arithmetic_operator->release_left(), arithmetic_operator->release_right());
+                    }
+                    if (arithmetic_operator->left()->get_type().is_same_type<typing::int_type>() && arithmetic_operator->right()->get_type().is_same_type<typing::pointer_type>()) {
+                        mark_ir_mutated();
+                        return std::make_unique<logical_ir::array_index>(arithmetic_operator->release_right(), arithmetic_operator->release_left());
+                    }
+                }
+            }
+            return node;
+        }
+    }
+}

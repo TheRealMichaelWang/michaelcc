@@ -390,6 +390,9 @@ namespace michaelcc {
 			token_type get_operator() const noexcept { return m_operator; }
 			const std::unique_ptr<expression>& left() const noexcept { return m_left; }
 			const std::unique_ptr<expression>& right() const noexcept { return m_right; }
+
+			std::unique_ptr<expression> release_left() noexcept { return std::move(m_left); }
+			std::unique_ptr<expression> release_right() noexcept { return std::move(m_right); }
 			
             const typing::qual_type get_type() const override { return m_result_type; }
 
@@ -568,6 +571,20 @@ namespace michaelcc {
 
 			const operand_type& operand() const noexcept { return m_operand; }
 
+			std::unique_ptr<expression> release_operand() noexcept { 
+				return std::visit(overloaded{
+					[&](std::shared_ptr<variable>& variable) -> std::unique_ptr<expression> {
+						return std::make_unique<variable_reference>(std::move(variable));
+					},
+					[&](std::unique_ptr<array_index>& array_index) -> std::unique_ptr<expression> {
+						return std::move(array_index);
+					},
+					[&](std::unique_ptr<member_access>& member_access) -> std::unique_ptr<expression> {
+						return std::move(member_access);
+					}
+				}, m_operand);
+			}
+
 			const typing::qual_type get_type() const override { 
                 return typing::qual_type(std::make_shared<typing::pointer_type>(std::visit(overloaded { 
                     [](const std::shared_ptr<variable>& variable) {
@@ -652,6 +669,8 @@ namespace michaelcc {
 
 			const std::unique_ptr<expression>& destination() const noexcept { return m_destination; }
 			const std::unique_ptr<expression>& value() const noexcept { return m_value; }
+
+			std::unique_ptr<expression> release_value() noexcept { return std::move(m_value); }
 
 			const typing::qual_type get_type() const override { return m_destination->get_type(); }
 
