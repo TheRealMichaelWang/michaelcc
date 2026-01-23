@@ -237,13 +237,22 @@ namespace michaelcc {
 
         std::unique_ptr<logical_ir::statement> transform_pass::statement_traverser::dispatch(const logical_ir::variable_declaration& node) {
             std::shared_ptr<logical_ir::variable> variable = m_pass.replace_variable(node.variable());
-            std::unique_ptr<logical_ir::expression> initializer = m_pass.m_expression_traverser(*node.initializer());
+            
+            std::unique_ptr<logical_ir::expression> initializer = nullptr;
+            if (node.initializer()) {
+                initializer = m_pass.m_expression_traverser(*node.initializer());
+            }
+            
             auto to_transform = std::make_unique<logical_ir::variable_declaration>(std::move(variable), std::move(initializer));
             return m_pass.m_statement_pass->dispatch(std::move(to_transform));
         }
 
         std::unique_ptr<logical_ir::statement> transform_pass::statement_traverser::dispatch(const logical_ir::return_statement& node) {
-            std::unique_ptr<logical_ir::expression> value = m_pass.m_expression_traverser(*node.value());
+            std::unique_ptr<logical_ir::expression> value = nullptr;
+            if (node.value()) {
+                value = m_pass.m_expression_traverser(*node.value());
+            }
+            
             auto to_transform = std::make_unique<logical_ir::return_statement>(std::move(value));
             return m_pass.m_statement_pass->dispatch(std::move(to_transform));
         }
@@ -251,10 +260,15 @@ namespace michaelcc {
         std::unique_ptr<logical_ir::statement> transform_pass::statement_traverser::dispatch(const logical_ir::if_statement& node) {
             std::unique_ptr<logical_ir::expression> condition = m_pass.m_expression_traverser(*node.condition());
             
+            std::shared_ptr<logical_ir::control_block> else_body = nullptr;
+            if (node.else_body()) {
+                else_body = m_pass.transform_control_block(*node.else_body());
+            }
+            
             auto to_transform = std::make_unique<logical_ir::if_statement>(
                 std::move(condition), 
                 m_pass.transform_control_block(*node.then_body()),
-                m_pass.transform_control_block(*node.else_body())
+                std::move(else_body)
             );
             return m_pass.m_statement_pass->dispatch(std::move(to_transform));
         }
