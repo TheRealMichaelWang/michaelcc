@@ -40,7 +40,7 @@ namespace michaelcc {
         }
 
         std::unique_ptr<logical_ir::statement> dead_code_pass::statement_pass::dispatch(std::unique_ptr<logical_ir::expression_statement>&& node) {
-            if (node->expression() == nullptr || dynamic_cast<const logical_ir::constant_expression*>(node->expression().get()) != nullptr) {
+            if (node->expression() == nullptr || !node->expression()->has_side_effects()) {
                 mark_ir_mutated();
                 return nullptr;
             }
