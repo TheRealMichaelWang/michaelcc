@@ -119,7 +119,7 @@ namespace michaelcc {
             for (const auto& initializer : node.initializers()) {
                 initializers.emplace_back((*this)(*initializer));
             }
-            auto to_transform = std::make_unique<logical_ir::array_initializer>(std::move(initializers), typing::qual_type(node.get_type()));
+            auto to_transform = std::make_unique<logical_ir::array_initializer>(std::move(initializers), typing::qual_type(node.element_type()));
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 

@@ -122,7 +122,7 @@ namespace michaelcc {
 
                     initializers.emplace_back(std::move(element));
                 }
-                return std::make_unique<logical_ir::array_initializer>(std::move(initializers), typing::qual_type(node.get_type()));
+                return std::make_unique<logical_ir::array_initializer>(std::move(initializers), typing::qual_type(node.element_type()));
             }
             
             std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::struct_initializer& node) override { 

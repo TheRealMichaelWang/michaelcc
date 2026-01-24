@@ -59,17 +59,7 @@ int count_value(int* arr, int size, int value) {
 }
 
 int main() {
-    int numbers[10];
-    numbers[0] = 5;
-    numbers[1] = 2;
-    numbers[2] = 8;
-    numbers[3] = 1;
-    numbers[4] = 9;
-    numbers[5] = 3;
-    numbers[6] = 7;
-    numbers[7] = 4;
-    numbers[8] = 6;
-    numbers[9] = 0;
+    int numbers[] = {5, 2, 8, 1, 9, 3, 7, 4, 6, 0};
     
     int total = sum_array(numbers, 10);
     int maximum = find_max(numbers, 10);

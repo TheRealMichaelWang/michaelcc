@@ -156,7 +156,7 @@ namespace michaelcc {
             }
             if (m_pass.can_propagate_constant(variable)) {
                 constant_cloner cloner;
-                auto initializer = cloner(*node->initializer());
+                auto initializer = node->initializer() ? cloner(*node->initializer()) : nullptr;
                 if (!initializer) {
                     return node;
                 }
