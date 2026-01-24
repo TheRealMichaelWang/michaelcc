@@ -6,8 +6,10 @@
 #include "logic/logical.hpp"
 #include "logic/typing.hpp"
 #include <memory>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 namespace michaelcc {
     namespace dataflow {
@@ -17,15 +19,26 @@ namespace michaelcc {
                 bool is_mutated = false;
                 int num_uses = 0;
             };
-
-        private:
             class mutated_variable_tracker : public logical_ir::const_expression_dispatcher<void> {
             private:
                 std::unordered_set<std::shared_ptr<logical_ir::variable>> m_mutated_variables;
+                std::unordered_set<const logical_ir::expression*> m_dead_expressions;
+
+            public:
+                std::tuple<
+                    std::unordered_set<std::shared_ptr<logical_ir::variable>>, 
+                    std::unordered_set<const logical_ir::expression*>
+                > get_mutated_variables(const logical_ir::expression& expression) { 
+                    m_mutated_variables = std::unordered_set<std::shared_ptr<logical_ir::variable>>();
+                    m_dead_expressions = std::unordered_set<const logical_ir::expression*>();
+                    (*this)(expression);
+                    return std::make_tuple(std::move(m_mutated_variables), std::move(m_dead_expressions));
+                }
 
             protected:
                 void dispatch(const logical_ir::variable_reference& node) override {
                     m_mutated_variables.insert(node.get_variable());
+                    m_dead_expressions.insert(&node);
                 }
 
                 void dispatch(const logical_ir::array_index& node) override {
@@ -53,6 +66,8 @@ namespace michaelcc {
                 void handle_default(const logical_ir::expression& node) override { }
             };
 
+        private:
+
             std::unordered_set<const logical_ir::expression*> m_dead_expressions;
             std::unordered_map<std::shared_ptr<logical_ir::variable>, variable_metrics> m_variable_metrics;
 
@@ -66,6 +81,7 @@ namespace michaelcc {
         protected:
             void visit(const logical_ir::variable_declaration& node) override;
             void visit(const logical_ir::set_variable& node) override;
+            void visit(const logical_ir::set_address& node) override;
             void visit(const logical_ir::increment_operator& node) override;
             void visit(const logical_ir::variable_reference& node) override;
             void visit(const logical_ir::address_of& node) override;
@@ -75,6 +91,43 @@ namespace michaelcc {
 
         class constant_prop_pass final : public transform_pass {
         private:
+            class dest_indicie_getter : public logical_ir::expression_dispatcher<void> {
+            private:
+                std::vector<std::unique_ptr<logical_ir::expression>> m_indicies;
+
+            public:
+                std::vector<std::unique_ptr<logical_ir::expression>> get_indicies(logical_ir::expression& expression) {
+                    m_indicies = std::vector<std::unique_ptr<logical_ir::expression>>();
+                    (*this)(expression);
+                    std::reverse(m_indicies.begin(), m_indicies.end());
+                    return std::move(m_indicies);
+                }
+
+            protected:
+                void dispatch(logical_ir::array_index& node) override {
+                    m_indicies.emplace_back(node.release_index());
+                    (*this)(*node.base());
+                }
+
+                void dispatch(logical_ir::member_access& node) override {
+                    (*this)(*node.base());
+                }
+
+                void dispatch(logical_ir::address_of& node) override {
+                    std::visit(overloaded{
+                        [&](const std::shared_ptr<logical_ir::variable>& variable) { },
+                        [&](const std::unique_ptr<logical_ir::array_index>& array_index) {
+                            (*this)(*array_index);
+                        },
+                        [&](const std::unique_ptr<logical_ir::member_access>& member_access) {
+                            (*this)(*member_access);
+                        },
+                    }, node.operand());
+                }
+
+                void handle_default(logical_ir::expression& node) override { }
+            };
+
             class expression_pass : public default_expression_pass {
             private:
                 constant_prop_pass& m_pass;
@@ -83,6 +136,7 @@ namespace michaelcc {
                 expression_pass(constant_prop_pass& pass) : m_pass(pass) {}
 
                 std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::set_variable>&& node) override;
+                std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::set_address>&& node) override;
                 std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::increment_operator>&& node) override;
                 std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::variable_reference>&& node) override;
             };

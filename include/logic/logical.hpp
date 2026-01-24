@@ -41,6 +41,7 @@ namespace michaelcc {
 		class conditional_expression;
 		class set_address;
 		class set_variable;
+		class compound_expression;
 		class expression_statement;
 		class variable_declaration;
 		class return_statement;
@@ -77,6 +78,7 @@ namespace michaelcc {
 			conditional_expression,
 			set_address,
 			set_variable,
+			compound_expression,
 			expression_statement,
 			variable_declaration,
 			return_statement,
@@ -120,6 +122,7 @@ namespace michaelcc {
 			conditional_expression,
 			set_address,
 			set_variable,
+			compound_expression,
 			expression_statement,
 			variable_declaration,
 			return_statement,
@@ -164,6 +167,7 @@ namespace michaelcc {
 			union_initializer,
 			function_call,
 			conditional_expression,
+			compound_expression,
 			set_address,
 			set_variable,
 			enumerator_literal
@@ -190,6 +194,7 @@ namespace michaelcc {
 			const union_initializer,
 			const function_call,
 			const conditional_expression,
+			const compound_expression,
 			const set_address,
 			const set_variable,
 			const enumerator_literal
@@ -248,8 +253,6 @@ namespace michaelcc {
 			virtual const typing::qual_type get_type() const = 0;
 			virtual void mutable_accept(visitor& v) override = 0;
 			virtual void accept(const_visitor& v) const override = 0;
-
-			virtual bool has_side_effects() const = 0;
 		};
 
 		class constant_expression : public expression {
@@ -257,8 +260,6 @@ namespace michaelcc {
 			virtual ~constant_expression() = default;
 
 			virtual std::unique_ptr<constant_expression> clone() const = 0;
-
-			virtual bool has_side_effects() const override { return false; }
 		};
 
 		class integer_constant final : public constant_expression {
@@ -343,8 +344,6 @@ namespace michaelcc {
 
 			void mutable_accept(visitor& v) override { v.visit(*this); }
 			void accept(const_visitor& v) const override { v.visit(*this); }
-
-			bool has_side_effects() const override { return false; }
 		};
 
 		class increment_operator final : public expression {
@@ -374,8 +373,6 @@ namespace michaelcc {
 
 			void mutable_accept(visitor& v) override { v.visit(*this); }
 			void accept(const_visitor& v) const override { v.visit(*this); }
-			
-			bool has_side_effects() const override { return true; }
 		};
 
 		class arithmetic_operator final : public expression {
@@ -415,8 +412,6 @@ namespace michaelcc {
 				m_left->accept(v);
 				m_right->accept(v);
 			}
-
-			bool has_side_effects() const override { return left()->has_side_effects() || right()->has_side_effects(); }
 		};
 
 		class unary_operation final : public expression {
@@ -443,8 +438,6 @@ namespace michaelcc {
 				v.visit(*this);
 				m_operand->accept(v);
 			}
-
-			bool has_side_effects() const override { return operand()->has_side_effects(); }
 		};
 
 		class type_cast final : public expression {
@@ -468,8 +461,6 @@ namespace michaelcc {
 				v.visit(*this);
 				m_operand->accept(v);
 			}
-
-			bool has_side_effects() const override { return operand()->has_side_effects(); }
 		};
 
 		class dereference final : public expression {
@@ -500,8 +491,6 @@ namespace michaelcc {
 				v.visit(*this);
 				m_operand->accept(v);
 			}
-
-			bool has_side_effects() const override { return operand()->has_side_effects(); }
 		};
 
 		class member_access final : public expression {
@@ -528,8 +517,6 @@ namespace michaelcc {
 				v.visit(*this);
 				m_base->accept(v);
 			}
-
-			bool has_side_effects() const override { return base()->has_side_effects(); }
 		};
 
 		class array_index final : public expression {
@@ -542,6 +529,8 @@ namespace michaelcc {
 
 			const std::unique_ptr<expression>& base() const noexcept { return m_base; }
 			const std::unique_ptr<expression>& index() const noexcept { return m_index; }
+
+			std::unique_ptr<expression> release_index() noexcept { return std::move(m_index); }
 
 			const typing::qual_type get_type() const override {
 				auto base_type = m_base->get_type();
@@ -570,8 +559,6 @@ namespace michaelcc {
 				m_base->accept(v);
 				m_index->accept(v);
 			}
-
-			bool has_side_effects() const override { return base()->has_side_effects() || index()->has_side_effects(); }
 		};
 
 		class address_of final : public expression {
@@ -634,20 +621,6 @@ namespace michaelcc {
 					operand->accept(v);
 				}, m_operand);
 			}
-
-			bool has_side_effects() const override { 
-				return std::visit(overloaded{
-					[&](const std::shared_ptr<variable>&) -> bool {
-						return false;
-					},
-					[&](const std::unique_ptr<array_index>& array_index) -> bool {
-						return array_index->has_side_effects();
-					},
-					[&](const std::unique_ptr<member_access>& member_access) -> bool {
-						return member_access->has_side_effects();
-					}
-				}, m_operand);
-			}
 		};
 
 		class conditional_expression final : public expression {
@@ -690,8 +663,6 @@ namespace michaelcc {
 				m_then_expression->accept(v);
 				m_else_expression->accept(v);
 			}
-
-			bool has_side_effects() const override { return condition()->has_side_effects() || then_expression()->has_side_effects() || else_expression()->has_side_effects(); }
 		};
 
 		class set_address final : public expression {
@@ -721,8 +692,6 @@ namespace michaelcc {
 				m_destination->accept(v);
 				m_value->accept(v);
 			}
-
-			bool has_side_effects() const override { return true; }
 		};
 
 		class set_variable final : public expression {
@@ -751,8 +720,6 @@ namespace michaelcc {
 				m_variable->accept(v);
 				m_value->accept(v);
 			}
-
-			bool has_side_effects() const override { return true; }
 		};
 
 		class statement : public mutable_visitable_base<visitor>, public const_visitable_base<const_visitor> {
@@ -827,6 +794,37 @@ namespace michaelcc {
 			void accept(const_visitor& v) const override {
 				v.visit(*this);
 				m_control_block->accept(v);
+			}
+		};
+
+		class compound_expression final : public expression {
+		private:
+			std::shared_ptr<control_block> m_control_block;
+			std::unique_ptr<expression> m_return_expression;
+
+		public:
+			compound_expression(std::shared_ptr<control_block>&& control_block, std::unique_ptr<expression>&& return_expression)
+				: m_control_block(std::move(control_block)), m_return_expression(std::move(return_expression)) {}
+
+			const std::shared_ptr<control_block>& control_block() const noexcept { return m_control_block; }
+			const std::unique_ptr<expression>& return_expression() const noexcept { return m_return_expression; }
+
+			std::unique_ptr<expression> release_return_expression() noexcept { return std::move(m_return_expression); }
+
+			const typing::qual_type get_type() const override { return m_return_expression->get_type(); }
+
+			bool has_side_effects() const override { return m_return_expression->has_side_effects(); }
+
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				m_control_block->mutable_accept(v);
+				m_return_expression->mutable_accept(v);
+			}
+
+			void accept(const_visitor& v) const override {
+				v.visit(*this);
+				m_control_block->accept(v);
+				m_return_expression->accept(v);
 			}
 		};
 
@@ -1071,8 +1069,6 @@ namespace michaelcc {
 			void mutable_accept(visitor& v) override { v.visit(*this); }
 
 			void accept(const_visitor& v) const override { v.visit(*this); }
-
-			bool has_side_effects() const override { return false; }
 		};
 
 		class array_initializer final : public expression {
@@ -1102,15 +1098,6 @@ namespace michaelcc {
 					initializer->accept(v);
 				}
 			}
-
-			bool has_side_effects() const override { 
-				for (const auto& initializer : m_initializers) {
-					if (initializer->has_side_effects()) {
-						return true;
-					}
-				}
-				return false;
-			}
 		};
 
 		class allocate_array final : public expression {
@@ -1139,15 +1126,6 @@ namespace michaelcc {
 				for (const auto& dimension : m_dimensions) {
 					dimension->accept(v);
 				}
-			}
-
-			bool has_side_effects() const override { 
-				for (const auto& dimension : m_dimensions) {
-					if (dimension->has_side_effects()) {
-						return true;
-					}
-				}
-				return false;
 			}
 		};
 		
@@ -1185,15 +1163,6 @@ namespace michaelcc {
 					initializer.initializer->accept(v);
 				}
 			}
-
-			bool has_side_effects() const override { 
-				for (const auto& initializer : m_initializers) {
-					if (initializer.initializer->has_side_effects()) {
-						return true;
-					}
-				}
-				return false;
-			}
 		};
 
 		class union_initializer final : public expression {
@@ -1223,8 +1192,6 @@ namespace michaelcc {
 				v.visit(*this);
 				m_initializer->accept(v);
 			}
-
-			bool has_side_effects() const override { return initializer()->has_side_effects(); }
 		};
 
 		class enumerator_literal final : public expression {
@@ -1249,8 +1216,6 @@ namespace michaelcc {
 			void accept(const_visitor& v) const override {
 				v.visit(*this);
 			}
-
-			bool has_side_effects() const override { return false; }
 		};
 
 		class enumerator_symbol final : public symbol {
@@ -1320,8 +1285,6 @@ namespace michaelcc {
 					arg->accept(v);
 				}
 			}
-
-			bool has_side_effects() const override { return true; }
 		};
 
 		class translation_unit {

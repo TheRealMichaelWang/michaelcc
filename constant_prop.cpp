@@ -22,6 +22,25 @@ namespace michaelcc {
             metrics.num_uses++;
         }
 
+        void variable_use_analyzer::visit(const logical_ir::set_address& node) {
+            mutated_variable_tracker tracker;
+            auto [mutated_variables, dead_expressions] = tracker.get_mutated_variables(*node.destination());
+            for (const auto& variable : mutated_variables) {
+                auto& metrics = m_variable_metrics[variable];
+                metrics.is_mutated = true;
+            }
+
+            if (m_dead_expressions.contains(&node)) {
+                m_dead_expressions.insert(dead_expressions.begin(), dead_expressions.end());
+                return;
+            }
+
+            for (const auto& variable : mutated_variables) {
+                auto& metrics = m_variable_metrics[variable];
+                metrics.num_uses++;
+            }
+        }
+
         void variable_use_analyzer::visit(const logical_ir::increment_operator& node) {
             if (std::holds_alternative<std::shared_ptr<logical_ir::variable>>(node.destination())) {
                 auto& metrics = m_variable_metrics[std::get<std::shared_ptr<logical_ir::variable>>(node.destination())];
@@ -80,6 +99,36 @@ namespace michaelcc {
             }
 
             return node;
+        }
+
+        std::unique_ptr<logical_ir::expression> constant_prop_pass::expression_pass::dispatch(std::unique_ptr<logical_ir::set_address>&& node) {
+            variable_use_analyzer::mutated_variable_tracker tracker;
+            auto [mutated_variables, dead_expressions] = tracker.get_mutated_variables(*node->destination());
+
+            for (const auto& variable : mutated_variables) {
+                if (!m_pass.can_remove_variable(variable)) {
+                    return node;
+                }
+            }
+
+            mark_ir_mutated();
+
+            dest_indicie_getter indicies;
+            auto impure_indicies = indicies.get_indicies(*node->destination());
+
+            if (impure_indicies.empty()) {
+                return node->release_value();
+            }
+            else {
+                std::shared_ptr<logical_ir::control_block> control_block = std::make_shared<logical_ir::control_block>();
+                std::vector<std::unique_ptr<logical_ir::statement>> statements;
+                statements.reserve(impure_indicies.size());
+                for (auto& indicie : impure_indicies) {
+                    statements.emplace_back(std::make_unique<logical_ir::expression_statement>(std::move(indicie)));
+                }
+                control_block->implement(std::move(statements));
+                return std::make_unique<logical_ir::compound_expression>(std::move(control_block), std::move(node->release_value()));
+            }
         }
 
         std::unique_ptr<logical_ir::expression> constant_prop_pass::expression_pass::dispatch(std::unique_ptr<logical_ir::increment_operator>&& node) {

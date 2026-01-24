@@ -78,7 +78,7 @@ namespace michaelcc {
         }
 
     protected:
-        virtual ReturnType handle_default(const BaseType& node) {
+        virtual ReturnType handle_default(BaseType& node) {
             throw std::runtime_error(std::format("No dispatch method for type {}", typeid(BaseType).name()));
         }
         // Sentinel for the using declaration chain - never called
