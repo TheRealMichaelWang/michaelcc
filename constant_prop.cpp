@@ -92,9 +92,10 @@ namespace michaelcc {
 
         void variable_use_analyzer::visit(const logical_ir::function_call& node) {
             auto parameter_types = node.parameter_types();
-            for (size_t i = 0; i < node.arguments().size(); i++) {
+            for (size_t i = 0; i < node.arguments().size(); i++) { //use dest mutator or some shit
                 if ((parameter_types.at(i).is_same_type<typing::pointer_type>() || parameter_types.at(i).is_same_type<typing::array_type>()) && !parameter_types.at(i).is_const()) {
-                    m_mutated_expressions.insert(node.arguments().at(i).get());
+                    auto [mutated_variables, dead_expressions] = mutated_variable_tracker().get_mutated_variables(*node.arguments().at(i));
+                    m_mutated_expressions.insert(dead_expressions.begin(), dead_expressions.end());
                 }
             }
         }
@@ -145,7 +146,12 @@ namespace michaelcc {
                 auto& variable = std::get<std::shared_ptr<logical_ir::variable>>(node->destination());
                 if (m_pass.can_remove_variable(variable)) {
                     mark_ir_mutated();
-                    return node->release_destination();
+
+                    auto increment_amount = node->release_increment_amount();
+                    if (increment_amount) {
+                        return std::move(increment_amount.value());
+                    }
+                    return nullptr;
                 }
             }
             return node;

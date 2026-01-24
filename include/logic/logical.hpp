@@ -341,16 +341,11 @@ namespace michaelcc {
 			const destination_type& destination() const noexcept { return m_destination; }
 			const std::optional<std::unique_ptr<expression>>& increment_amount() const noexcept { return m_increment_amount; }
 
+			std::optional<std::unique_ptr<expression>> release_increment_amount() noexcept { return std::move(m_increment_amount); }
+
 			const typing::qual_type get_type() const override { return std::visit([](auto&& destination) {
 				return destination->get_type();
 			}, m_destination); }
-
-			std::unique_ptr<expression> release_destination() noexcept { 
-				if (std::holds_alternative<std::unique_ptr<expression>>(m_destination)) {
-					return std::move(std::get<std::unique_ptr<expression>>(m_destination));
-				}
-				return nullptr;
-			}
 
 			void mutable_accept(visitor& v) override { v.visit(*this); }
 			void accept(const_visitor& v) const override { v.visit(*this); }
