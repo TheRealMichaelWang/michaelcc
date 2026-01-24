@@ -255,14 +255,7 @@ namespace michaelcc {
 			virtual void accept(const_visitor& v) const override = 0;
 		};
 
-		class constant_expression : public expression {
-		public:
-			virtual ~constant_expression() = default;
-
-			virtual std::unique_ptr<constant_expression> clone() const = 0;
-		};
-
-		class integer_constant final : public constant_expression {
+		class integer_constant final : public expression {
 		private:
 			uint64_t m_value;
 			typing::qual_type m_type;
@@ -278,13 +271,9 @@ namespace michaelcc {
 
 			void mutable_accept(visitor& v) override { v.visit(*this); }
 			void accept(const_visitor& v) const override { v.visit(*this); }
-
-			std::unique_ptr<constant_expression> clone() const override {
-				return std::make_unique<integer_constant>(m_value, typing::qual_type(m_type));
-			}
 		};
 
-		class floating_constant final : public constant_expression {
+		class floating_constant final : public expression {
 		private:
 			double m_value;
 			typing::qual_type m_type;
@@ -300,13 +289,9 @@ namespace michaelcc {
 
 			void mutable_accept(visitor& v) override { v.visit(*this); }
 			void accept(const_visitor& v) const override { v.visit(*this); }
-
-			std::unique_ptr<constant_expression> clone() const override {
-				return std::make_unique<floating_constant>(m_value, typing::qual_type(m_type));
-			}
 		};
 
-		class string_constant final : public constant_expression {
+		class string_constant final : public expression {
 		private:
 			size_t m_index;
 		public:
@@ -323,10 +308,6 @@ namespace michaelcc {
 
 			void mutable_accept(visitor& v) override { v.visit(*this); }
 			void accept(const_visitor& v) const override { v.visit(*this); }
-
-			std::unique_ptr<constant_expression> clone() const override {
-				return std::make_unique<string_constant>(m_index);
-			}
 		};
 
 		class variable_reference final : public expression {
@@ -1080,6 +1061,8 @@ namespace michaelcc {
 				: m_initializers(std::move(initializers)), m_element_type(std::move(element_type)) {}
 
 			const std::vector<std::unique_ptr<expression>>& initializers() const noexcept { return m_initializers; }
+
+			const typing::qual_type& element_type() const noexcept { return m_element_type; }
 
 			const typing::qual_type get_type() const override { 
 				return typing::qual_type::owning(std::make_shared<typing::array_type>(m_element_type), m_element_type.propagate_qualifiers()); 

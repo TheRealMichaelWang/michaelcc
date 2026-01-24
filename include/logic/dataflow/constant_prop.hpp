@@ -93,6 +93,71 @@ namespace michaelcc {
             void visit(const logical_ir::expression_statement& node) override;
         };
 
+        class constant_cloner final : public logical_ir::const_expression_dispatcher<std::unique_ptr<logical_ir::expression>> {
+        protected:
+            std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::integer_constant& node) override { 
+                return std::make_unique<logical_ir::integer_constant>(node.value(), typing::qual_type(node.get_type())); 
+            }
+
+            std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::floating_constant& node) override { 
+                return std::make_unique<logical_ir::floating_constant>(node.value(), typing::qual_type(node.get_type())); 
+            }
+
+            std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::string_constant& node) override { 
+                return std::make_unique<logical_ir::string_constant>(node.index()); 
+            }
+
+            std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::enumerator_literal& node) override { 
+                return std::make_unique<logical_ir::enumerator_literal>(typing::enum_type::enumerator(node.enumerator()), std::shared_ptr<typing::enum_type>(node.enum_type())); 
+            }
+
+            std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::array_initializer& node) override { 
+                std::vector<std::unique_ptr<logical_ir::expression>> initializers;
+                initializers.reserve(node.initializers().size());
+                for (const auto& initializer : node.initializers()) {
+                    auto element = (*this)(*initializer);
+                    if (!element || !node.element_type().is_assignable_from(element->get_type())) {
+                        return nullptr;
+                    }
+
+                    initializers.emplace_back(std::move(element));
+                }
+                return std::make_unique<logical_ir::array_initializer>(std::move(initializers), typing::qual_type(node.get_type()));
+            }
+            
+            std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::struct_initializer& node) override { 
+                std::vector<logical_ir::struct_initializer::member_initializer> initializers;
+                initializers.reserve(node.initializers().size());
+                for (size_t i = 0; i < node.initializers().size(); i++) {
+                    auto element = (*this)(*node.initializers()[i].initializer);
+                    if (!element || !node.struct_type()->fields()[i].member_type.is_assignable_from(element->get_type())) {
+                        return nullptr;
+                    }
+
+                    initializers.emplace_back(logical_ir::struct_initializer::member_initializer{node.initializers()[i].member_name, std::move(element)});
+                }
+                return std::make_unique<logical_ir::struct_initializer>(std::move(initializers), std::shared_ptr<typing::struct_type>(node.struct_type()));
+            }
+
+            std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::union_initializer& node) override { 
+                auto element = (*this)(*node.initializer());
+                if (!element || !node.union_type()->members()[0].member_type.is_assignable_from(element->get_type())) {
+                    return nullptr;
+                }
+                return std::make_unique<logical_ir::union_initializer>(std::move(element), std::shared_ptr<typing::union_type>(node.union_type()), typing::qual_type(node.target_type()));
+            }
+
+            std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::type_cast& node) override { 
+                auto expression = (*this)(*node.operand());
+                if (!expression) {
+                    return nullptr;
+                }
+                return std::make_unique<logical_ir::type_cast>(std::move(expression), typing::qual_type(node.get_type()));
+            }
+
+            std::unique_ptr<logical_ir::expression> handle_default(const logical_ir::expression& node) override { return nullptr; }
+        };
+
         class constant_prop_pass final : public transform_pass {
         private:
             class dest_side_effects : public logical_ir::expression_dispatcher<void> {
@@ -164,7 +229,7 @@ namespace michaelcc {
             };
 
             std::unordered_map<std::shared_ptr<logical_ir::variable>, variable_use_analyzer::variable_metrics> m_variable_metrics;
-            std::unordered_map<std::shared_ptr<logical_ir::variable>, std::unique_ptr<logical_ir::constant_expression>> m_constant_expressions;
+            std::unordered_map<std::shared_ptr<logical_ir::variable>, std::unique_ptr<logical_ir::expression>> m_constant_expressions;
         protected:
             bool can_propagate_constant(const std::shared_ptr<logical_ir::variable>& variable) const {
                 return m_variable_metrics.at(variable).is_mutated == false 
@@ -176,11 +241,12 @@ namespace michaelcc {
                 && !(variable->get_type().qualifiers() & typing::VOLATILE_TYPE_QUALIFIER);
             }
 
-            std::unique_ptr<logical_ir::constant_expression> propagate_constant(const std::shared_ptr<logical_ir::variable>& variable) const {
+            std::unique_ptr<logical_ir::expression> propagate_constant(const std::shared_ptr<logical_ir::variable>& variable) const {
                 if (!can_propagate_constant(variable) || !m_constant_expressions.contains(variable)) {
                     return nullptr;
                 }
-                return m_constant_expressions.at(variable)->clone();
+                constant_cloner cloner;
+                return cloner(*m_constant_expressions.at(variable));
             }
 
         public:

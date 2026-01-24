@@ -140,10 +140,10 @@ namespace michaelcc {
         std::unique_ptr<logical_ir::expression> constant_prop_pass::expression_pass::dispatch(std::unique_ptr<logical_ir::variable_reference>&& node) {
             auto& variable = node->get_variable();
 
-            std::unique_ptr<logical_ir::constant_expression> propagated_constant = m_pass.propagate_constant(variable);
+            std::unique_ptr<logical_ir::expression> propagated_constant = m_pass.propagate_constant(variable);
             if (propagated_constant) {
                 mark_ir_mutated();
-                return propagated_constant->clone();
+                return propagated_constant;
             }
             return node;
         }
@@ -155,11 +155,15 @@ namespace michaelcc {
                 return std::make_unique<logical_ir::expression_statement>(node->release_initializer());
             }
             if (m_pass.can_propagate_constant(variable)) {
-                if (auto initializer = dynamic_cast<const logical_ir::constant_expression*>(node->initializer().get())) {
-                    mark_ir_mutated();
-                    m_pass.m_constant_expressions.insert({ variable, initializer->clone() });
-                    return nullptr;
+                constant_cloner cloner;
+                auto initializer = cloner(*node->initializer());
+                if (!initializer) {
+                    return node;
                 }
+                
+                mark_ir_mutated();
+                m_pass.m_constant_expressions.insert({ variable, std::move(initializer) });
+                return nullptr;
             }
             return node;
         }
