@@ -145,7 +145,7 @@ namespace michaelcc {
 
         std::unique_ptr<logical_ir::expression> transform_pass::expression_traverser::dispatch(const logical_ir::union_initializer& node) {
             std::unique_ptr<logical_ir::expression> initializer = (*this)(*node.initializer());
-            auto to_transform = std::make_unique<logical_ir::union_initializer>(std::move(initializer), std::shared_ptr<typing::union_type>(node.union_type()), typing::qual_type(node.target_type()));
+            auto to_transform = std::make_unique<logical_ir::union_initializer>(std::move(initializer), std::shared_ptr<typing::union_type>(node.union_type()), typing::member(node.target_member()));
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 

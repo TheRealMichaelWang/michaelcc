@@ -43,5 +43,48 @@ namespace michaelcc {
             }
             return node;
         }
+
+        std::unique_ptr<logical_ir::expression> ir_simplify_pass::expression_pass::dispatch(std::unique_ptr<logical_ir::member_access>&& node) {
+            if (node->is_dereference()) {
+                if (auto address_of = dynamic_cast<logical_ir::address_of*>(node->base().get())) {
+                    mark_ir_mutated();
+                    return std::make_unique<logical_ir::member_access>(address_of->release_operand(), node->member(), false);
+                }
+            }
+            else {
+                if (auto struct_initializer = dynamic_cast<logical_ir::struct_initializer*>(node->base().get())) {
+                    std::vector<logical_ir::struct_initializer::member_initializer> initializers = struct_initializer->release_initializers();
+                    for (auto& initializer : initializers) {
+                        if (initializer.member_name == node->member().name) {
+                            mark_ir_mutated();
+                            return std::move(initializer.initializer);
+                        }
+                    }
+                    return node;
+                }
+
+                if (auto union_initializer = dynamic_cast<logical_ir::union_initializer*>(node->base().get())) {
+                    if (union_initializer->target_member().name == node->member().name) {
+                        mark_ir_mutated();
+                        return union_initializer->release_initializer();
+                    }
+                    return node;
+                }
+            }
+            return node;
+        }
+
+        std::unique_ptr<logical_ir::expression> ir_simplify_pass::expression_pass::dispatch(std::unique_ptr<logical_ir::array_index>&& node) {
+            if (auto array_initializer = dynamic_cast<logical_ir::array_initializer*>(node->base().get())) {
+                if (auto index = dynamic_cast<logical_ir::integer_constant*>(node->index().get())) {
+                    std::vector<std::unique_ptr<logical_ir::expression>> initializers = array_initializer->release_initializers();
+                    if (index->value() >= 0 && index->value() < initializers.size()) {
+                        mark_ir_mutated();
+                        return std::move(initializers[index->value()]);
+                    }
+                }
+            }
+            return node;
+        }
     }
 }

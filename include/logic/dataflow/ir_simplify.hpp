@@ -13,6 +13,9 @@ namespace michaelcc {
                 std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::set_address>&& node) override;
                 std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::dereference>&& node) override;
                 std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::compound_expression>&& node) override;
+
+                std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::member_access>&& node) override;
+                std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::array_index>&& node) override;
             };
         public:
             ir_simplify_pass() : transform_pass(

@@ -863,20 +863,20 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
         }
 
         std::unique_ptr<logical_ir::expression> initializer = m_lowerer.lower_expression(*node.initializers()[0]);
-        std::optional<typing::qual_type> target_type = std::nullopt;
+        std::optional<typing::member> target_member = std::nullopt;
 
         for (const auto& member : union_type->members()) {
             if (member.member_type.is_assignable_from(initializer->get_type())) {
-                target_type = member.member_type;
+                target_member = member;
                 break;
             }
         }
-        if (!target_type) {
+        if (!target_member) {
             std::ostringstream ss;
             ss << "Union \"" << union_type->name().value() << "\" does not have a member that is assignable from " << initializer->get_type().to_string() << ".";
             throw panic(ss.str(), node.location());
         }
-        return std::make_unique<logical_ir::union_initializer>(std::move(initializer), std::move(union_type), std::move(target_type.value()));
+        return std::make_unique<logical_ir::union_initializer>(std::move(initializer), std::move(union_type), std::move(target_member.value()));
     }
     
     std::shared_ptr<typing::array_type> array_type = std::dynamic_pointer_cast<typing::array_type>(m_target_type->type());

@@ -1056,12 +1056,15 @@ namespace michaelcc {
 		private:
 			std::vector<std::unique_ptr<expression>> m_initializers;
 			typing::qual_type m_element_type;
+
 		public:
 			array_initializer(std::vector<std::unique_ptr<expression>>&& initializers, typing::qual_type&& element_type)
 				: m_initializers(std::move(initializers)), m_element_type(std::move(element_type)) {}
 
 			const std::vector<std::unique_ptr<expression>>& initializers() const noexcept { return m_initializers; }
 
+			std::vector<std::unique_ptr<expression>> release_initializers() noexcept { return std::move(m_initializers); }
+			
 			const typing::qual_type& element_type() const noexcept { return m_element_type; }
 
 			const typing::qual_type get_type() const override { 
@@ -1127,6 +1130,8 @@ namespace michaelcc {
 
 			const std::vector<member_initializer>& initializers() const noexcept { return m_initializers; }
 
+			std::vector<member_initializer> release_initializers() noexcept { return std::move(m_initializers); }
+
 			const std::shared_ptr<typing::struct_type>& struct_type() const noexcept { return m_struct_type; }
 
 			const typing::qual_type get_type() const override {
@@ -1152,15 +1157,17 @@ namespace michaelcc {
 		private:
 			std::unique_ptr<expression> m_initializer;
 			std::shared_ptr<typing::union_type> m_union_type;
-			typing::qual_type m_target_type;
+			typing::member m_target_member;
 		public:
-			union_initializer(std::unique_ptr<expression>&& initializer, std::shared_ptr<typing::union_type>&& union_type, typing::qual_type&& type)
-				: m_initializer(std::move(initializer)), m_union_type(std::move(union_type)), m_target_type(std::move(type)) {}
+			union_initializer(std::unique_ptr<expression>&& initializer, std::shared_ptr<typing::union_type>&& union_type, typing::member&& target_member)
+				: m_initializer(std::move(initializer)), m_union_type(std::move(union_type)), m_target_member(std::move(target_member)) {}
 
 			const std::unique_ptr<expression>& initializer() const noexcept { return m_initializer; }
 			const std::shared_ptr<typing::union_type>& union_type() const noexcept { return m_union_type; }
 
-			const typing::qual_type& target_type() const noexcept { return m_target_type; }
+			std::unique_ptr<expression> release_initializer() noexcept { return std::move(m_initializer); }
+
+			const typing::member& target_member() const noexcept { return m_target_member; }
 
 			const typing::qual_type get_type() const override {
 				return typing::qual_type::weak(m_union_type);

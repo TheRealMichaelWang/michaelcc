@@ -144,7 +144,7 @@ namespace michaelcc {
                 if (!element || !node.union_type()->members()[0].member_type.is_assignable_from(element->get_type())) {
                     return nullptr;
                 }
-                return std::make_unique<logical_ir::union_initializer>(std::move(element), std::shared_ptr<typing::union_type>(node.union_type()), typing::qual_type(node.target_type()));
+                return std::make_unique<logical_ir::union_initializer>(std::move(element), std::shared_ptr<typing::union_type>(node.union_type()), typing::member(node.target_member()));
             }
 
             std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::type_cast& node) override { 
