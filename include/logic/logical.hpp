@@ -1242,6 +1242,21 @@ namespace michaelcc {
 			const callable& callee() const noexcept { return m_callee; }
 			const std::vector<std::unique_ptr<expression>>& arguments() const noexcept { return m_arguments; }
 
+			std::vector<typing::qual_type> parameter_types() const {
+				return std::visit(overloaded { 
+					[](const std::shared_ptr<function_definition>& function) -> std::vector<typing::qual_type> {
+						std::vector<typing::qual_type> parameter_types;
+						parameter_types.reserve(function->parameters().size());
+						for (const auto& parameter : function->parameters()) {
+							parameter_types.push_back(parameter->get_type());
+						}
+						return parameter_types;
+					}, [](const std::shared_ptr<expression>& expression) -> std::vector<typing::qual_type> {
+						return std::dynamic_pointer_cast<typing::function_pointer_type>(expression->get_type().type())->parameter_types();
+					}
+				}, m_callee);
+			}
+
 			const typing::qual_type get_type() const override {
 				return std::visit(overloaded { 
 					[](const std::shared_ptr<function_definition>& function) {

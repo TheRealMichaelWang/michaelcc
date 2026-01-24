@@ -74,6 +74,7 @@ namespace michaelcc {
 
             std::unordered_set<const logical_ir::expression*> m_dead_expressions;
             std::unordered_map<std::shared_ptr<logical_ir::variable>, variable_metrics> m_variable_metrics;
+            std::unordered_set<const logical_ir::expression*> m_mutated_expressions;
 
         public:
             std::unordered_map<std::shared_ptr<logical_ir::variable>, variable_metrics> get_metrics(logical_ir::translation_unit& program) {
@@ -90,6 +91,7 @@ namespace michaelcc {
             void visit(const logical_ir::variable_reference& node) override;
             void visit(const logical_ir::address_of& node) override;
             void visit(const logical_ir::function_definition& node) override;
+            void visit(const logical_ir::function_call& node) override;
             void visit(const logical_ir::expression_statement& node) override;
         };
 

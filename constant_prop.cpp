@@ -55,6 +55,11 @@ namespace michaelcc {
         }
 
         void variable_use_analyzer::visit(const logical_ir::variable_reference& node) {
+            if (m_mutated_expressions.contains(&node)) {
+                auto& metrics = m_variable_metrics[node.get_variable()];
+                metrics.is_mutated = true;
+            }
+
             if (m_dead_expressions.contains(&node)) {
                 return;
             }
@@ -82,6 +87,15 @@ namespace michaelcc {
                     parameter, 
                     { .is_mutated = true, .num_uses = 1 } 
                 });
+            }
+        }
+
+        void variable_use_analyzer::visit(const logical_ir::function_call& node) {
+            auto parameter_types = node.parameter_types();
+            for (size_t i = 0; i < node.arguments().size(); i++) {
+                if ((parameter_types.at(i).is_same_type<typing::pointer_type>() || parameter_types.at(i).is_same_type<typing::array_type>()) && !parameter_types.at(i).is_const()) {
+                    m_mutated_expressions.insert(node.arguments().at(i).get());
+                }
             }
         }
 
