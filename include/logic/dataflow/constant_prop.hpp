@@ -19,6 +19,40 @@ namespace michaelcc {
             };
 
         private:
+            class mutated_variable_tracker : public logical_ir::const_expression_dispatcher<void> {
+            private:
+                std::unordered_set<std::shared_ptr<logical_ir::variable>> m_mutated_variables;
+
+            protected:
+                void dispatch(const logical_ir::variable_reference& node) override {
+                    m_mutated_variables.insert(node.get_variable());
+                }
+
+                void dispatch(const logical_ir::array_index& node) override {
+                    (*this)(*node.base());
+                }
+
+                void dispatch(const logical_ir::member_access& node) override {
+                    (*this)(*node.base());
+                }
+
+                void dispatch(const logical_ir::address_of& node) override {
+                    std::visit(overloaded{
+                        [&](const std::shared_ptr<logical_ir::variable>& variable) {
+                            m_mutated_variables.insert(variable);
+                        },
+                        [&](const std::unique_ptr<logical_ir::array_index>& array_index) {
+                            (*this)(*array_index);
+                        },
+                        [&](const std::unique_ptr<logical_ir::member_access>& member_access) {
+                            (*this)(*member_access);
+                        },
+                    }, node.operand());
+                }
+
+                void handle_default(const logical_ir::expression& node) override { }
+            };
+
             std::unordered_set<const logical_ir::expression*> m_dead_expressions;
             std::unordered_map<std::shared_ptr<logical_ir::variable>, variable_metrics> m_variable_metrics;
 
