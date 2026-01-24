@@ -356,15 +356,22 @@ namespace michaelcc {
 
     namespace logical_ir {
         void translation_unit::transform(expression_transformer& expression_transformer, statement_transformer& statement_transformer) {
+            std::vector<variable_declaration> new_static_variable_declarations;
+            new_static_variable_declarations.reserve(m_static_variable_declarations.size());
             for(variable_declaration& declaration : m_static_variable_declarations) {
                 auto transformed = statement_transformer(declaration);
+                if (!transformed) {
+                    continue;
+                }
+                
                 std::unique_ptr<variable_declaration> new_declaration = dynamic_unique_cast<variable_declaration>(std::move(transformed));
                 if (!new_declaration) {
                     throw std::runtime_error("Failed to transform static variable declaration");
                 }
                 
-                declaration = std::move(*new_declaration);
+                new_static_variable_declarations.emplace_back(std::move(*new_declaration));
             }
+            m_static_variable_declarations = std::move(new_static_variable_declarations);
 
             for (auto& symbol : m_global_context->symbols()) {
                 std::shared_ptr<function_definition> function = std::dynamic_pointer_cast<function_definition>(symbol);

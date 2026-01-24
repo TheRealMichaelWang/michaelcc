@@ -13,7 +13,7 @@ namespace michaelcc {
         }
 
         void variable_use_analyzer::visit(const logical_ir::set_variable& node) {
-            auto& metrics = m_variable_metrics[node.variable()];
+            auto& metrics = m_variable_metrics.at(node.variable());
             metrics.is_mutated = true;
 
             if (m_dead_expressions.contains(&node)) {
@@ -26,7 +26,7 @@ namespace michaelcc {
             mutated_variable_tracker tracker;
             auto [mutated_variables, dead_expressions] = tracker.get_mutated_variables(*node.destination());
             for (const auto& variable : mutated_variables) {
-                auto& metrics = m_variable_metrics[variable];
+                auto& metrics = m_variable_metrics.at(variable);
                 metrics.is_mutated = true;
             }
 
@@ -36,14 +36,14 @@ namespace michaelcc {
             }
 
             for (const auto& variable : mutated_variables) {
-                auto& metrics = m_variable_metrics[variable];
+                auto& metrics = m_variable_metrics.at(variable);
                 metrics.num_uses++;
             }
         }
 
         void variable_use_analyzer::visit(const logical_ir::increment_operator& node) {
             if (std::holds_alternative<std::shared_ptr<logical_ir::variable>>(node.destination())) {
-                auto& metrics = m_variable_metrics[std::get<std::shared_ptr<logical_ir::variable>>(node.destination())];
+                auto& metrics = m_variable_metrics.at(std::get<std::shared_ptr<logical_ir::variable>>(node.destination()));
                 metrics.is_mutated = true;
 
 
@@ -56,7 +56,7 @@ namespace michaelcc {
 
         void variable_use_analyzer::visit(const logical_ir::variable_reference& node) {
             if (m_mutated_expressions.contains(&node)) {
-                auto& metrics = m_variable_metrics[node.get_variable()];
+                auto& metrics = m_variable_metrics.at(node.get_variable());
                 metrics.is_mutated = true;
             }
 
@@ -64,7 +64,7 @@ namespace michaelcc {
                 return;
             }
 
-            auto& metrics = m_variable_metrics[node.get_variable()];
+            auto& metrics = m_variable_metrics.at(node.get_variable());
             metrics.num_uses++;
         }
 
@@ -74,7 +74,7 @@ namespace michaelcc {
             }
             
             if (std::holds_alternative<std::shared_ptr<logical_ir::variable>>(node.operand())) {
-                auto& metrics = m_variable_metrics[std::get<std::shared_ptr<logical_ir::variable>>(node.operand())];
+                auto& metrics = m_variable_metrics.at(std::get<std::shared_ptr<logical_ir::variable>>(node.operand()));
                 metrics.num_uses++;
                 metrics.is_mutated = true;
             }

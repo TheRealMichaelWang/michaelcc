@@ -1378,12 +1378,10 @@ namespace michaelcc {
 
 			void accept(const_visitor& v) const {
 				v.visit(*this);
+				for (const auto& declaration : m_static_variable_declarations) {
+					declaration.accept(v);
+				}
 				for (const auto& sym : m_global_context->symbols()) {
-					auto* var = dynamic_cast<variable*>(sym.get());
-					if (var) {
-						var->accept(v);
-						continue;
-					}
 					auto* func = dynamic_cast<function_definition*>(sym.get());
 					if (func) {
 						func->accept(v);
