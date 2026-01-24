@@ -53,6 +53,14 @@ namespace michaelcc {
                     (*this)(*node.return_expression());
                 }
 
+                void dispatch(const logical_ir::type_cast& node) override {
+                    (*this)(*node.operand());
+                }
+                
+                void dispatch(const logical_ir::dereference& node) override {
+                    (*this)(*node.operand());
+                }
+
                 void dispatch(const logical_ir::address_of& node) override {
                     std::visit(overloaded{
                         [&](const std::shared_ptr<logical_ir::variable>& variable) {
@@ -202,6 +210,14 @@ namespace michaelcc {
                             (*this)(*member_access);
                         },
                     }, node.operand());
+                }
+
+                void dispatch(logical_ir::type_cast& node) override {
+                    (*this)(*node.operand());
+                }
+                
+                void dispatch(logical_ir::dereference& node) override {
+                    (*this)(*node.operand());
                 }
 
                 void handle_default(logical_ir::expression& node) override { }
