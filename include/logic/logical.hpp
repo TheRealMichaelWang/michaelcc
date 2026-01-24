@@ -749,6 +749,8 @@ namespace michaelcc {
 
 			const std::vector<std::unique_ptr<statement>>& statements() const noexcept { return m_statements; }
 
+			std::vector<std::unique_ptr<statement>> release_statements() noexcept { return std::move(m_statements); }
+
 			void mutable_accept(visitor& v) override {
 				bool is_in_self = v.explorer().is_in_context(shared_from_this());
 
@@ -812,8 +814,6 @@ namespace michaelcc {
 			std::unique_ptr<expression> release_return_expression() noexcept { return std::move(m_return_expression); }
 
 			const typing::qual_type get_type() const override { return m_return_expression->get_type(); }
-
-			bool has_side_effects() const override { return m_return_expression->has_side_effects(); }
 
 			void mutable_accept(visitor& v) override {
 				v.visit(*this);

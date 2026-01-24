@@ -1,5 +1,6 @@
 #include "logic/dataflow/dead_code.hpp"
 #include "logic/logical.hpp"
+#include "logic/analysis/side_effects.hpp"
 
 namespace michaelcc {
     namespace dataflow {
@@ -40,7 +41,8 @@ namespace michaelcc {
         }
 
         std::unique_ptr<logical_ir::statement> dead_code_pass::statement_pass::dispatch(std::unique_ptr<logical_ir::expression_statement>&& node) {
-            if (node->expression() == nullptr || !node->expression()->has_side_effects()) {
+            logical_ir::analysis::side_effects_analyzer side_effects_analyzer;
+            if (node->expression() == nullptr || !side_effects_analyzer.expression_has_side_effects(*node->expression())) {
                 mark_ir_mutated();
                 return nullptr;
             }

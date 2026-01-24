@@ -49,6 +49,10 @@ namespace michaelcc {
                     (*this)(*node.base());
                 }
 
+                void dispatch(const logical_ir::compound_expression& node) override {
+                    (*this)(*node.return_expression());
+                }
+
                 void dispatch(const logical_ir::address_of& node) override {
                     std::visit(overloaded{
                         [&](const std::shared_ptr<logical_ir::variable>& variable) {
@@ -91,22 +95,30 @@ namespace michaelcc {
 
         class constant_prop_pass final : public transform_pass {
         private:
-            class dest_indicie_getter : public logical_ir::expression_dispatcher<void> {
+            class dest_side_effects : public logical_ir::expression_dispatcher<void> {
             private:
-                std::vector<std::unique_ptr<logical_ir::expression>> m_indicies;
+                std::vector<std::unique_ptr<logical_ir::statement>> m_statements;
 
             public:
-                std::vector<std::unique_ptr<logical_ir::expression>> get_indicies(logical_ir::expression& expression) {
-                    m_indicies = std::vector<std::unique_ptr<logical_ir::expression>>();
+                std::vector<std::unique_ptr<logical_ir::statement>> get_statements(logical_ir::expression& expression) {
+                    m_statements = std::vector<std::unique_ptr<logical_ir::statement>>();
                     (*this)(expression);
-                    std::reverse(m_indicies.begin(), m_indicies.end());
-                    return std::move(m_indicies);
+                    std::reverse(m_statements.begin(), m_statements.end());
+                    return std::move(m_statements);
                 }
 
             protected:
                 void dispatch(logical_ir::array_index& node) override {
-                    m_indicies.emplace_back(node.release_index());
+                    m_statements.emplace_back(std::make_unique<logical_ir::expression_statement>(node.release_index()));
                     (*this)(*node.base());
+                }
+
+                void dispatch(logical_ir::compound_expression& node) override {
+                    std::vector<std::unique_ptr<logical_ir::statement>> statements = node.control_block()->release_statements();
+                    (*this)(*node.return_expression());
+                    m_statements.insert(m_statements.end(), 
+                        std::make_move_iterator(statements.rbegin()), 
+                        std::make_move_iterator(statements.rend()));
                 }
 
                 void dispatch(logical_ir::member_access& node) override {

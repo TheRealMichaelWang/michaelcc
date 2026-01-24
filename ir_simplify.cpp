@@ -36,5 +36,12 @@ namespace michaelcc {
             }
             return node;
         }
+
+        std::unique_ptr<logical_ir::expression> ir_simplify_pass::expression_pass::dispatch(std::unique_ptr<logical_ir::compound_expression>&& node) {
+            if (node->control_block()->statements().empty()) {
+                return node->release_return_expression();
+            }
+            return node;
+        }
     }
 }

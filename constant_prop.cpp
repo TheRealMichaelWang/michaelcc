@@ -113,19 +113,14 @@ namespace michaelcc {
 
             mark_ir_mutated();
 
-            dest_indicie_getter indicies;
-            auto impure_indicies = indicies.get_indicies(*node->destination());
+            dest_side_effects side_effects;
+            auto statements = side_effects.get_statements(*node->destination());
 
-            if (impure_indicies.empty()) {
+            if (statements.empty()) {
                 return node->release_value();
             }
             else {
                 std::shared_ptr<logical_ir::control_block> control_block = std::make_shared<logical_ir::control_block>();
-                std::vector<std::unique_ptr<logical_ir::statement>> statements;
-                statements.reserve(impure_indicies.size());
-                for (auto& indicie : impure_indicies) {
-                    statements.emplace_back(std::make_unique<logical_ir::expression_statement>(std::move(indicie)));
-                }
                 control_block->implement(std::move(statements));
                 return std::make_unique<logical_ir::compound_expression>(std::move(control_block), std::move(node->release_value()));
             }

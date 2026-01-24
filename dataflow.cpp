@@ -194,6 +194,14 @@ namespace michaelcc {
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
+        std::unique_ptr<logical_ir::expression> transform_pass::expression_traverser::dispatch(const logical_ir::compound_expression& node) {
+            auto to_transform = std::make_unique<logical_ir::compound_expression>(
+                m_pass.transform_control_block(*node.control_block()), 
+                m_pass.m_expression_traverser(*node.return_expression())
+            );
+            return m_pass.m_expression_pass->dispatch(std::move(to_transform));
+        }
+
         std::unique_ptr<logical_ir::expression> transform_pass::expression_traverser::dispatch(const logical_ir::enumerator_literal& node) {
             return m_pass.m_expression_pass->dispatch(node);
         }

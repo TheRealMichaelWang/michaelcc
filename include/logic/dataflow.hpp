@@ -49,6 +49,7 @@ namespace michaelcc {
                 virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::conditional_expression>&& node) = 0;
                 virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::set_address>&& node) = 0;
                 virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::set_variable>&& node) = 0;
+                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::compound_expression>&& node) = 0;
                 virtual std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::enumerator_literal& node) = 0;
             };
 
@@ -107,6 +108,7 @@ namespace michaelcc {
                 std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::conditional_expression& node) override;
                 std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::set_address& node) override;
                 std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::set_variable& node) override;
+                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::compound_expression& node) override;
                 std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::enumerator_literal& node) override;
             };
 
@@ -196,6 +198,7 @@ namespace michaelcc {
             std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::conditional_expression>&& node) override { return node; }
             std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::set_address>&& node) override { return node; }
             std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::set_variable>&& node) override { return node; }
+            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::compound_expression>&& node) override { return node; }
 
             std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::enumerator_literal& node) override { 
                 return std::make_unique<logical_ir::enumerator_literal>(typing::enum_type::enumerator(node.enumerator()), std::shared_ptr<typing::enum_type>(node.enum_type()));

@@ -107,17 +107,20 @@ namespace michaelcc {
 
                 expression_analyzer m_expression_analyzer;
                 statement_analyzer m_statement_analyzer;
+
+            public:
+                side_effects_analyzer() : m_expression_analyzer(*this), m_statement_analyzer(*this) {}
             };
 
-            bool side_effects_analyzer::expression_has_side_effects(const logical_ir::expression& expression) {
+            inline bool side_effects_analyzer::expression_has_side_effects(const logical_ir::expression& expression) {
                 return this->m_expression_analyzer(expression);
             }
 
-            bool side_effects_analyzer::statement_has_side_effects(const logical_ir::statement& statement) {
+            inline bool side_effects_analyzer::statement_has_side_effects(const logical_ir::statement& statement) {
                 return this->m_statement_analyzer(statement);
             }
 
-            bool side_effects_analyzer::control_block_has_side_effects(const logical_ir::control_block& control_block) {
+            inline bool side_effects_analyzer::control_block_has_side_effects(const logical_ir::control_block& control_block) {
                 return this->m_statement_analyzer.control_block_analyzer(control_block);
             }
         }
