@@ -1,6 +1,7 @@
 #ifndef MICHAELCC_CONSTANT_FOLDING_HPP
 #define MICHAELCC_CONSTANT_FOLDING_HPP
 
+#include "logic/optimization/ir_simplify.hpp"
 #include "logic/optimization.hpp"
 #include "logic/type_info.hpp"
 
@@ -33,6 +34,14 @@ namespace michaelcc {
                     [](const std::string& name) { return name; }
                 ) { }
         };
+
+        std::unique_ptr<pass> inline make_constant_folding_pass(const platform_info& platform_info) {
+            std::vector<std::unique_ptr<pass>> passes;
+            passes.reserve(2);
+            passes.emplace_back(std::make_unique<ir_simplify_pass>());
+            passes.emplace_back(std::make_unique<constant_folding_pass>(platform_info));
+            return std::make_unique<compound_pass>(std::move(passes));
+        }
     }
 }
 

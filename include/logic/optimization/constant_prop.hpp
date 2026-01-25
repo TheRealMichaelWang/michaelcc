@@ -2,6 +2,7 @@
 #define MICHAELCC_CONSTANT_PROPAGATION
 
 //#include "logic/optimization.hpp"
+#include "logic/optimization/ir_simplify.hpp"
 #include "logic/optimization.hpp"
 #include "logic/ir.hpp"
 #include "logic/typing.hpp"
@@ -283,6 +284,14 @@ namespace michaelcc {
                 [](const std::string& name) { return name; }
             ), m_variable_metrics(std::make_unique<variable_use_analyzer>()->get_metrics(program)), m_platform_info(platform_info) {}
         };
+
+        std::unique_ptr<pass> inline make_constant_prop_pass(logic::translation_unit& program, const platform_info& platform_info) {
+            std::vector<std::unique_ptr<pass>> passes;
+            passes.reserve(2);
+            passes.emplace_back(std::make_unique<ir_simplify_pass>());
+            passes.emplace_back(std::make_unique<constant_prop_pass>(program, platform_info));
+            return std::make_unique<compound_pass>(std::move(passes));
+        }
     }
 }
 #endif

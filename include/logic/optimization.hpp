@@ -18,6 +18,35 @@ namespace michaelcc {
             virtual void reset() = 0;
         };
 
+        class compound_pass final : public pass {
+        private:
+            std::vector<std::unique_ptr<pass>> m_passes;
+
+        public:
+            compound_pass(std::vector<std::unique_ptr<pass>>&& passes) : m_passes(std::move(passes)) { }
+
+            void transform(logic::translation_unit& unit) override {
+                for (auto& pass : m_passes) {
+                    pass->transform(unit);
+                }
+            }
+
+            bool is_ir_mutated() const noexcept override {
+                for (auto& pass : m_passes) {
+                    if (pass->is_ir_mutated()) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            
+            void reset() override {
+                for (auto& pass : m_passes) {
+                    pass->reset();
+                }
+            }
+        };
+
         int transform(logic::translation_unit&unit, std::vector<std::unique_ptr<pass>>& passes, int max_passes = 1000);
 
         class default_pass : public pass {

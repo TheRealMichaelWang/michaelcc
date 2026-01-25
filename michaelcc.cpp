@@ -17,7 +17,7 @@ using namespace std;
 int main()
 {
     cout << "Michael C Compiler" << endl;
-	ifstream infile("../../tests/arrays.c");
+	ifstream infile("../../tests/constant_folding.c");
 	
 	if (!infile.is_open()) {
 		cerr << "Failed to open file!" << endl;
@@ -28,7 +28,7 @@ int main()
 	ss << infile.rdbuf();
 
 	try {
-		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/arrays.c");
+		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/constant_folding.c");
 		preprocessor.preprocess();
 		vector<michaelcc::token> tokens = preprocessor.result();
 
@@ -58,8 +58,8 @@ int main()
 
 
 		auto passes = std::vector<std::unique_ptr<michaelcc::optimization::pass>>();
-		passes.emplace_back(std::make_unique<michaelcc::optimization::constant_folding_pass>(platform_info));
-		passes.emplace_back(std::make_unique<michaelcc::optimization::constant_prop_pass>(translation_unit, platform_info));
+		passes.emplace_back(michaelcc::optimization::make_constant_folding_pass(platform_info));
+		passes.emplace_back(michaelcc::optimization::make_constant_prop_pass(translation_unit, platform_info));
 		passes.emplace_back(std::make_unique<michaelcc::optimization::ir_simplify_pass>());
 		passes.emplace_back(std::make_unique<michaelcc::optimization::dead_code_pass>());
 		
@@ -67,16 +67,6 @@ int main()
 
 		cout << michaelcc::logic::to_tree_string(translation_unit) << endl;
 		cout << "Passes run: " << passes_run << endl;
-
-		/*for (const auto& symbol : translation_unit.global_symbols()) {
-			cout << symbol->name() << endl;
-			auto function = std::dynamic_pointer_cast<michaelcc::logic::function_definition>(symbol);
-			if (function) {
-				cout << "Function: " << function->name() << endl;
-				cout << "Return type: " << function->return_type().to_string() << endl;
-				cout << "Parameters: " << function->parameters().size() << endl;
-			}
-		}*/
 	}
 	catch (const michaelcc::compilation_error& error) {
 		cerr << "Compilation error: " << error.what() << endl;
