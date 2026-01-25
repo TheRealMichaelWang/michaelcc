@@ -7,32 +7,32 @@
 namespace michaelcc {
     namespace optimization {
         // expression_traverser constructor
-        transform_pass::expression_traverser::expression_traverser(transform_pass& pass) : m_pass(pass) { }
+        default_pass::expression_traverser::expression_traverser(default_pass& pass) : m_pass(pass) { }
 
         // expression_traverser dispatch methods
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::integer_constant& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::integer_constant& node) {
             return m_pass.m_expression_pass->dispatch(node);
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::floating_constant& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::floating_constant& node) {
             return m_pass.m_expression_pass->dispatch(node);
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::string_constant& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::string_constant& node) {
             return m_pass.m_expression_pass->dispatch(node);
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::variable_reference& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::variable_reference& node) {
             std::shared_ptr<logic::variable> variable = m_pass.replace_variable(node.get_variable());
             auto to_transform = std::make_unique<logic::variable_reference>(std::move(variable));
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::function_reference& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::function_reference& node) {
             return m_pass.m_expression_pass->dispatch(node);
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::increment_operator& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::increment_operator& node) {
             auto destination = std::visit(overloaded{
                 [this](const std::unique_ptr<logic::expression>& destination) -> logic::increment_operator::destination_type {
                     return (*this)(*destination);
@@ -51,7 +51,7 @@ namespace michaelcc {
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::arithmetic_operator& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::arithmetic_operator& node) {
             std::unique_ptr<logic::expression> left = (*this)(*node.left());
             std::unique_ptr<logic::expression> right = (*this)(*node.right());
 
@@ -59,19 +59,19 @@ namespace michaelcc {
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::unary_operation& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::unary_operation& node) {
             std::unique_ptr<logic::expression> operand = (*this)(*node.operand());
             auto to_transform = std::make_unique<logic::unary_operation>(node.get_operator(), std::move(operand));
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::type_cast& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::type_cast& node) {
             std::unique_ptr<logic::expression> operand = (*this)(*node.operand());
             auto to_transform = std::make_unique<logic::type_cast>(std::move(operand), typing::qual_type(node.get_type()));
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::address_of& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::address_of& node) {
             std::unique_ptr<logic::address_of> to_transform = std::visit(overloaded{
                 [this](const std::unique_ptr<logic::array_index>& operand) -> std::unique_ptr<logic::address_of> {
                     auto transformed_operand = dynamic_unique_cast<logic::array_index>((*this)(*operand));
@@ -94,26 +94,26 @@ namespace michaelcc {
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::dereference& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::dereference& node) {
             std::unique_ptr<logic::expression> operand = (*this)(*node.operand());
             auto to_transform = std::make_unique<logic::dereference>(std::move(operand));
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::member_access& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::member_access& node) {
             std::unique_ptr<logic::expression> base = (*this)(*node.base());
             auto to_transform = std::make_unique<logic::member_access>(std::move(base), node.member(), node.is_dereference());
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::array_index& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::array_index& node) {
             std::unique_ptr<logic::expression> base = (*this)(*node.base());
             std::unique_ptr<logic::expression> index = (*this)(*node.index());
             auto to_transform = std::make_unique<logic::array_index>(std::move(base), std::move(index));
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::array_initializer& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::array_initializer& node) {
             std::vector<std::unique_ptr<logic::expression>> initializers;
             initializers.reserve(node.initializers().size());
             for (const auto& initializer : node.initializers()) {
@@ -123,7 +123,7 @@ namespace michaelcc {
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::allocate_array& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::allocate_array& node) {
             std::vector<std::unique_ptr<logic::expression>> dimensions;
             dimensions.reserve(node.dimensions().size());
             for (const auto& dimension : node.dimensions()) {
@@ -133,7 +133,7 @@ namespace michaelcc {
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::struct_initializer& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::struct_initializer& node) {
             std::vector<logic::struct_initializer::member_initializer> initializers;
             initializers.reserve(node.initializers().size());
             for (const auto& initializer : node.initializers()) {
@@ -143,13 +143,13 @@ namespace michaelcc {
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::union_initializer& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::union_initializer& node) {
             std::unique_ptr<logic::expression> initializer = (*this)(*node.initializer());
             auto to_transform = std::make_unique<logic::union_initializer>(std::move(initializer), std::shared_ptr<typing::union_type>(node.union_type()), typing::member(node.target_member()));
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::function_call& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::function_call& node) {
             logic::function_call::callable callee = std::visit(overloaded{
                 [this](const std::shared_ptr<logic::function_definition>& callee) -> logic::function_call::callable {
                     return std::shared_ptr<logic::function_definition>(callee);
@@ -168,7 +168,7 @@ namespace michaelcc {
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::conditional_expression& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::conditional_expression& node) {
             std::unique_ptr<logic::expression> condition = (*this)(*node.condition());
             std::unique_ptr<logic::expression> then_expression = (*this)(*node.then_expression());
             std::unique_ptr<logic::expression> else_expression = (*this)(*node.else_expression());
@@ -181,20 +181,20 @@ namespace michaelcc {
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::set_address& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::set_address& node) {
             std::unique_ptr<logic::expression> destination = (*this)(*node.destination());
             std::unique_ptr<logic::expression> value = (*this)(*node.value());
             auto to_transform = std::make_unique<logic::set_address>(std::move(destination), std::move(value));
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::set_variable& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::set_variable& node) {
             std::unique_ptr<logic::expression> value = (*this)(*node.value());
             auto to_transform = std::make_unique<logic::set_variable>(m_pass.replace_variable(node.variable()), std::move(value));
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::compound_expression& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::compound_expression& node) {
             auto to_transform = std::make_unique<logic::compound_expression>(
                 m_pass.transform_control_block(*node.control_block()), 
                 m_pass.m_expression_traverser(*node.return_expression())
@@ -202,12 +202,12 @@ namespace michaelcc {
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::expression> transform_pass::expression_traverser::dispatch(const logic::enumerator_literal& node) {
+        std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::enumerator_literal& node) {
             return m_pass.m_expression_pass->dispatch(node);
         }
 
         // statement_traverser methods
-        std::shared_ptr<logic::control_block> transform_pass::transform_control_block(const logic::control_block& node) {
+        std::shared_ptr<logic::control_block> default_pass::transform_control_block(const logic::control_block& node) {
             std::shared_ptr<logic::control_block> result = std::make_shared<logic::control_block>();
             std::vector<std::unique_ptr<logic::statement>> statements;
             statements.reserve(node.statements().size());
@@ -237,13 +237,13 @@ namespace michaelcc {
             return result;
         }
 
-        std::unique_ptr<logic::statement> transform_pass::statement_traverser::dispatch(const logic::expression_statement& node) {
+        std::unique_ptr<logic::statement> default_pass::statement_traverser::dispatch(const logic::expression_statement& node) {
             std::unique_ptr<logic::expression> expression = m_pass.m_expression_traverser(*node.expression());
             auto to_transform = std::make_unique<logic::expression_statement>(std::move(expression));
             return m_pass.m_statement_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::statement> transform_pass::statement_traverser::dispatch(const logic::variable_declaration& node) {
+        std::unique_ptr<logic::statement> default_pass::statement_traverser::dispatch(const logic::variable_declaration& node) {
             std::shared_ptr<logic::variable> variable = m_pass.replace_variable(node.variable());
             
             std::unique_ptr<logic::expression> initializer = nullptr;
@@ -255,7 +255,7 @@ namespace michaelcc {
             return m_pass.m_statement_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::statement> transform_pass::statement_traverser::dispatch(const logic::return_statement& node) {
+        std::unique_ptr<logic::statement> default_pass::statement_traverser::dispatch(const logic::return_statement& node) {
             std::unique_ptr<logic::expression> value = nullptr;
             if (node.value()) {
                 value = m_pass.m_expression_traverser(*node.value());
@@ -265,7 +265,7 @@ namespace michaelcc {
             return m_pass.m_statement_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::statement> transform_pass::statement_traverser::dispatch(const logic::if_statement& node) {
+        std::unique_ptr<logic::statement> default_pass::statement_traverser::dispatch(const logic::if_statement& node) {
             std::unique_ptr<logic::expression> condition = m_pass.m_expression_traverser(*node.condition());
             
             std::shared_ptr<logic::control_block> else_body = nullptr;
@@ -281,7 +281,7 @@ namespace michaelcc {
             return m_pass.m_statement_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::statement> transform_pass::statement_traverser::dispatch(const logic::loop_statement& node) {
+        std::unique_ptr<logic::statement> default_pass::statement_traverser::dispatch(const logic::loop_statement& node) {
             std::unique_ptr<logic::expression> condition = m_pass.m_expression_traverser(*node.condition());
             auto to_transform = std::make_unique<logic::loop_statement>(
                 m_pass.transform_control_block(*node.body()),
@@ -291,21 +291,21 @@ namespace michaelcc {
             return m_pass.m_statement_pass->dispatch(std::move(to_transform));
         }
 
-        std::unique_ptr<logic::statement> transform_pass::statement_traverser::dispatch(const logic::break_statement& node) {
+        std::unique_ptr<logic::statement> default_pass::statement_traverser::dispatch(const logic::break_statement& node) {
             return m_pass.m_statement_pass->dispatch(node);
         }
 
-        std::unique_ptr<logic::statement> transform_pass::statement_traverser::dispatch(const logic::continue_statement& node) {
+        std::unique_ptr<logic::statement> default_pass::statement_traverser::dispatch(const logic::continue_statement& node) {
             return m_pass.m_statement_pass->dispatch(node);
         }
         
-        std::unique_ptr<logic::statement> transform_pass::statement_traverser::dispatch(const logic::statement_block& node) {
+        std::unique_ptr<logic::statement> default_pass::statement_traverser::dispatch(const logic::statement_block& node) {
             auto to_transform = std::make_unique<logic::statement_block>(m_pass.transform_control_block(*node.control_block()));
             return m_pass.m_statement_pass->dispatch(std::move(to_transform));
         }
 
-        // transform_pass constructor
-        transform_pass::transform_pass(std::unique_ptr<expression_pass>&& expression_transformer, 
+        // default_pass constructor
+        default_pass::default_pass(std::unique_ptr<expression_pass>&& expression_transformer, 
             std::unique_ptr<statement_pass>&& statement_transformer, 
             std::function<std::string(const std::string&)> variable_name_transformer,
             std::vector<replace_variable_context> replace_variable_contexts) 
@@ -316,7 +316,7 @@ namespace michaelcc {
             m_variable_name_transformer(variable_name_transformer),
             m_replace_variable_contexts() { }
 
-        std::shared_ptr<logic::variable> transform_pass::replace_variable(const std::shared_ptr<logic::variable>& variable) const {
+        std::shared_ptr<logic::variable> default_pass::replace_variable(const std::shared_ptr<logic::variable>& variable) const {
             for (const auto& context : m_replace_variable_contexts) {
                 if (context.variables_to_replace.contains(variable)) {
                     std::string new_name = m_variable_name_transformer(variable->name());
@@ -332,7 +332,7 @@ namespace michaelcc {
             return variable;
         }
 
-        int transform_pass::transform(logic::translation_unit&unit, std::vector<std::unique_ptr<transform_pass>>& passes, int max_passes) {
+        int transform(logic::translation_unit&unit, std::vector<std::unique_ptr<pass>>& passes, int max_passes) {
             for (int i = 0; i < max_passes; i++) {
                 for (auto& pass : passes) {
                     pass->reset();

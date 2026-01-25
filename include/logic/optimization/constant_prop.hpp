@@ -175,7 +175,7 @@ namespace michaelcc {
             std::unique_ptr<logic::expression> handle_default(const logic::expression& node) override { return nullptr; }
         };
 
-        class constant_prop_pass final : public transform_pass {
+        class constant_prop_pass final : public default_pass {
         private:
             class dest_side_effects : public logic::expression_dispatcher<void> {
             private:
@@ -277,7 +277,7 @@ namespace michaelcc {
             }
 
         public:
-            constant_prop_pass(logic::translation_unit& program, const platform_info& platform_info) : transform_pass(
+            constant_prop_pass(logic::translation_unit& program, const platform_info& platform_info) : default_pass(
                 std::make_unique<expression_pass>(*this),
                 std::make_unique<statement_pass>(*this),
                 [](const std::string& name) { return name; }

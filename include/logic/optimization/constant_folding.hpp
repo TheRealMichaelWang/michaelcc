@@ -6,7 +6,7 @@
 
 namespace michaelcc {
     namespace optimization {
-        class constant_folding_pass final : public transform_pass {
+        class constant_folding_pass final : public default_pass {
         private:
             class expression_pass : public default_expression_pass {
             private:
@@ -27,7 +27,7 @@ namespace michaelcc {
         public:
             constant_folding_pass(const platform_info& platform_info) 
                 : m_layout_calculator(platform_info),
-                transform_pass(
+                default_pass(
                     std::make_unique<expression_pass>(m_layout_calculator), 
                     std::make_unique<default_statement_pass>(), 
                     [](const std::string& name) { return name; }

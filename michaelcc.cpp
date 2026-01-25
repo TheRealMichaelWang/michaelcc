@@ -57,13 +57,13 @@ int main()
 		auto translation_unit = lowerer.release_translation_unit();
 
 
-		auto passes = std::vector<std::unique_ptr<michaelcc::optimization::transform_pass>>();
+		auto passes = std::vector<std::unique_ptr<michaelcc::optimization::pass>>();
 		passes.emplace_back(std::make_unique<michaelcc::optimization::constant_folding_pass>(platform_info));
 		passes.emplace_back(std::make_unique<michaelcc::optimization::constant_prop_pass>(translation_unit, platform_info));
 		passes.emplace_back(std::make_unique<michaelcc::optimization::ir_simplify_pass>());
 		passes.emplace_back(std::make_unique<michaelcc::optimization::dead_code_pass>());
 		
-		int passes_run = michaelcc::optimization::transform_pass::transform(translation_unit, passes);
+		int passes_run = michaelcc::optimization::transform(translation_unit, passes);
 
 		cout << michaelcc::logic::to_tree_string(translation_unit) << endl;
 		cout << "Passes run: " << passes_run << endl;

@@ -6,7 +6,7 @@
 
 namespace michaelcc {
     namespace optimization {
-        class dead_code_pass final : public transform_pass {
+        class dead_code_pass final : public default_pass {
         private:
             class expression_pass : public default_expression_pass {
             public:
@@ -34,7 +34,7 @@ namespace michaelcc {
                 return false;
             }
         public:
-            dead_code_pass() : transform_pass(
+            dead_code_pass() : default_pass(
                 std::make_unique<expression_pass>(), 
                 std::make_unique<statement_pass>(), 
                 [](const std::string& name) { return name; }

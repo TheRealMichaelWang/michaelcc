@@ -6,7 +6,7 @@
 
 namespace michaelcc {
     namespace optimization {
-        class ir_simplify_pass final : public transform_pass {
+        class ir_simplify_pass final : public default_pass {
         private:
             class expression_pass : public default_expression_pass {
             protected:
@@ -19,7 +19,7 @@ namespace michaelcc {
             };
 
         public:
-            ir_simplify_pass() : transform_pass(
+            ir_simplify_pass() : default_pass(
                 std::make_unique<expression_pass>(), 
                 std::make_unique<default_statement_pass>(), 
                 [](const std::string& name) { return name; }

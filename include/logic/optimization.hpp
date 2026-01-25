@@ -10,8 +10,18 @@
 #include <vector>
 namespace michaelcc {
     namespace optimization {
-        class transform_pass {
+        class pass {
         public:
+            virtual ~pass() = default;
+            virtual void transform(logic::translation_unit& unit) = 0;
+            virtual bool is_ir_mutated() const noexcept = 0;
+            virtual void reset() = 0;
+        };
+
+        int transform(logic::translation_unit&unit, std::vector<std::unique_ptr<pass>>& passes, int max_passes = 1000);
+
+        class default_pass : public pass {
+        private:
             class pass_mutator {
                 private:
                     bool m_ir_mutated = false;
@@ -23,7 +33,7 @@ namespace michaelcc {
                 protected:
                     void mark_ir_mutated() noexcept { m_ir_mutated = true; }
             };
-
+        public:
             class expression_pass : public pass_mutator {
             public:
                 virtual ~expression_pass() = default;
@@ -81,10 +91,10 @@ namespace michaelcc {
     
             class expression_traverser final : public logic::expression_transformer {
             private:
-                transform_pass& m_pass;
+                default_pass& m_pass;
 
             public:
-                expression_traverser(transform_pass& pass);
+                expression_traverser(default_pass& pass);
 
             protected:
                 std::unique_ptr<logic::expression> dispatch(const logic::integer_constant& node) override;
@@ -114,10 +124,10 @@ namespace michaelcc {
 
             class statement_traverser final : public logic::statement_transformer {
             private:
-                transform_pass& m_pass;
+                default_pass& m_pass;
 
             public:
-                statement_traverser(transform_pass& pass) : m_pass(pass) { }
+                statement_traverser(default_pass& pass) : m_pass(pass) { }
 
             protected:
                 std::unique_ptr<logic::statement> dispatch(const logic::expression_statement& node) override;
@@ -138,12 +148,12 @@ namespace michaelcc {
 
             friend class default_statement_pass;
         public:
-            transform_pass(std::unique_ptr<expression_pass>&& expression_transformer, 
+            default_pass(std::unique_ptr<expression_pass>&& expression_transformer, 
                 std::unique_ptr<statement_pass>&& statement_transformer, 
                 std::function<std::string(const std::string&)> variable_name_transformer = [](const std::string& name) { return std::format("_{}", name); },
                 std::vector<replace_variable_context> replace_variable_contexts = {});
 
-            ~transform_pass() = default;
+            ~default_pass() = default;
 
             void transform(logic::translation_unit& unit) {
                 unit.transform(m_expression_traverser, m_statement_traverser);
@@ -158,11 +168,9 @@ namespace michaelcc {
                 m_expression_pass->reset_mutation_flag();
                 m_statement_pass->reset_mutation_flag();
             }
-
-            static int transform(logic::translation_unit&unit, std::vector<std::unique_ptr<transform_pass>>& passes, int max_passes = 1000);
         };
 
-        class default_expression_pass : public transform_pass::expression_pass {
+        class default_expression_pass : public default_pass::expression_pass {
         public:
             std::unique_ptr<logic::expression> dispatch(const logic::integer_constant& node) override { 
                 return std::make_unique<logic::integer_constant>(node.value(), typing::qual_type(node.get_type())); 
@@ -205,7 +213,7 @@ namespace michaelcc {
             }
         };
 
-        class default_statement_pass : public transform_pass::statement_pass {
+        class default_statement_pass : public default_pass::statement_pass {
         public:
             std::unique_ptr<logic::statement> dispatch(std::unique_ptr<logic::expression_statement>&& node) override { return node; }
             std::unique_ptr<logic::statement> dispatch(std::unique_ptr<logic::variable_declaration>&& node) override { return node; }
