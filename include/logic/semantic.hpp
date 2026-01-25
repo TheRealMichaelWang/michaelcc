@@ -2,7 +2,7 @@
 #define MICHAELCC_SEMANTIC_HPP
 
 #include "syntax/ast.hpp"
-#include "logic/logical.hpp"
+#include "logic/ir.hpp"
 #include "logic/typing.hpp"
 #include "logic/type_info.hpp"
 #include "platform.hpp"
@@ -41,7 +41,7 @@ namespace michaelcc {
 
     private:
 
-        logical_ir::variable_declaration lower_variable_declaration(const ast::variable_declaration& node, bool is_global);
+        logic::variable_declaration lower_variable_declaration(const ast::variable_declaration& node, bool is_global);
         
         class forward_declare_types final : public ast::visitor {
         private:
@@ -88,10 +88,10 @@ namespace michaelcc {
 
         class layout_dependency_getter final : public typing::type_dispatcher<const std::vector<std::shared_ptr<typing::base_type>>> {
         private:
-            const logical_ir::translation_unit& m_translation_unit;
+            const logic::translation_unit& m_translation_unit;
 
         public:
-            layout_dependency_getter(const logical_ir::translation_unit& translation_unit) : m_translation_unit(translation_unit) { }
+            layout_dependency_getter(const logic::translation_unit& translation_unit) : m_translation_unit(translation_unit) { }
 
         protected:
             const std::vector<std::shared_ptr<typing::base_type>> dispatch(typing::void_type& type) override { 
@@ -145,16 +145,16 @@ namespace michaelcc {
         private:
             bool m_allow_vla;
             semantic_lowerer& m_lowerer;
-            std::vector<std::unique_ptr<logical_ir::expression>> m_vla_dimensions;
+            std::vector<std::unique_ptr<logic::expression>> m_vla_dimensions;
 
         public:
             type_resolver(semantic_lowerer& lowerer, bool allow_vla) : m_allow_vla(allow_vla), m_lowerer(lowerer) { }
 
             typing::qual_type resolve_int_type(const ast::type_specifier& type);
 
-            const std::vector<std::unique_ptr<logical_ir::expression>>& vla_dimensions() const { return m_vla_dimensions; }
+            const std::vector<std::unique_ptr<logic::expression>>& vla_dimensions() const { return m_vla_dimensions; }
 
-            std::vector<std::unique_ptr<logical_ir::expression>>&& release_vla_dimensions() { return std::move(m_vla_dimensions); }
+            std::vector<std::unique_ptr<logic::expression>>&& release_vla_dimensions() { return std::move(m_vla_dimensions); }
         protected:
             typing::qual_type dispatch(const ast::type_specifier& type) override;
             typing::qual_type dispatch(const ast::qualified_type& type) override;
@@ -168,7 +168,7 @@ namespace michaelcc {
         };
 
 
-        class address_resolver final : public ast::const_expression_dispatcher<std::unique_ptr<logical_ir::expression>> {
+        class address_resolver final : public ast::const_expression_dispatcher<std::unique_ptr<logic::expression>> {
         private:
             semantic_lowerer& m_lowerer;
 
@@ -176,46 +176,46 @@ namespace michaelcc {
             address_resolver(semantic_lowerer& lowerer) : m_lowerer(lowerer) { }
 
         protected:
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::int_literal& node) override { handle_default(node); return nullptr; }
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::float_literal& node) override { handle_default(node); return nullptr; }
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::double_literal& node) override { handle_default(node); return nullptr; }
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::string_literal& node) override { handle_default(node); return nullptr; }
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::variable_reference& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::get_index& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::get_property& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::set_operator& node) override { handle_default(node); return nullptr; }
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::dereference_operator& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::get_reference& node) override { handle_default(node); return nullptr; }
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::arithmetic_operator& node) override { handle_default(node); return nullptr; }
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::unary_operation& node) override { handle_default(node); return nullptr; }
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::conditional_expression& node) override { handle_default(node); return nullptr; }
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::cast_expression& node) override { return (*this)(*node.operand()); }
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::function_call& node) override { handle_default(node); return nullptr; }
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::initializer_list_expression& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logic::expression> dispatch(const ast::int_literal& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logic::expression> dispatch(const ast::float_literal& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logic::expression> dispatch(const ast::double_literal& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logic::expression> dispatch(const ast::string_literal& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logic::expression> dispatch(const ast::variable_reference& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::get_index& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::get_property& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::set_operator& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logic::expression> dispatch(const ast::dereference_operator& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::get_reference& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logic::expression> dispatch(const ast::arithmetic_operator& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logic::expression> dispatch(const ast::unary_operation& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logic::expression> dispatch(const ast::conditional_expression& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logic::expression> dispatch(const ast::cast_expression& node) override { return (*this)(*node.operand()); }
+            std::unique_ptr<logic::expression> dispatch(const ast::function_call& node) override { handle_default(node); return nullptr; }
+            std::unique_ptr<logic::expression> dispatch(const ast::initializer_list_expression& node) override { handle_default(node); return nullptr; }
 
-            std::unique_ptr<logical_ir::expression> handle_default(const ast::ast_element& node) override;
+            std::unique_ptr<logic::expression> handle_default(const ast::ast_element& node) override;
         };
 
-        class default_value_resolver final : public typing::const_type_dispatcher<std::unique_ptr<logical_ir::expression>> {
+        class default_value_resolver final : public typing::const_type_dispatcher<std::unique_ptr<logic::expression>> {
         private:
             const semantic_lowerer& m_lowerer;
             typing::qual_type m_qual_type;
         public:
             default_value_resolver(const semantic_lowerer& lowerer, typing::qual_type&& qual_type) : m_lowerer(lowerer), m_qual_type(std::move(qual_type)) { }
 
-            std::unique_ptr<logical_ir::expression> dispatch(const typing::void_type& type) override { return nullptr; }
+            std::unique_ptr<logic::expression> dispatch(const typing::void_type& type) override { return nullptr; }
 
-            std::unique_ptr<logical_ir::expression> dispatch(const typing::int_type& type) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const typing::float_type& type) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const typing::pointer_type& type) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const typing::array_type& type) override { return nullptr; }
-            std::unique_ptr<logical_ir::expression> dispatch(const typing::enum_type& type) override { return nullptr; }
-            std::unique_ptr<logical_ir::expression> dispatch(const typing::function_pointer_type& type) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const typing::struct_type& type) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const typing::union_type& type) override { return nullptr; }
+            std::unique_ptr<logic::expression> dispatch(const typing::int_type& type) override;
+            std::unique_ptr<logic::expression> dispatch(const typing::float_type& type) override;
+            std::unique_ptr<logic::expression> dispatch(const typing::pointer_type& type) override;
+            std::unique_ptr<logic::expression> dispatch(const typing::array_type& type) override { return nullptr; }
+            std::unique_ptr<logic::expression> dispatch(const typing::enum_type& type) override { return nullptr; }
+            std::unique_ptr<logic::expression> dispatch(const typing::function_pointer_type& type) override;
+            std::unique_ptr<logic::expression> dispatch(const typing::struct_type& type) override;
+            std::unique_ptr<logic::expression> dispatch(const typing::union_type& type) override { return nullptr; }
         };
 
-        class expression_resolver final : public ast::const_expression_dispatcher<std::unique_ptr<logical_ir::expression>> {
+        class expression_resolver final : public ast::const_expression_dispatcher<std::unique_ptr<logic::expression>> {
         private:
             std::optional<typing::qual_type> m_target_type;
             semantic_lowerer& m_lowerer;
@@ -224,27 +224,27 @@ namespace michaelcc {
             expression_resolver(semantic_lowerer& lowerer, std::optional<typing::qual_type> target_type = std::nullopt) : m_target_type(target_type), m_lowerer(lowerer) { }
 
         protected:
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::int_literal& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::float_literal& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::double_literal& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::string_literal& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::variable_reference& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::get_index& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::get_property& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::set_operator& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::dereference_operator& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::get_reference& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::arithmetic_operator& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::unary_operation& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::conditional_expression& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::cast_expression& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::function_call& node) override;
-            std::unique_ptr<logical_ir::expression> dispatch(const ast::initializer_list_expression& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::int_literal& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::float_literal& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::double_literal& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::string_literal& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::variable_reference& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::get_index& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::get_property& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::set_operator& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::dereference_operator& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::get_reference& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::arithmetic_operator& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::unary_operation& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::conditional_expression& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::cast_expression& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::function_call& node) override;
+            std::unique_ptr<logic::expression> dispatch(const ast::initializer_list_expression& node) override;
 
-            std::unique_ptr<logical_ir::expression> handle_default(const ast::ast_element& node) override;
+            std::unique_ptr<logic::expression> handle_default(const ast::ast_element& node) override;
         };
 
-        class statement_resolver final : public ast::const_statement_dispatcher<std::unique_ptr<logical_ir::statement>> {
+        class statement_resolver final : public ast::const_statement_dispatcher<std::unique_ptr<logic::statement>> {
         private:
             semantic_lowerer& m_lowerer;
             int m_current_loop_depth;
@@ -253,29 +253,29 @@ namespace michaelcc {
             statement_resolver(semantic_lowerer& lowerer) : m_lowerer(lowerer), m_current_loop_depth(0) { }
 
         protected:
-            std::unique_ptr<logical_ir::statement> dispatch(const ast::context_block& node) override;
-            std::unique_ptr<logical_ir::statement> dispatch(const ast::for_loop& node) override;
-            std::unique_ptr<logical_ir::statement> dispatch(const ast::do_block& node) override;
-            std::unique_ptr<logical_ir::statement> dispatch(const ast::while_block& node) override;
-            std::unique_ptr<logical_ir::statement> dispatch(const ast::if_block& node) override;
-            std::unique_ptr<logical_ir::statement> dispatch(const ast::if_else_block& node) override;
-            std::unique_ptr<logical_ir::statement> dispatch(const ast::return_statement& node) override;
-            std::unique_ptr<logical_ir::statement> dispatch(const ast::break_statement& node) override;
-            std::unique_ptr<logical_ir::statement> dispatch(const ast::continue_statement& node) override;
-            std::unique_ptr<logical_ir::statement> dispatch(const ast::set_operator& node) override { return std::make_unique<logical_ir::expression_statement>(m_lowerer.lower_expression(node)); }
-            std::unique_ptr<logical_ir::statement> dispatch(const ast::function_call& node) override { return std::make_unique<logical_ir::expression_statement>(m_lowerer.lower_expression(node)); }
-            std::unique_ptr<logical_ir::statement> dispatch(const ast::variable_declaration& node) override {
-                return std::make_unique<logical_ir::variable_declaration>(m_lowerer.lower_variable_declaration(node, false));
+            std::unique_ptr<logic::statement> dispatch(const ast::context_block& node) override;
+            std::unique_ptr<logic::statement> dispatch(const ast::for_loop& node) override;
+            std::unique_ptr<logic::statement> dispatch(const ast::do_block& node) override;
+            std::unique_ptr<logic::statement> dispatch(const ast::while_block& node) override;
+            std::unique_ptr<logic::statement> dispatch(const ast::if_block& node) override;
+            std::unique_ptr<logic::statement> dispatch(const ast::if_else_block& node) override;
+            std::unique_ptr<logic::statement> dispatch(const ast::return_statement& node) override;
+            std::unique_ptr<logic::statement> dispatch(const ast::break_statement& node) override;
+            std::unique_ptr<logic::statement> dispatch(const ast::continue_statement& node) override;
+            std::unique_ptr<logic::statement> dispatch(const ast::set_operator& node) override { return std::make_unique<logic::expression_statement>(m_lowerer.lower_expression(node)); }
+            std::unique_ptr<logic::statement> dispatch(const ast::function_call& node) override { return std::make_unique<logic::expression_statement>(m_lowerer.lower_expression(node)); }
+            std::unique_ptr<logic::statement> dispatch(const ast::variable_declaration& node) override {
+                return std::make_unique<logic::variable_declaration>(m_lowerer.lower_variable_declaration(node, false));
             }
 
-            std::unique_ptr<logical_ir::statement> handle_default(const ast::ast_element& node) override;
+            std::unique_ptr<logic::statement> handle_default(const ast::ast_element& node) override;
         };
 
         static compilation_error panic(const std::string& msg, const source_location& location) noexcept {
             return compilation_error(msg, location);
         }
 
-        logical_ir::translation_unit m_translation_unit;
+        logic::translation_unit m_translation_unit;
         const platform_info m_platform_info;
 
         layout_dependency_getter m_layout_dependency_getter;
@@ -283,7 +283,7 @@ namespace michaelcc {
         address_resolver m_address_resolver;
         statement_resolver m_statement_resolver;
 
-        logical_ir::symbol_explorer m_symbol_explorer;
+        logic::symbol_explorer m_symbol_explorer;
 
         std::map<std::shared_ptr<typing::base_type>, const source_location> m_type_declaration_locations;
 
@@ -299,10 +299,10 @@ namespace michaelcc {
 
         
         typing::qual_type resolve_type(const ast::ast_element& node, bool allow_vla=false);
-        std::unique_ptr<logical_ir::expression> resolve_default_value(const typing::qual_type& type) const noexcept;
-        std::unique_ptr<logical_ir::expression> lower_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type = std::nullopt, bool is_type_hint=false);
+        std::unique_ptr<logic::expression> resolve_default_value(const typing::qual_type& type) const noexcept;
+        std::unique_ptr<logic::expression> lower_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type = std::nullopt, bool is_type_hint=false);
     
-        std::shared_ptr<logical_ir::function_definition> lower_function_declaration(const ast::function_declaration& node);
+        std::shared_ptr<logic::function_definition> lower_function_declaration(const ast::function_declaration& node);
     public:
         semantic_lowerer(const platform_info platform_info) 
             : m_translation_unit(), m_platform_info(platform_info), 
@@ -315,9 +315,9 @@ namespace michaelcc {
 
         void lower(const std::vector<std::unique_ptr<ast::ast_element>>& ast);
 
-        const logical_ir::translation_unit& get_translation_unit() const { return m_translation_unit; }
+        const logic::translation_unit& get_translation_unit() const { return m_translation_unit; }
 
-        logical_ir::translation_unit&& release_translation_unit() { return std::move(m_translation_unit); m_translation_unit = logical_ir::translation_unit(); }
+        logic::translation_unit&& release_translation_unit() { return std::move(m_translation_unit); m_translation_unit = logic::translation_unit(); }
 
         const platform_info& get_platform_info() const noexcept { return m_platform_info; }
     };

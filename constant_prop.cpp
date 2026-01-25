@@ -1,18 +1,18 @@
 #include "logic/optimization/constant_prop.hpp"
-#include "logic/logical.hpp"
+#include "logic/ir.hpp"
 #include <memory>
 #include <variant>
 
 namespace michaelcc {
     namespace optimization {
-        void variable_use_analyzer::visit(const logical_ir::variable_declaration& node) {
+        void variable_use_analyzer::visit(const logic::variable_declaration& node) {
             m_variable_metrics.insert({ 
                 node.variable(), 
                 { .is_mutated = false, .num_uses = 0 } 
             });
         }
 
-        void variable_use_analyzer::visit(const logical_ir::set_variable& node) {
+        void variable_use_analyzer::visit(const logic::set_variable& node) {
             auto& metrics = m_variable_metrics.at(node.variable());
             metrics.is_mutated = true;
 
@@ -22,7 +22,7 @@ namespace michaelcc {
             metrics.num_uses++;
         }
 
-        void variable_use_analyzer::visit(const logical_ir::set_address& node) {
+        void variable_use_analyzer::visit(const logic::set_address& node) {
             mutated_variable_tracker tracker;
             auto [mutated_variables, dead_expressions] = tracker.get_mutated_variables(*node.destination());
             for (const auto& variable : mutated_variables) {
@@ -41,9 +41,9 @@ namespace michaelcc {
             }
         }
 
-        void variable_use_analyzer::visit(const logical_ir::increment_operator& node) {
-            if (std::holds_alternative<std::shared_ptr<logical_ir::variable>>(node.destination())) {
-                auto& metrics = m_variable_metrics.at(std::get<std::shared_ptr<logical_ir::variable>>(node.destination()));
+        void variable_use_analyzer::visit(const logic::increment_operator& node) {
+            if (std::holds_alternative<std::shared_ptr<logic::variable>>(node.destination())) {
+                auto& metrics = m_variable_metrics.at(std::get<std::shared_ptr<logic::variable>>(node.destination()));
                 metrics.is_mutated = true;
 
 
@@ -54,7 +54,7 @@ namespace michaelcc {
             }
         }
 
-        void variable_use_analyzer::visit(const logical_ir::variable_reference& node) {
+        void variable_use_analyzer::visit(const logic::variable_reference& node) {
             if (m_mutated_expressions.contains(&node)) {
                 auto& metrics = m_variable_metrics.at(node.get_variable());
                 metrics.is_mutated = true;
@@ -68,19 +68,19 @@ namespace michaelcc {
             metrics.num_uses++;
         }
 
-        void variable_use_analyzer::visit(const logical_ir::address_of& node) {
+        void variable_use_analyzer::visit(const logic::address_of& node) {
             if (m_dead_expressions.contains(&node)) {
                 return;
             }
             
-            if (std::holds_alternative<std::shared_ptr<logical_ir::variable>>(node.operand())) {
-                auto& metrics = m_variable_metrics.at(std::get<std::shared_ptr<logical_ir::variable>>(node.operand()));
+            if (std::holds_alternative<std::shared_ptr<logic::variable>>(node.operand())) {
+                auto& metrics = m_variable_metrics.at(std::get<std::shared_ptr<logic::variable>>(node.operand()));
                 metrics.num_uses++;
                 metrics.is_mutated = true;
             }
         }
 
-        void variable_use_analyzer::visit(const logical_ir::function_definition& node) {
+        void variable_use_analyzer::visit(const logic::function_definition& node) {
             for (const auto& parameter : node.parameters()) {
                 // marking parameter as mutated and more than one use ensures it is not optimized away in any form
                 m_variable_metrics.insert({ 
@@ -90,7 +90,7 @@ namespace michaelcc {
             }
         }
 
-        void variable_use_analyzer::visit(const logical_ir::function_call& node) {
+        void variable_use_analyzer::visit(const logic::function_call& node) {
             auto parameter_types = node.parameter_types();
             for (size_t i = 0; i < node.arguments().size(); i++) { //use dest mutator or some shit
                 if ((parameter_types.at(i).is_same_type<typing::pointer_type>() || parameter_types.at(i).is_same_type<typing::array_type>()) && !parameter_types.at(i).is_const()) {
@@ -100,12 +100,12 @@ namespace michaelcc {
             }
         }
 
-        void variable_use_analyzer::visit(const logical_ir::expression_statement& node) {
+        void variable_use_analyzer::visit(const logic::expression_statement& node) {
             m_dead_expressions.insert(node.expression().get());
         }
 
 
-        std::unique_ptr<logical_ir::expression> constant_prop_pass::expression_pass::dispatch(std::unique_ptr<logical_ir::set_variable>&& node) {
+        std::unique_ptr<logic::expression> constant_prop_pass::expression_pass::dispatch(std::unique_ptr<logic::set_variable>&& node) {
             auto& variable = node->variable();
 
             if (m_pass.can_remove_variable(variable)) {
@@ -116,7 +116,7 @@ namespace michaelcc {
             return node;
         }
 
-        std::unique_ptr<logical_ir::expression> constant_prop_pass::expression_pass::dispatch(std::unique_ptr<logical_ir::set_address>&& node) {
+        std::unique_ptr<logic::expression> constant_prop_pass::expression_pass::dispatch(std::unique_ptr<logic::set_address>&& node) {
             variable_use_analyzer::mutated_variable_tracker tracker;
             auto [mutated_variables, dead_expressions] = tracker.get_mutated_variables(*node->destination());
 
@@ -135,15 +135,15 @@ namespace michaelcc {
                 return node->release_value();
             }
             else {
-                std::shared_ptr<logical_ir::control_block> control_block = std::make_shared<logical_ir::control_block>();
+                std::shared_ptr<logic::control_block> control_block = std::make_shared<logic::control_block>();
                 control_block->implement(std::move(statements));
-                return std::make_unique<logical_ir::compound_expression>(std::move(control_block), std::move(node->release_value()));
+                return std::make_unique<logic::compound_expression>(std::move(control_block), std::move(node->release_value()));
             }
         }
 
-        std::unique_ptr<logical_ir::expression> constant_prop_pass::expression_pass::dispatch(std::unique_ptr<logical_ir::increment_operator>&& node) {
-            if (std::holds_alternative<std::shared_ptr<logical_ir::variable>>(node->destination())) {
-                auto& variable = std::get<std::shared_ptr<logical_ir::variable>>(node->destination());
+        std::unique_ptr<logic::expression> constant_prop_pass::expression_pass::dispatch(std::unique_ptr<logic::increment_operator>&& node) {
+            if (std::holds_alternative<std::shared_ptr<logic::variable>>(node->destination())) {
+                auto& variable = std::get<std::shared_ptr<logic::variable>>(node->destination());
                 if (m_pass.can_remove_variable(variable)) {
                     mark_ir_mutated();
 
@@ -157,10 +157,10 @@ namespace michaelcc {
             return node;
         }
 
-        std::unique_ptr<logical_ir::expression> constant_prop_pass::expression_pass::dispatch(std::unique_ptr<logical_ir::variable_reference>&& node) {
+        std::unique_ptr<logic::expression> constant_prop_pass::expression_pass::dispatch(std::unique_ptr<logic::variable_reference>&& node) {
             auto& variable = node->get_variable();
 
-            std::unique_ptr<logical_ir::expression> propagated_constant = m_pass.propagate_constant(variable);
+            std::unique_ptr<logic::expression> propagated_constant = m_pass.propagate_constant(variable);
             if (propagated_constant) {
                 mark_ir_mutated();
                 return propagated_constant;
@@ -168,11 +168,11 @@ namespace michaelcc {
             return node;
         }
 
-        std::unique_ptr<logical_ir::statement> constant_prop_pass::statement_pass::dispatch(std::unique_ptr<logical_ir::variable_declaration>&& node) {
+        std::unique_ptr<logic::statement> constant_prop_pass::statement_pass::dispatch(std::unique_ptr<logic::variable_declaration>&& node) {
             auto& variable = node->variable();
             if (m_pass.can_remove_variable(variable)) {
                 mark_ir_mutated();
-                return std::make_unique<logical_ir::expression_statement>(node->release_initializer());
+                return std::make_unique<logic::expression_statement>(node->release_initializer());
             }
             if (m_pass.can_propagate_constant(variable)) {
                 constant_cloner cloner(m_pass.m_platform_info);

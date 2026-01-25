@@ -65,12 +65,12 @@ int main()
 		
 		int passes_run = michaelcc::optimization::transform_pass::transform(translation_unit, passes);
 
-		cout << michaelcc::logical_ir::to_tree_string(translation_unit) << endl;
+		cout << michaelcc::logic::to_tree_string(translation_unit) << endl;
 		cout << "Passes run: " << passes_run << endl;
 
 		/*for (const auto& symbol : translation_unit.global_symbols()) {
 			cout << symbol->name() << endl;
-			auto function = std::dynamic_pointer_cast<michaelcc::logical_ir::function_definition>(symbol);
+			auto function = std::dynamic_pointer_cast<michaelcc::logic::function_definition>(symbol);
 			if (function) {
 				cout << "Function: " << function->name() << endl;
 				cout << "Return type: " << function->return_type().to_string() << endl;

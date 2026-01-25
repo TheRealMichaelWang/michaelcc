@@ -1,7 +1,7 @@
 #ifndef MICHAELCC_OPTIMIZATION_HPP
 #define MICHAELCC_OPTIMIZATION_HPP
 
-#include "logical.hpp"
+#include "ir.hpp"
 #include "symbols.hpp"
 
 #include <memory>
@@ -28,48 +28,48 @@ namespace michaelcc {
             public:
                 virtual ~expression_pass() = default;
 
-                virtual std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::integer_constant& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::floating_constant& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::string_constant& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::variable_reference>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::function_reference& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::increment_operator>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::arithmetic_operator>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::unary_operation>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::type_cast>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::address_of>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::dereference>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::member_access>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::array_index>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::array_initializer>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::allocate_array>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::struct_initializer>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::union_initializer>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::function_call>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::conditional_expression>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::set_address>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::set_variable>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::compound_expression>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::enumerator_literal& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(const logic::integer_constant& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(const logic::floating_constant& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(const logic::string_constant& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::variable_reference>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(const logic::function_reference& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::increment_operator>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::arithmetic_operator>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::unary_operation>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::type_cast>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::address_of>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::dereference>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::member_access>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::array_index>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::array_initializer>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::allocate_array>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::struct_initializer>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::union_initializer>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::function_call>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::conditional_expression>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::set_address>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::set_variable>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::compound_expression>&& node) = 0;
+                virtual std::unique_ptr<logic::expression> dispatch(const logic::enumerator_literal& node) = 0;
             };
 
             class statement_pass : public pass_mutator {
             public:
                 virtual ~statement_pass() = default;
-                virtual std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::expression_statement>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::variable_declaration>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::return_statement>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::if_statement>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::loop_statement>&& node) = 0;
-                virtual std::unique_ptr<logical_ir::statement> dispatch(const logical_ir::break_statement& node) = 0;
-                virtual std::unique_ptr<logical_ir::statement> dispatch(const logical_ir::continue_statement& node) = 0;
-                virtual std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::statement_block>&& node) = 0;
+                virtual std::unique_ptr<logic::statement> dispatch(std::unique_ptr<logic::expression_statement>&& node) = 0;
+                virtual std::unique_ptr<logic::statement> dispatch(std::unique_ptr<logic::variable_declaration>&& node) = 0;
+                virtual std::unique_ptr<logic::statement> dispatch(std::unique_ptr<logic::return_statement>&& node) = 0;
+                virtual std::unique_ptr<logic::statement> dispatch(std::unique_ptr<logic::if_statement>&& node) = 0;
+                virtual std::unique_ptr<logic::statement> dispatch(std::unique_ptr<logic::loop_statement>&& node) = 0;
+                virtual std::unique_ptr<logic::statement> dispatch(const logic::break_statement& node) = 0;
+                virtual std::unique_ptr<logic::statement> dispatch(const logic::continue_statement& node) = 0;
+                virtual std::unique_ptr<logic::statement> dispatch(std::unique_ptr<logic::statement_block>&& node) = 0;
             };
 
         private:
             struct replace_variable_context {
-                std::unordered_set<std::shared_ptr<logical_ir::variable>> variables_to_replace;
-                std::weak_ptr<logical_ir::symbol_context> new_context;
+                std::unordered_set<std::shared_ptr<logic::variable>> variables_to_replace;
+                std::weak_ptr<logic::symbol_context> new_context;
             };
 
             std::unique_ptr<expression_pass> m_expression_pass;
@@ -79,7 +79,7 @@ namespace michaelcc {
             
             bool m_is_ir_mutated = false;
     
-            class expression_traverser final : public logical_ir::expression_transformer {
+            class expression_traverser final : public logic::expression_transformer {
             private:
                 transform_pass& m_pass;
 
@@ -87,32 +87,32 @@ namespace michaelcc {
                 expression_traverser(transform_pass& pass);
 
             protected:
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::integer_constant& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::floating_constant& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::string_constant& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::variable_reference& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::function_reference& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::increment_operator& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::arithmetic_operator& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::unary_operation& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::type_cast& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::address_of& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::dereference& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::member_access& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::array_index& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::array_initializer& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::allocate_array& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::struct_initializer& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::union_initializer& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::function_call& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::conditional_expression& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::set_address& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::set_variable& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::compound_expression& node) override;
-                std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::enumerator_literal& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::integer_constant& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::floating_constant& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::string_constant& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::variable_reference& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::function_reference& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::increment_operator& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::arithmetic_operator& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::unary_operation& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::type_cast& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::address_of& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::dereference& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::member_access& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::array_index& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::array_initializer& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::allocate_array& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::struct_initializer& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::union_initializer& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::function_call& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::conditional_expression& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::set_address& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::set_variable& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::compound_expression& node) override;
+                std::unique_ptr<logic::expression> dispatch(const logic::enumerator_literal& node) override;
             };
 
-            class statement_traverser final : public logical_ir::statement_transformer {
+            class statement_traverser final : public logic::statement_transformer {
             private:
                 transform_pass& m_pass;
 
@@ -120,21 +120,21 @@ namespace michaelcc {
                 statement_traverser(transform_pass& pass) : m_pass(pass) { }
 
             protected:
-                std::unique_ptr<logical_ir::statement> dispatch(const logical_ir::expression_statement& node) override;
-                std::unique_ptr<logical_ir::statement> dispatch(const logical_ir::variable_declaration& node) override;
-                std::unique_ptr<logical_ir::statement> dispatch(const logical_ir::return_statement& node) override;
-                std::unique_ptr<logical_ir::statement> dispatch(const logical_ir::if_statement& node) override;
-                std::unique_ptr<logical_ir::statement> dispatch(const logical_ir::loop_statement& node) override;
-                std::unique_ptr<logical_ir::statement> dispatch(const logical_ir::break_statement& node) override;
-                std::unique_ptr<logical_ir::statement> dispatch(const logical_ir::continue_statement& node) override;
-                std::unique_ptr<logical_ir::statement> dispatch(const logical_ir::statement_block& node) override;
+                std::unique_ptr<logic::statement> dispatch(const logic::expression_statement& node) override;
+                std::unique_ptr<logic::statement> dispatch(const logic::variable_declaration& node) override;
+                std::unique_ptr<logic::statement> dispatch(const logic::return_statement& node) override;
+                std::unique_ptr<logic::statement> dispatch(const logic::if_statement& node) override;
+                std::unique_ptr<logic::statement> dispatch(const logic::loop_statement& node) override;
+                std::unique_ptr<logic::statement> dispatch(const logic::break_statement& node) override;
+                std::unique_ptr<logic::statement> dispatch(const logic::continue_statement& node) override;
+                std::unique_ptr<logic::statement> dispatch(const logic::statement_block& node) override;
             };
 
             expression_traverser m_expression_traverser;
             statement_traverser m_statement_traverser;
 
-            std::shared_ptr<logical_ir::variable> replace_variable(const std::shared_ptr<logical_ir::variable>& variable) const;
-            std::shared_ptr<logical_ir::control_block> transform_control_block(const logical_ir::control_block& node);
+            std::shared_ptr<logic::variable> replace_variable(const std::shared_ptr<logic::variable>& variable) const;
+            std::shared_ptr<logic::control_block> transform_control_block(const logic::control_block& node);
 
             friend class default_statement_pass;
         public:
@@ -145,7 +145,7 @@ namespace michaelcc {
 
             ~transform_pass() = default;
 
-            void transform(logical_ir::translation_unit& unit) {
+            void transform(logic::translation_unit& unit) {
                 unit.transform(m_expression_traverser, m_statement_traverser);
                 m_is_ir_mutated = m_expression_pass->is_ir_mutated() || m_statement_pass->is_ir_mutated();
             }
@@ -159,62 +159,62 @@ namespace michaelcc {
                 m_statement_pass->reset_mutation_flag();
             }
 
-            static int transform(logical_ir::translation_unit&unit, std::vector<std::unique_ptr<transform_pass>>& passes, int max_passes = 1000);
+            static int transform(logic::translation_unit&unit, std::vector<std::unique_ptr<transform_pass>>& passes, int max_passes = 1000);
         };
 
         class default_expression_pass : public transform_pass::expression_pass {
         public:
-            std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::integer_constant& node) override { 
-                return std::make_unique<logical_ir::integer_constant>(node.value(), typing::qual_type(node.get_type())); 
+            std::unique_ptr<logic::expression> dispatch(const logic::integer_constant& node) override { 
+                return std::make_unique<logic::integer_constant>(node.value(), typing::qual_type(node.get_type())); 
             }
 
-            std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::floating_constant& node) override { 
-                return std::make_unique<logical_ir::floating_constant>(node.value(), typing::qual_type(node.get_type())); 
+            std::unique_ptr<logic::expression> dispatch(const logic::floating_constant& node) override { 
+                return std::make_unique<logic::floating_constant>(node.value(), typing::qual_type(node.get_type())); 
             }
 
-            std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::string_constant& node) override { 
-                return std::make_unique<logical_ir::string_constant>(node.index()); 
+            std::unique_ptr<logic::expression> dispatch(const logic::string_constant& node) override { 
+                return std::make_unique<logic::string_constant>(node.index()); 
             }
             
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::variable_reference>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::variable_reference>&& node) override { return node; }
 
-            std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::function_reference& node) override {
-                return std::make_unique<logical_ir::function_reference>(std::shared_ptr<logical_ir::function_definition>(node.get_function()));
+            std::unique_ptr<logic::expression> dispatch(const logic::function_reference& node) override {
+                return std::make_unique<logic::function_reference>(std::shared_ptr<logic::function_definition>(node.get_function()));
             }
 
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::increment_operator>&& node) override { return node; }
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::arithmetic_operator>&& node) override { return node; }
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::unary_operation>&& node) override { return node; }
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::type_cast>&& node) override { return node; }
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::address_of>&& node) override { return node; }
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::dereference>&& node) override { return node; }
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::member_access>&& node) override { return node; }
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::array_index>&& node) override { return node; }
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::array_initializer>&& node) override { return node; }
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::allocate_array>&& node) override { return node; }
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::struct_initializer>&& node) override { return node; }
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::union_initializer>&& node) override { return node; }
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::function_call>&& node) override { return node; }
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::conditional_expression>&& node) override { return node; }
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::set_address>&& node) override { return node; }
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::set_variable>&& node) override { return node; }
-            std::unique_ptr<logical_ir::expression> dispatch(std::unique_ptr<logical_ir::compound_expression>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::increment_operator>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::arithmetic_operator>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::unary_operation>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::type_cast>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::address_of>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::dereference>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::member_access>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::array_index>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::array_initializer>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::allocate_array>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::struct_initializer>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::union_initializer>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::function_call>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::conditional_expression>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::set_address>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::set_variable>&& node) override { return node; }
+            std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::compound_expression>&& node) override { return node; }
 
-            std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::enumerator_literal& node) override { 
-                return std::make_unique<logical_ir::enumerator_literal>(typing::enum_type::enumerator(node.enumerator()), std::shared_ptr<typing::enum_type>(node.enum_type()));
+            std::unique_ptr<logic::expression> dispatch(const logic::enumerator_literal& node) override { 
+                return std::make_unique<logic::enumerator_literal>(typing::enum_type::enumerator(node.enumerator()), std::shared_ptr<typing::enum_type>(node.enum_type()));
             }
         };
 
         class default_statement_pass : public transform_pass::statement_pass {
         public:
-            std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::expression_statement>&& node) override { return node; }
-            std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::variable_declaration>&& node) override { return node; }
-            std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::return_statement>&& node) override { return node; }
-            std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::if_statement>&& node) override { return node; }
-            std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::loop_statement>&& node) override { return node; }
-            std::unique_ptr<logical_ir::statement> dispatch(const logical_ir::break_statement& node) override { return std::make_unique<logical_ir::break_statement>(node.loop_depth()); }
-            std::unique_ptr<logical_ir::statement> dispatch(const logical_ir::continue_statement& node) override { return std::make_unique<logical_ir::continue_statement>(node.loop_depth()); }
-            std::unique_ptr<logical_ir::statement> dispatch(std::unique_ptr<logical_ir::statement_block>&& node) override { return node; }
+            std::unique_ptr<logic::statement> dispatch(std::unique_ptr<logic::expression_statement>&& node) override { return node; }
+            std::unique_ptr<logic::statement> dispatch(std::unique_ptr<logic::variable_declaration>&& node) override { return node; }
+            std::unique_ptr<logic::statement> dispatch(std::unique_ptr<logic::return_statement>&& node) override { return node; }
+            std::unique_ptr<logic::statement> dispatch(std::unique_ptr<logic::if_statement>&& node) override { return node; }
+            std::unique_ptr<logic::statement> dispatch(std::unique_ptr<logic::loop_statement>&& node) override { return node; }
+            std::unique_ptr<logic::statement> dispatch(const logic::break_statement& node) override { return std::make_unique<logic::break_statement>(node.loop_depth()); }
+            std::unique_ptr<logic::statement> dispatch(const logic::continue_statement& node) override { return std::make_unique<logic::continue_statement>(node.loop_depth()); }
+            std::unique_ptr<logic::statement> dispatch(std::unique_ptr<logic::statement_block>&& node) override { return node; }
         };
     }
 }

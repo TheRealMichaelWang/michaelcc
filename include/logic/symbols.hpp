@@ -9,7 +9,7 @@
 #include <ranges>
 
 namespace michaelcc {
-    namespace logical_ir {
+    namespace logic {
         class symbol;
         class symbol_context;
 

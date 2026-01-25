@@ -1,7 +1,7 @@
 #include "syntax/tokens.hpp"
 #include "syntax/ast.hpp"
 #include "logic/typing.hpp"
-#include "logic/logical.hpp"
+#include "logic/ir.hpp"
 #include <cctype>
 #include <iomanip>
 
@@ -696,7 +696,7 @@ namespace ast {
 }
 
 // Simple tree printer for logical IR using stack-based indent tracking
-class logical_print_visitor : public logical_ir::const_visitor {
+class logical_print_visitor : public logic::const_visitor {
 private:
     std::ostream& m_out;
     int m_indent = 0;
@@ -729,15 +729,15 @@ public:
     logical_print_visitor(std::ostream& out) : m_out(out) {}
 
     // translation_unit: children = number of global symbols (vars + funcs)
-    void visit(const logical_ir::translation_unit& node) override {
+    void visit(const logic::translation_unit& node) override {
         before_print();
         print_indent();
         m_out << "translation_unit\n";
         // Count how many symbols will be visited (see translation_unit::accept)
         int child_count = 0;
         for (const auto& sym : node.global_symbols()) {
-            if (dynamic_cast<logical_ir::variable*>(sym.get()) ||
-                dynamic_cast<logical_ir::function_definition*>(sym.get())) {
+            if (dynamic_cast<logic::variable*>(sym.get()) ||
+                dynamic_cast<logic::function_definition*>(sym.get())) {
                 child_count++;
             }
         }
@@ -745,7 +745,7 @@ public:
     }
 
     // variable: 0 children
-    void visit(const logical_ir::variable& node) override {
+    void visit(const logic::variable& node) override {
         before_print();
         print_indent();
         m_out << "variable: " << node.name() << (node.is_global() ? " (global)" : " (local)") << "\n";
@@ -753,7 +753,7 @@ public:
     }
 
     // function_definition: params.size() + 1 (for control_block base)
-    void visit(const logical_ir::function_definition& node) override {
+    void visit(const logic::function_definition& node) override {
         before_print();
         print_indent();
         m_out << "function_definition: " << node.name() << "\n";
@@ -762,7 +762,7 @@ public:
     }
 
     // control_block: statements.size()
-    void visit(const logical_ir::control_block& node) override {
+    void visit(const logic::control_block& node) override {
         before_print();
         print_indent();
         m_out << "control_block\n";
@@ -770,7 +770,7 @@ public:
     }
 
     // statement_block: 1 child (control_block)
-    void visit(const logical_ir::statement_block& node) override {
+    void visit(const logic::statement_block& node) override {
         before_print();
         print_indent();
         m_out << "statement_block\n";
@@ -778,7 +778,7 @@ public:
     }
 
     // integer_constant: 0 children
-    void visit(const logical_ir::integer_constant& node) override {
+    void visit(const logic::integer_constant& node) override {
         before_print();
         print_indent();
         m_out << "integer_constant: " << node.value() << "\n";
@@ -786,7 +786,7 @@ public:
     }
 
     // floating_constant: 0 children
-    void visit(const logical_ir::floating_constant& node) override {
+    void visit(const logic::floating_constant& node) override {
         before_print();
         print_indent();
         m_out << "floating_constant: " << node.value() << "\n";
@@ -794,7 +794,7 @@ public:
     }
 
     // string_constant: 0 children
-    void visit(const logical_ir::string_constant& node) override {
+    void visit(const logic::string_constant& node) override {
         before_print();
         print_indent();
         m_out << "string_constant: [index " << node.index() << "]\n";
@@ -802,7 +802,7 @@ public:
     }
 
     // variable_reference: 0 children (doesn't visit the variable)
-    void visit(const logical_ir::variable_reference& node) override {
+    void visit(const logic::variable_reference& node) override {
         before_print();
         print_indent();
         m_out << "variable_reference: " << node.get_variable()->name() << "\n";
@@ -810,7 +810,7 @@ public:
     }
 
     // function_reference: 0 children
-    void visit(const logical_ir::function_reference& node) override {
+    void visit(const logic::function_reference& node) override {
         before_print();
         print_indent();
         m_out << "function_reference: " << node.get_function()->name() << "\n";
@@ -818,7 +818,7 @@ public:
     }
 
     // var_increment_operator: 0 children (doesn't visit destination/amount)
-    void visit(const logical_ir::increment_operator& node) override {
+    void visit(const logic::increment_operator& node) override {
         before_print();
         print_indent();
         m_out << "increment_operator\n";
@@ -826,7 +826,7 @@ public:
     }
 
     // arithmetic_operator: 2 children (left, right)
-    void visit(const logical_ir::arithmetic_operator& node) override {
+    void visit(const logic::arithmetic_operator& node) override {
         before_print();
         print_indent();
         m_out << "arithmetic_operator: " << token_to_str(node.get_operator()) << "\n";
@@ -834,7 +834,7 @@ public:
     }
 
     // unary_operation: 1 child (operand)
-    void visit(const logical_ir::unary_operation& node) override {
+    void visit(const logic::unary_operation& node) override {
         before_print();
         print_indent();
         m_out << "unary_operation: " << token_to_str(node.get_operator()) << "\n";
@@ -842,7 +842,7 @@ public:
     }
 
     // type_cast: 1 child (operand)
-    void visit(const logical_ir::type_cast& node) override {
+    void visit(const logic::type_cast& node) override {
         before_print();
         print_indent();
         m_out << "type_cast\n";
@@ -850,7 +850,7 @@ public:
     }
 
     // address_of: 1 child (operand)
-    void visit(const logical_ir::address_of& node) override {
+    void visit(const logic::address_of& node) override {
         before_print();
         print_indent();
         m_out << "address_of\n";
@@ -858,7 +858,7 @@ public:
     }
 
     // dereference: 1 child (operand)
-    void visit(const logical_ir::dereference& node) override {
+    void visit(const logic::dereference& node) override {
         before_print();
         print_indent();
         m_out << "dereference\n";
@@ -866,7 +866,7 @@ public:
     }
 
     // member_access: 1 child (base)
-    void visit(const logical_ir::member_access& node) override {
+    void visit(const logic::member_access& node) override {
         before_print();
         print_indent();
         m_out << "member_access: [field " << node.member().name << "]\n";
@@ -874,7 +874,7 @@ public:
     }
 
     // array_index: 2 children (base, index)
-    void visit(const logical_ir::array_index& node) override {
+    void visit(const logic::array_index& node) override {
         before_print();
         print_indent();
         m_out << "array_index\n";
@@ -882,7 +882,7 @@ public:
     }
 
     // array_initializer: initializers.size() children
-    void visit(const logical_ir::array_initializer& node) override {
+    void visit(const logic::array_initializer& node) override {
         before_print();
         print_indent();
         m_out << "array_initializer\n";
@@ -890,7 +890,7 @@ public:
     }
 
     // allocate_array: dimensions.size() children
-    void visit(const logical_ir::allocate_array& node) override {
+    void visit(const logic::allocate_array& node) override {
         before_print();
         print_indent();
         m_out << "allocate_array\n";
@@ -898,7 +898,7 @@ public:
     }
 
     // struct_initializer: initializers.size() children
-    void visit(const logical_ir::struct_initializer& node) override {
+    void visit(const logic::struct_initializer& node) override {
         before_print();
         print_indent();
         m_out << "struct_initializer\n";
@@ -906,7 +906,7 @@ public:
     }
 
     // union_initializer: 1 child (initializer)
-    void visit(const logical_ir::union_initializer& node) override {
+    void visit(const logic::union_initializer& node) override {
         before_print();
         print_indent();
         m_out << "union_initializer\n";
@@ -914,7 +914,7 @@ public:
     }
 
     // function_call: 1 + arguments.size() (callee + args)
-    void visit(const logical_ir::function_call& node) override {
+    void visit(const logic::function_call& node) override {
         before_print();
         print_indent();
         m_out << "function_call\n";
@@ -922,7 +922,7 @@ public:
     }
 
     // conditional_expression: 3 children (condition, then, else)
-    void visit(const logical_ir::conditional_expression& node) override {
+    void visit(const logic::conditional_expression& node) override {
         before_print();
         print_indent();
         m_out << "conditional_expression\n";
@@ -930,7 +930,7 @@ public:
     }
 
     // set_address: 2 children (destination, value)
-    void visit(const logical_ir::set_address& node) override {
+    void visit(const logic::set_address& node) override {
         before_print();
         print_indent();
         m_out << "set_address\n";
@@ -938,7 +938,7 @@ public:
     }
 
     // set_variable: 2 children (variable, value)
-    void visit(const logical_ir::set_variable& node) override {
+    void visit(const logic::set_variable& node) override {
         before_print();
         print_indent();
         m_out << "set_variable\n";
@@ -946,7 +946,7 @@ public:
     }
 
     // expression_statement: 1 child (expression)
-    void visit(const logical_ir::expression_statement& node) override {
+    void visit(const logic::expression_statement& node) override {
         before_print();
         print_indent();
         m_out << "expression_statement\n";
@@ -954,7 +954,7 @@ public:
     }
 
     // local_declaration: 1 + (initializer ? 1 : 0)
-    void visit(const logical_ir::variable_declaration& node) override {
+    void visit(const logic::variable_declaration& node) override {
         before_print();
         print_indent();
         m_out << "local_declaration\n";
@@ -962,7 +962,7 @@ public:
     }
 
     // return_statement: (value ? 1 : 0)
-    void visit(const logical_ir::return_statement& node) override {
+    void visit(const logic::return_statement& node) override {
         before_print();
         print_indent();
         m_out << "return_statement\n";
@@ -970,7 +970,7 @@ public:
     }
 
     // if_statement: 2 + (else_body ? 1 : 0)
-    void visit(const logical_ir::if_statement& node) override {
+    void visit(const logic::if_statement& node) override {
         before_print();
         print_indent();
         m_out << "if_statement\n";
@@ -978,7 +978,7 @@ public:
     }
 
     // loop_statement: 2 children (condition, body)
-    void visit(const logical_ir::loop_statement& node) override {
+    void visit(const logic::loop_statement& node) override {
         before_print();
         print_indent();
         m_out << "loop_statement" << (node.check_condition_first() ? " (while)" : " (do-while)") << "\n";
@@ -986,7 +986,7 @@ public:
     }
 
     // break_statement: 0 children
-    void visit(const logical_ir::break_statement& node) override {
+    void visit(const logic::break_statement& node) override {
         before_print();
         print_indent();
         m_out << "break_statement\n";
@@ -994,7 +994,7 @@ public:
     }
 
     // continue_statement: 0 children
-    void visit(const logical_ir::continue_statement& node) override {
+    void visit(const logic::continue_statement& node) override {
         before_print();
         print_indent();
         m_out << "continue_statement\n";
@@ -1003,7 +1003,7 @@ public:
 };
 
 namespace michaelcc {
-namespace logical_ir {
+namespace logic {
     std::string to_tree_string(const translation_unit& unit) {
         std::stringstream ss;
         logical_print_visitor visitor(ss);

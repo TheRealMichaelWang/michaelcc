@@ -13,7 +13,7 @@
 #include "utils.hpp"
 
 namespace michaelcc {
-	namespace logical_ir {
+	namespace logic {
 		class expression;
 		class statement;
 		class variable;
@@ -223,8 +223,8 @@ namespace michaelcc {
 			const statement_block
 		>;
 
-		using expression_transformer = logical_ir::const_expression_dispatcher<std::unique_ptr<logical_ir::expression>>;
-        using statement_transformer = logical_ir::const_statement_dispatcher<std::unique_ptr<logical_ir::statement>>;
+		using expression_transformer = logic::const_expression_dispatcher<std::unique_ptr<logic::expression>>;
+        using statement_transformer = logic::const_statement_dispatcher<std::unique_ptr<logic::statement>>;
 
 		class variable final : public symbol, public mutable_visitable_base<visitor>, public const_visitable_base<const_visitor> {
 		private:

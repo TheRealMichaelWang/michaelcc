@@ -1,5 +1,5 @@
 #include "logic/optimization/constant_folding.hpp"
-#include "logic/logical.hpp"
+#include "logic/ir.hpp"
 #include "logic/typing.hpp"
 #include "logic/semantic.hpp"
 
@@ -7,7 +7,7 @@ namespace michaelcc {
     namespace optimization {
 
         // Helper to fold float arithmetic operations
-        static std::unique_ptr<logical_ir::expression> fold_float_arithmetic(
+        static std::unique_ptr<logic::expression> fold_float_arithmetic(
             token_type op, double left_val, double right_val, typing::qual_type result_type
         ) {
             double result_val;
@@ -28,16 +28,16 @@ namespace michaelcc {
             }
 
             if (result_type.is_same_type<typing::int_type>()) {
-                return std::make_unique<logical_ir::integer_constant>(static_cast<uint64_t>(result_val), std::move(result_type));
+                return std::make_unique<logic::integer_constant>(static_cast<uint64_t>(result_val), std::move(result_type));
             }
-            return std::make_unique<logical_ir::floating_constant>(result_val, std::move(result_type));
+            return std::make_unique<logic::floating_constant>(result_val, std::move(result_type));
         }
 
-        std::unique_ptr<logical_ir::expression> constant_folding_pass::expression_pass::dispatch(std::unique_ptr<logical_ir::arithmetic_operator>&& node) {
-            auto* left_int = dynamic_cast<logical_ir::integer_constant*>(node->left().get());
-            auto* right_int = dynamic_cast<logical_ir::integer_constant*>(node->right().get());
-            auto* left_float = dynamic_cast<logical_ir::floating_constant*>(node->left().get());
-            auto* right_float = dynamic_cast<logical_ir::floating_constant*>(node->right().get());
+        std::unique_ptr<logic::expression> constant_folding_pass::expression_pass::dispatch(std::unique_ptr<logic::arithmetic_operator>&& node) {
+            auto* left_int = dynamic_cast<logic::integer_constant*>(node->left().get());
+            auto* right_int = dynamic_cast<logic::integer_constant*>(node->right().get());
+            auto* left_float = dynamic_cast<logic::floating_constant*>(node->left().get());
+            auto* right_float = dynamic_cast<logic::floating_constant*>(node->right().get());
 
             auto mode = semantic_lowerer::get_arbitration_mode(node->get_operator());
 
@@ -162,7 +162,7 @@ namespace michaelcc {
                 }
 
                 mark_ir_mutated();
-                return std::make_unique<logical_ir::integer_constant>(
+                return std::make_unique<logic::integer_constant>(
                     result_val,
                     std::move(*result_type)
                 );
@@ -234,10 +234,10 @@ namespace michaelcc {
             return node;
         }
 
-        std::unique_ptr<logical_ir::expression> constant_folding_pass::expression_pass::dispatch(std::unique_ptr<logical_ir::unary_operation>&& node) {
+        std::unique_ptr<logic::expression> constant_folding_pass::expression_pass::dispatch(std::unique_ptr<logic::unary_operation>&& node) {
             const auto& operand = node->operand();
 
-            logical_ir::integer_constant* integer_constant = dynamic_cast<logical_ir::integer_constant*>(operand.get());
+            logic::integer_constant* integer_constant = dynamic_cast<logic::integer_constant*>(operand.get());
             if (integer_constant) {
                 typing::int_type* int_type = static_cast<typing::int_type*>(integer_constant->get_type().type().get());
 
@@ -248,19 +248,19 @@ namespace michaelcc {
                         }
 
                         mark_ir_mutated();
-                        return std::make_unique<logical_ir::integer_constant>(
+                        return std::make_unique<logic::integer_constant>(
                             -integer_constant->value(), 
                             typing::qual_type(integer_constant->get_type())
                         );
                     case MICHAELCC_TOKEN_NOT:
                         mark_ir_mutated();
-                        return std::make_unique<logical_ir::integer_constant>(
+                        return std::make_unique<logic::integer_constant>(
                             integer_constant->value() == 0 ? 1 : 0, 
                             typing::qual_type(integer_constant->get_type())
                         );
                     case MICHAELCC_TOKEN_TILDE:
                         mark_ir_mutated();
-                        return std::make_unique<logical_ir::integer_constant>(
+                        return std::make_unique<logic::integer_constant>(
                             ~integer_constant->value(), 
                             typing::qual_type(integer_constant->get_type())
                         );
@@ -270,12 +270,12 @@ namespace michaelcc {
                 }
             }
 
-            logical_ir::floating_constant* floating_constant = dynamic_cast<logical_ir::floating_constant*>(operand.get());
+            logic::floating_constant* floating_constant = dynamic_cast<logic::floating_constant*>(operand.get());
             if (floating_constant) {
                 switch (node->get_operator()) {
                 case MICHAELCC_TOKEN_MINUS:
                     mark_ir_mutated();
-                    return std::make_unique<logical_ir::floating_constant>(
+                    return std::make_unique<logic::floating_constant>(
                         -floating_constant->value(), 
                         typing::qual_type(floating_constant->get_type())
                     );
@@ -287,7 +287,7 @@ namespace michaelcc {
             return node;
         }
 
-        std::unique_ptr<logical_ir::expression> constant_folding_pass::expression_pass::dispatch(std::unique_ptr<logical_ir::type_cast>&& node) {
+        std::unique_ptr<logic::expression> constant_folding_pass::expression_pass::dispatch(std::unique_ptr<logic::type_cast>&& node) {
             const auto& operand = node->operand();
             const auto& target_type = node->get_type();
 
@@ -297,13 +297,13 @@ namespace michaelcc {
             }
 
             // Integer constant being cast
-            if (const auto* int_const = dynamic_cast<const logical_ir::integer_constant*>(operand.get())) {
+            if (const auto* int_const = dynamic_cast<const logic::integer_constant*>(operand.get())) {
                 const auto* int_type = dynamic_cast<const typing::int_type*>(int_const->get_type().type().get());
                 
                 // Cast to integer type
                 if (target_type.is_same_type<typing::int_type>()) {
                     mark_ir_mutated();
-                    return std::make_unique<logical_ir::integer_constant>(
+                    return std::make_unique<logic::integer_constant>(
                         int_const->value(),
                         typing::qual_type(target_type)
                     );
@@ -315,7 +315,7 @@ namespace michaelcc {
                         ? static_cast<double>(int_const->value())
                         : static_cast<double>(static_cast<int64_t>(int_const->value()));
                     mark_ir_mutated();
-                    return std::make_unique<logical_ir::floating_constant>(
+                    return std::make_unique<logic::floating_constant>(
                         value,
                         typing::qual_type(target_type)
                     );
@@ -323,7 +323,7 @@ namespace michaelcc {
             }
 
             // Float constant being cast
-            if (const auto* float_const = dynamic_cast<const logical_ir::floating_constant*>(operand.get())) {
+            if (const auto* float_const = dynamic_cast<const logic::floating_constant*>(operand.get())) {
                 // Cast to integer type
                 if (target_type.is_same_type<typing::int_type>()) {
                     const auto* target_int_type = static_cast<const typing::int_type*>(target_type.type().get());
@@ -331,7 +331,7 @@ namespace michaelcc {
                         ? static_cast<uint64_t>(float_const->value())
                         : static_cast<uint64_t>(static_cast<int64_t>(float_const->value()));
                     mark_ir_mutated();
-                    return std::make_unique<logical_ir::integer_constant>(
+                    return std::make_unique<logic::integer_constant>(
                         value,
                         typing::qual_type(target_type)
                     );
@@ -340,7 +340,7 @@ namespace michaelcc {
                 // Cast to float type
                 if (target_type.is_same_type<typing::float_type>()) {
                     mark_ir_mutated();
-                    return std::make_unique<logical_ir::floating_constant>(
+                    return std::make_unique<logic::floating_constant>(
                         float_const->value(),
                         typing::qual_type(target_type)
                     );
