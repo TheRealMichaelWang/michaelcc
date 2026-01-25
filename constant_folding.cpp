@@ -278,7 +278,7 @@ namespace michaelcc {
             const auto& operand = node->operand();
             const auto& target_type = node->get_type();
 
-            if (target_type.is_assignable_from(operand->get_type())) {
+            if (target_type == operand->get_type()) {
                 mark_ir_mutated();
                 return node->release_operand();
             }

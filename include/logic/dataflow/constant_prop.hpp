@@ -151,7 +151,7 @@ namespace michaelcc {
 
             std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::union_initializer& node) override { 
                 auto element = (*this)(*node.initializer());
-                if (!element || !node.union_type()->members()[0].member_type.is_assignable_from(element->get_type())) {
+                if (!element || !node.target_member().member_type.is_assignable_from(element->get_type())) {
                     return nullptr;
                 }
                 return std::make_unique<logical_ir::union_initializer>(std::move(element), std::shared_ptr<typing::union_type>(node.union_type()), typing::member(node.target_member()));

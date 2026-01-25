@@ -92,7 +92,7 @@ namespace michaelcc {
 
                 protected:
                     bool dispatch(const logical_ir::statement_block& node) override { return control_block_analyzer(*node.control_block()); }
-                    bool dispatch(const logical_ir::if_statement& node) override { return control_block_analyzer(*node.then_body()) && node.else_body() != nullptr && control_block_analyzer(*node.else_body()); }
+                    bool dispatch(const logical_ir::if_statement& node) override { return control_block_analyzer(*node.then_body()) || (node.else_body() != nullptr && control_block_analyzer(*node.else_body())); }
                     bool dispatch(const logical_ir::loop_statement& node) override { return control_block_analyzer(*node.body()); }
                     bool dispatch(const logical_ir::break_statement& node) override { return false; }
                     bool dispatch(const logical_ir::continue_statement& node) override { return false; }

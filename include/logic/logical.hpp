@@ -857,13 +857,13 @@ namespace michaelcc {
 		class return_statement final : public statement {
 		private:
 			std::unique_ptr<expression> m_value;
-			std::shared_ptr<function_definition> m_function;
+			std::weak_ptr<function_definition> m_function;
 		public:
-			explicit return_statement(std::unique_ptr<expression>&& value = nullptr, std::shared_ptr<function_definition> function = nullptr)
+			explicit return_statement(std::unique_ptr<expression>&& value, std::weak_ptr<function_definition>&& function)
 				: m_value(std::move(value)), m_function(std::move(function)) {}
 
 			const std::unique_ptr<expression>& value() const noexcept { return m_value; }
-			const std::shared_ptr<function_definition>& function() const noexcept { return m_function; }
+			const std::weak_ptr<function_definition>& function() const noexcept { return m_function; }
 
 			void mutable_accept(visitor& v) override {
 				v.visit(*this);
@@ -935,6 +935,8 @@ namespace michaelcc {
 			const std::shared_ptr<control_block>& body() const noexcept { return m_body; }
 			const std::unique_ptr<expression>& condition() const noexcept { return m_condition; }
 			bool check_condition_first() const noexcept { return m_check_condition_first; }
+
+			std::shared_ptr<control_block> release_body() noexcept { return std::move(m_body); }
 
 			void mutable_accept(visitor& v) override {
 				v.visit(*this);

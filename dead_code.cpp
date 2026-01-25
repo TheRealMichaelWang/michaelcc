@@ -33,10 +33,16 @@ namespace michaelcc {
 
         std::unique_ptr<logical_ir::statement> dead_code_pass::statement_pass::dispatch(std::unique_ptr<logical_ir::loop_statement>&& node) {
             if (is_falsey(*node->condition())) {
-                mark_ir_mutated();
-                return nullptr;
+                if (node->check_condition_first()) {
+                    // while/for loop - safe to remove
+                    mark_ir_mutated();
+                    return nullptr;
+                } else {
+                    // do-while loop - body executes once
+                    mark_ir_mutated();
+                    return std::make_unique<logical_ir::statement_block>(node->release_body());
+                }
             }
-            
             return node;
         }
 

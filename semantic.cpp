@@ -1060,7 +1060,7 @@ std::unique_ptr<logical_ir::statement> semantic_lowerer::statement_resolver::dis
     
     return std::make_unique<logical_ir::return_statement>(
         m_lowerer.lower_expression(*node.value(), function->return_type()), 
-        function
+        std::weak_ptr<logical_ir::function_definition>(function)
     );
 }
 
