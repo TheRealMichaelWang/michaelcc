@@ -5,6 +5,7 @@
 #include "logic/dataflow.hpp"
 #include "logic/logical.hpp"
 #include "logic/typing.hpp"
+#include "platform.hpp"
 #include <memory>
 #include <tuple>
 #include <unordered_map>
@@ -104,6 +105,12 @@ namespace michaelcc {
         };
 
         class constant_cloner final : public logical_ir::const_expression_dispatcher<std::unique_ptr<logical_ir::expression>> {
+        private:
+            const platform_info& m_platform_info;
+
+        public:
+            constant_cloner(const platform_info& platform_info) : m_platform_info(platform_info) {}
+
         protected:
             std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::integer_constant& node) override { 
                 return std::make_unique<logical_ir::integer_constant>(node.value(), typing::qual_type(node.get_type())); 
@@ -126,7 +133,7 @@ namespace michaelcc {
                 initializers.reserve(node.initializers().size());
                 for (const auto& initializer : node.initializers()) {
                     auto element = (*this)(*initializer);
-                    if (!element || !node.element_type().is_assignable_from(element->get_type())) {
+                    if (!element || !node.element_type().is_assignable_from(element->get_type(), m_platform_info)) {
                         return nullptr;
                     }
 
@@ -140,7 +147,7 @@ namespace michaelcc {
                 initializers.reserve(node.initializers().size());
                 for (size_t i = 0; i < node.initializers().size(); i++) {
                     auto element = (*this)(*node.initializers()[i].initializer);
-                    if (!element || !node.struct_type()->fields()[i].member_type.is_assignable_from(element->get_type())) {
+                    if (!element || !node.struct_type()->fields()[i].member_type.is_assignable_from(element->get_type(), m_platform_info)) {
                         return nullptr;
                     }
 
@@ -151,7 +158,7 @@ namespace michaelcc {
 
             std::unique_ptr<logical_ir::expression> dispatch(const logical_ir::union_initializer& node) override { 
                 auto element = (*this)(*node.initializer());
-                if (!element || !node.target_member().member_type.is_assignable_from(element->get_type())) {
+                if (!element || !node.target_member().member_type.is_assignable_from(element->get_type(), m_platform_info)) {
                     return nullptr;
                 }
                 return std::make_unique<logical_ir::union_initializer>(std::move(element), std::shared_ptr<typing::union_type>(node.union_type()), typing::member(node.target_member()));
@@ -248,6 +255,8 @@ namespace michaelcc {
 
             std::unordered_map<std::shared_ptr<logical_ir::variable>, variable_use_analyzer::variable_metrics> m_variable_metrics;
             std::unordered_map<std::shared_ptr<logical_ir::variable>, std::unique_ptr<logical_ir::expression>> m_constant_expressions;
+            const platform_info m_platform_info;
+
         protected:
             bool can_propagate_constant(const std::shared_ptr<logical_ir::variable>& variable) const {
                 return m_variable_metrics.at(variable).is_mutated == false 
@@ -263,16 +272,16 @@ namespace michaelcc {
                 if (!can_propagate_constant(variable) || !m_constant_expressions.contains(variable)) {
                     return nullptr;
                 }
-                constant_cloner cloner;
+                constant_cloner cloner(m_platform_info);
                 return cloner(*m_constant_expressions.at(variable));
             }
 
         public:
-            constant_prop_pass(logical_ir::translation_unit& program) : transform_pass(
+            constant_prop_pass(logical_ir::translation_unit& program, const platform_info& platform_info) : transform_pass(
                 std::make_unique<expression_pass>(*this),
                 std::make_unique<statement_pass>(*this),
                 [](const std::string& name) { return name; }
-            ), m_variable_metrics(std::make_unique<variable_use_analyzer>()->get_metrics(program)) {}
+            ), m_variable_metrics(std::make_unique<variable_use_analyzer>()->get_metrics(program)), m_platform_info(platform_info) {}
         };
     }
 }

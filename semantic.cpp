@@ -7,7 +7,6 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
-#include <numeric>
 #include <optional>
 #include <set>
 #include <sstream>
@@ -76,107 +75,6 @@ void semantic_lowerer::check_layout_dependencies(const std::shared_ptr<typing::b
     
     std::vector<std::shared_ptr<typing::base_type>> path;
     check_recursive(type, path);
-}
-
-const semantic_lowerer::type_layout_info semantic_lowerer::type_layout_calculator::dispatch(typing::int_type& type) {
-    size_t size;
-    switch (type.type_class()) {
-        case typing::CHAR_INT_CLASS:
-            size = 1;
-            break;
-        case typing::SHORT_INT_CLASS:
-            size = m_platform_info.short_size;
-            break;
-        case typing::INT_INT_CLASS:
-            size = (type.int_qualifiers() & typing::LONG_INT_QUALIFIER)
-                ? m_platform_info.long_size
-                : m_platform_info.int_size;
-            break;
-        case typing::LONG_INT_CLASS:
-            size = m_platform_info.long_long_size;
-            break;
-        default:
-            throw std::runtime_error("Invalid int type class");
-    }
-    return { size, std::min<size_t>(size, m_platform_info.max_alignment) };
-}
-
-const semantic_lowerer::type_layout_info semantic_lowerer::type_layout_calculator::dispatch(typing::float_type& type) {
-    switch (type.type_class()) {
-        case typing::FLOAT_FLOAT_CLASS:
-            return { 4, std::min<size_t>(4, m_platform_info.max_alignment) };
-        case typing::DOUBLE_FLOAT_CLASS:
-            return { 8, std::min<size_t>(8, m_platform_info.max_alignment) };
-    }
-    throw std::runtime_error("Invalid float type class");
-}
-
-const semantic_lowerer::type_layout_info semantic_lowerer::type_layout_calculator::dispatch(typing::struct_type& type) {
-    if (m_declared_info.contains(&type)) {
-        return m_declared_info.at(&type);
-    }
-
-    std::vector<size_t> original_indices(type.fields().size());
-    std::iota(original_indices.begin(), original_indices.end(), 0);
-    if (m_platform_info.optimize_struct_layout) {
-        // Sort by alignment (descending) to minimize padding
-        std::sort(original_indices.begin(), original_indices.end(), [this, &type](size_t a, size_t b) {
-            const type_layout_info a_layout = (*this)(*type.fields().at(a).member_type.type());
-            const type_layout_info b_layout = (*this)(*type.fields().at(b).member_type.type());
-            return a_layout.alignment > b_layout.alignment;
-        });
-    }
-    
-    size_t size = 0;
-    size_t alignment = 1;
-    size_t offset = 0;
-    size_t max_alignment = 1;
-
-    std::vector<size_t> field_offsets(type.fields().size());
-    for (const auto& index : original_indices) {
-        const auto& field = type.fields().at(index);
-        const type_layout_info field_layout = (*this)(*field.member_type.type());
-
-        // Pad to field alignment
-        size_t padding = (field_layout.alignment - (offset % field_layout.alignment)) % field_layout.alignment;
-        offset += padding;
-        field_offsets[index] = offset;
-        offset += field_layout.size;
-        
-        max_alignment = std::max(max_alignment, field_layout.alignment);
-    }
-
-    // Pad final size to struct alignment
-    size_t final_padding = (max_alignment - (offset % max_alignment)) % max_alignment;
-    size = offset + final_padding;
-    alignment = max_alignment;
-
-    type.implement_field_offsets(field_offsets);
-    m_declared_info.emplace(&type, type_layout_info{.size=size, .alignment=alignment });
-    return m_declared_info.at(&type);
-}
-
-const semantic_lowerer::type_layout_info semantic_lowerer::type_layout_calculator::dispatch(typing::union_type& type) {
-    if (m_declared_info.contains(&type)) {
-        return m_declared_info.at(&type);
-    }
-
-    size_t max_size = 0;
-    size_t max_alignment = 1;
-
-    for (const auto& member : type.members()) {
-        const type_layout_info member_layout = (*this)(*member.member_type.type());
-        max_size = std::max(max_size, member_layout.size);
-        max_alignment = std::max(max_alignment, member_layout.alignment);
-    }
-
-    max_alignment = std::min<size_t>(max_alignment, m_platform_info.max_alignment);
-    
-    // Pad size to alignment
-    size_t size = max_size + (max_alignment - (max_size % max_alignment)) % max_alignment;
-    
-    m_declared_info.emplace(&type, type_layout_info{.size=size, .alignment=max_alignment });
-    return m_declared_info.at(&type);
 }
 
 typing::qual_type semantic_lowerer::type_resolver::resolve_int_type(const ast::type_specifier& type) {
@@ -671,11 +569,13 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
     std::optional<typing::qual_type> operand_type = semantic_lowerer::arbitrate_operand_type(
         left->get_type(), 
         right->get_type(), 
+        m_lowerer.get_platform_info(),
         mode
     );
     std::optional<typing::qual_type> return_type = semantic_lowerer::arbitrate_return_type(
         left->get_type(),
         right->get_type(),
+        m_lowerer.get_platform_info(),
         mode
     );
     if (!operand_type || !return_type) {
@@ -743,7 +643,7 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
         throw panic(ss.str(), node.location());
     }
 
-    std::optional<typing::qual_type> result = semantic_lowerer::arbitrate_operand_type(true_expr->get_type(), false_expr->get_type());
+    std::optional<typing::qual_type> result = semantic_lowerer::arbitrate_operand_type(true_expr->get_type(), false_expr->get_type(), m_lowerer.get_platform_info());
     if (!result) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid conditional expression.";
@@ -762,7 +662,7 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
     std::unique_ptr<logical_ir::expression> operand = m_lowerer.lower_expression(*node.operand());
     auto target_type = m_lowerer.resolve_type(*node.target_type());
 
-    std::optional<typing::qual_type> result = semantic_lowerer::arbitrate_operand_type(operand->get_type(), target_type);
+    std::optional<typing::qual_type> result = semantic_lowerer::arbitrate_operand_type(operand->get_type(), target_type, m_lowerer.get_platform_info());
     if (!result) {
         std::ostringstream ss;
         ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid cast expression.";
@@ -797,7 +697,7 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
             }
             for (size_t i = 0; i < function->parameters().size(); i++) {
                 // Check if the parameter type can accept the argument type
-                if (!function->parameters()[i]->get_type().is_assignable_from(arguments[i]->get_type())) {
+                if (!function->parameters()[i]->get_type().is_assignable_from(arguments[i]->get_type(), m_lowerer.get_platform_info())) {
                     std::ostringstream ss;
                     ss << "Argument " << i << " is not the same type as the parameter " << function->parameters()[i]->name() << ". ";
                     ss << "Expected " << function->parameters()[i]->get_type().to_string() << ", but got " << arguments[i]->get_type().to_string() << ".";
@@ -823,7 +723,7 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
     }
     for (size_t i = 0; i < function_pointer->parameter_types().size(); i++) {
         // Check if the parameter type can accept the argument type
-        if (!function_pointer->parameter_types()[i].is_assignable_from(arguments[i]->get_type())) {
+        if (!function_pointer->parameter_types()[i].is_assignable_from(arguments[i]->get_type(), m_lowerer.get_platform_info())) {
             std::ostringstream ss;
             ss << "Argument " << i << " is not the same type as the parameter " << function_pointer->parameter_types()[i].to_string() << ". ";
             ss << "Expected " << function_pointer->parameter_types()[i].to_string() << ", but got " << arguments[i]->get_type().to_string() << ".";
@@ -866,7 +766,7 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::expression_resolver::d
         std::optional<typing::member> target_member = std::nullopt;
 
         for (const auto& member : union_type->members()) {
-            if (member.member_type.is_assignable_from(initializer->get_type())) {
+            if (member.member_type.is_assignable_from(initializer->get_type(), m_lowerer.get_platform_info())) {
                 target_member = member;
                 break;
             }
@@ -1088,8 +988,8 @@ std::unique_ptr<logical_ir::statement> semantic_lowerer::statement_resolver::han
     throw panic(ss.str(), node.location());
 }
 
-std::optional<typing::qual_type> semantic_lowerer::arbitrate_operand_type(const typing::qual_type& left, const typing::qual_type& right, type_arbitration_mode mode) noexcept {
-    if (left == right) {
+std::optional<typing::qual_type> semantic_lowerer::arbitrate_operand_type(const typing::qual_type& left, const typing::qual_type& right, const platform_info& platform, type_arbitration_mode mode) noexcept {
+    if (left.is_equivalent(right, platform)) {
         if (mode == ARBITRATE_NONE) {
             return left;
         }
@@ -1146,11 +1046,11 @@ std::optional<typing::qual_type> semantic_lowerer::arbitrate_operand_type(const 
     return std::nullopt;
 }
 
-std::optional<typing::qual_type> semantic_lowerer::arbitrate_return_type(const typing::qual_type& left, const typing::qual_type& right, type_arbitration_mode mode) noexcept {
+std::optional<typing::qual_type> semantic_lowerer::arbitrate_return_type(const typing::qual_type& left, const typing::qual_type& right, const platform_info& platform, type_arbitration_mode mode) noexcept {
     if (mode == ARBITRATE_LOGICAL || mode == ARBITRATE_COMPARE) {
         return typing::qual_type(std::make_shared<typing::int_type>(typing::NO_INT_QUALIFIER, typing::INT_INT_CLASS));
     }
-    return arbitrate_operand_type(left, right, mode);
+    return arbitrate_operand_type(left, right, platform, mode);
 }
 
 typing::qual_type semantic_lowerer::resolve_type(const ast::ast_element& node, bool allow_vla) {
@@ -1168,14 +1068,14 @@ std::unique_ptr<logical_ir::expression> semantic_lowerer::lower_expression(const
     std::unique_ptr<logical_ir::expression> expression = expression_compiler(node);
 
     if (target_type && !is_type_hint) {
-        if (!target_type->is_assignable_from(expression->get_type())) {
+        if (!target_type->is_assignable_from(expression->get_type(), m_platform_info)) {
             std::ostringstream ss;
             ss << "Expression \"" << ast::to_c_string(node) << "\" (of type " << expression->get_type().to_string();
             ss << ") is not the same type as the target type " << target_type->to_string() << ".";
             throw panic(ss.str(), node.location());
         }
 
-        if (target_type == expression->get_type()) {
+        if (target_type->is_equivalent(expression->get_type(), m_platform_info)) {
             return expression;
         }
 

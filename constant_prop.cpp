@@ -175,7 +175,7 @@ namespace michaelcc {
                 return std::make_unique<logical_ir::expression_statement>(node->release_initializer());
             }
             if (m_pass.can_propagate_constant(variable)) {
-                constant_cloner cloner;
+                constant_cloner cloner(m_pass.m_platform_info);
                 auto initializer = node->initializer() ? cloner(*node->initializer()) : nullptr;
                 if (!initializer) {
                     return node;

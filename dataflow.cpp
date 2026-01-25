@@ -261,7 +261,7 @@ namespace michaelcc {
                 value = m_pass.m_expression_traverser(*node.value());
             }
             
-            auto to_transform = std::make_unique<logical_ir::return_statement>(std::move(value));
+            auto to_transform = std::make_unique<logical_ir::return_statement>(std::move(value), std::weak_ptr<logical_ir::function_definition>());
             return m_pass.m_statement_pass->dispatch(std::move(to_transform));
         }
 

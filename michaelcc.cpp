@@ -40,7 +40,7 @@ int main()
 			cout << michaelcc::ast::to_c_string(*element) << endl;
 		}
 
-		michaelcc::semantic_lowerer lowerer(michaelcc::platform_info{
+		michaelcc::platform_info platform_info{
 			.pointer_size = 8,
 			.short_size = 2,
 			.int_size = 4,
@@ -49,15 +49,17 @@ int main()
 			.float_size = 4,
 			.double_size = 8,
 			.max_alignment = 16,
-		});
+		};
+
+		michaelcc::semantic_lowerer lowerer(platform_info);
 
 		lowerer.lower(ast);
 		auto translation_unit = lowerer.release_translation_unit();
 
 
 		auto passes = std::vector<std::unique_ptr<michaelcc::dataflow::transform_pass>>();
-		passes.emplace_back(std::make_unique<michaelcc::dataflow::constant_folding_pass>());
-		passes.emplace_back(std::make_unique<michaelcc::dataflow::constant_prop_pass>(translation_unit));
+		passes.emplace_back(std::make_unique<michaelcc::dataflow::constant_folding_pass>(platform_info));
+		passes.emplace_back(std::make_unique<michaelcc::dataflow::constant_prop_pass>(translation_unit, platform_info));
 		passes.emplace_back(std::make_unique<michaelcc::dataflow::ir_simplify_pass>());
 		passes.emplace_back(std::make_unique<michaelcc::dataflow::dead_code_pass>());
 		

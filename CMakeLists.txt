@@ -26,4 +26,5 @@ add_executable(michaelcc
     dead_code.cpp
     constant_prop.cpp
     ir_simplify.cpp
+    type_info.cpp
 )

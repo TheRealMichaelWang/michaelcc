@@ -50,7 +50,7 @@ namespace michaelcc {
                 uint64_t right_val = right_int->value();
                 uint64_t result_val = 0;
                 
-                auto result_type = semantic_lowerer::arbitrate_return_type(left_int->get_type(), right_int->get_type(), mode);
+                auto result_type = semantic_lowerer::arbitrate_return_type(left_int->get_type(), right_int->get_type(), m_layout_calculator.get_platform_info(), mode);
                 if (!result_type) return node;
 
                 // Shift operations use left operand type per C semantics
@@ -95,15 +95,28 @@ namespace michaelcc {
                         result_val = left_val ^ right_val;
                         break;
                     case MICHAELCC_TOKEN_BITSHIFT_LEFT:
-                        result_val = left_val << right_val;
-                        break;
-                    case MICHAELCC_TOKEN_BITSHIFT_RIGHT:
-                        if (left_int_type->is_unsigned()) {
-                            result_val = left_val >> right_val;
+                    case MICHAELCC_TOKEN_BITSHIFT_RIGHT: {
+                        // Compute bit width of left operand type to avoid UB
+                        // Shifting by >= bit width is undefined behavior in C
+                        const uint64_t bit_width = m_layout_calculator(*left_int_type).size * 8;
+                        
+                        // Don't fold if shift amount >= bit width (UB in C)
+                        if (right_val >= bit_width) {
+                            return node;
+                        }
+                        
+                        if (node->get_operator() == MICHAELCC_TOKEN_BITSHIFT_LEFT) {
+                            result_val = left_val << right_val;
                         } else {
-                            result_val = static_cast<uint64_t>(static_cast<int64_t>(left_val) >> right_val);
+                            // MICHAELCC_TOKEN_BITSHIFT_RIGHT
+                            if (left_int_type->is_unsigned()) {
+                                result_val = left_val >> right_val;
+                            } else {
+                                result_val = static_cast<uint64_t>(static_cast<int64_t>(left_val) >> right_val);
+                            }
                         }
                         break;
+                    }
                     case MICHAELCC_TOKEN_DOUBLE_AND:
                         result_val = (left_val != 0 && right_val != 0) ? 1 : 0;
                         break;
@@ -157,7 +170,7 @@ namespace michaelcc {
 
             // Float + Float
             if (left_float && right_float) {
-                auto result_type = semantic_lowerer::arbitrate_return_type(left_float->get_type(), right_float->get_type(), mode);
+                auto result_type = semantic_lowerer::arbitrate_return_type(left_float->get_type(), right_float->get_type(), m_layout_calculator.get_platform_info(), mode);
                 if (!result_type) return node;
 
                 auto result = fold_float_arithmetic(
@@ -176,7 +189,7 @@ namespace michaelcc {
             if (left_float && right_int) {
                 typing::int_type* int_type = static_cast<typing::int_type*>(right_int->get_type().type().get());
 
-                auto result_type = semantic_lowerer::arbitrate_return_type(left_float->get_type(), right_int->get_type(), mode);
+                auto result_type = semantic_lowerer::arbitrate_return_type(left_float->get_type(), right_int->get_type(), m_layout_calculator.get_platform_info(), mode);
                 if (!result_type) return node;
 
                 double right_val = int_type->is_unsigned() 
@@ -199,7 +212,7 @@ namespace michaelcc {
             if (left_int && right_float) {
                 typing::int_type* int_type = static_cast<typing::int_type*>(left_int->get_type().type().get());
 
-                auto result_type = semantic_lowerer::arbitrate_return_type(left_int->get_type(), right_float->get_type(), mode);
+                auto result_type = semantic_lowerer::arbitrate_return_type(left_int->get_type(), right_float->get_type(), m_layout_calculator.get_platform_info(), mode);
                 if (!result_type) return node;
 
                 double left_val = int_type->is_unsigned()
@@ -278,7 +291,7 @@ namespace michaelcc {
             const auto& operand = node->operand();
             const auto& target_type = node->get_type();
 
-            if (target_type == operand->get_type()) {
+            if (target_type.is_equivalent(operand->get_type(), m_layout_calculator.get_platform_info())) {
                 mark_ir_mutated();
                 return node->release_operand();
             }

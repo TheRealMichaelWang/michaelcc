@@ -4,6 +4,7 @@
 #include "syntax/ast.hpp"
 #include "logic/logical.hpp"
 #include "logic/typing.hpp"
+#include "logic/type_info.hpp"
 #include "platform.hpp"
 #include "errors.hpp"
 #include <memory>
@@ -24,9 +25,9 @@ namespace michaelcc {
             return type.is_same_type<typing::int_type>() || type.is_same_type<typing::float_type>();
         }
 
-        static std::optional<typing::qual_type> arbitrate_operand_type(const typing::qual_type& left, const typing::qual_type& right, type_arbitration_mode mode = ARBITRATE_NONE) noexcept;
+        static std::optional<typing::qual_type> arbitrate_operand_type(const typing::qual_type& left, const typing::qual_type& right, const platform_info& platform, type_arbitration_mode mode = ARBITRATE_NONE) noexcept;
 
-        static std::optional<typing::qual_type> arbitrate_return_type(const typing::qual_type& left, const typing::qual_type& right, type_arbitration_mode mode = ARBITRATE_NONE) noexcept;
+        static std::optional<typing::qual_type> arbitrate_return_type(const typing::qual_type& left, const typing::qual_type& right, const platform_info& platform, type_arbitration_mode mode = ARBITRATE_NONE) noexcept;
 
         static type_arbitration_mode get_arbitration_mode(token_type op) noexcept {
             if (op >= MICHAELCC_TOKEN_EQUALS && op <= MICHAELCC_TOKEN_LESS_EQUAL) {
@@ -138,50 +139,6 @@ namespace michaelcc {
                 }
                 return types;
             }
-        };
-
-        struct type_layout_info {
-            const size_t size;
-            const size_t alignment;
-        };
-
-        class type_layout_calculator final : public typing::type_dispatcher<const type_layout_info> {
-        private:
-            std::map<const typing::base_type*, type_layout_info> m_declared_info;
-            const platform_info& m_platform_info;
-
-            const type_layout_info pointer_layout = {
-                .size=m_platform_info.pointer_size,
-                .alignment=std::min<size_t>(m_platform_info.pointer_size, m_platform_info.max_alignment)
-            };
-
-            const type_layout_info int_layout = {
-                .size=m_platform_info.int_size,
-                .alignment=std::min<size_t>(m_platform_info.int_size, m_platform_info.max_alignment)
-            };
-
-        public:
-            type_layout_calculator(const platform_info& platform_info) : m_platform_info(platform_info) { }
-
-        protected:
-            const type_layout_info dispatch(typing::void_type& type) override {
-                throw std::runtime_error("Void type is not a valid type for layout calculation");
-            }
-
-            const type_layout_info dispatch(typing::int_type& type) override;
-
-            const type_layout_info dispatch(typing::float_type& type) override;
-
-            const type_layout_info dispatch(typing::pointer_type& type) override { return pointer_layout; }
-
-            const type_layout_info dispatch(typing::array_type& type) override { return pointer_layout; }
-
-            const type_layout_info dispatch(typing::enum_type& type) override { return int_layout; }
-
-            const type_layout_info dispatch(typing::function_pointer_type& type) override { return pointer_layout; }
-
-            const type_layout_info dispatch(typing::struct_type& type) override;
-            const type_layout_info dispatch(typing::union_type& type) override;
         };
 
         class type_resolver final : public ast::const_type_dispatcher<typing::qual_type> {
@@ -361,6 +318,8 @@ namespace michaelcc {
         const logical_ir::translation_unit& get_translation_unit() const { return m_translation_unit; }
 
         logical_ir::translation_unit&& release_translation_unit() { return std::move(m_translation_unit); m_translation_unit = logical_ir::translation_unit(); }
+
+        const platform_info& get_platform_info() const noexcept { return m_platform_info; }
     };
 }
 #endif

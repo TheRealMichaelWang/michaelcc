@@ -9,9 +9,13 @@
 #include <sstream>
 #include <map>
 #include <variant>
+#include <typeinfo>
 #include "utils.hpp"
 
 namespace michaelcc {
+    // Forward declaration
+    struct platform_info;
+
     namespace typing {
 		// Storage class specifiers (for declarations)
 		enum storage_class {
@@ -88,7 +92,7 @@ namespace michaelcc {
         public:
             virtual ~base_type() = default;
 
-            virtual bool is_assignable_from(const base_type& other) const = 0;
+            virtual bool is_assignable_from(const base_type& other, const platform_info& platform) const = 0;
 
             virtual void to_string(std::ostringstream& ss) const = 0;
 
@@ -123,16 +127,12 @@ namespace michaelcc {
                 return qual_type(std::weak_ptr<base_type>(type), qualifiers);
             }
 
-            bool operator==(const qual_type& other) const {
+            bool is_equivalent(const qual_type& other, const platform_info& platform) const {
                 auto t1 = type();
                 auto t2 = other.type();
                 if (!t1 || !t2) return false;
-                return t1->is_assignable_from(*t2) && t2->is_assignable_from(*t1)
+                return t1->is_assignable_from(*t2, platform) && t2->is_assignable_from(*t1, platform)
                     && m_qualifiers == other.qualifiers();
-            }
-            
-            bool operator!=(const qual_type& other) const {
-                return !(*this == other);
             }
 
             std::shared_ptr<base_type> type() const noexcept { 
@@ -198,14 +198,14 @@ namespace michaelcc {
                 return t && dynamic_cast<const ChildType*>(t.get()) != nullptr;
             }
 
-            bool is_assignable_from(const qual_type& other) const {
+            bool is_assignable_from(const qual_type& other, const platform_info& platform) const {
                 if (!is_const() && other.is_const() && !other.type()->is_copy_type()) {
                     return false;
                 }
                 if (is_restrict() && other.is_restrict()) {
                     return false;
                 }
-                return type()->is_assignable_from(*other.type());
+                return type()->is_assignable_from(*other.type(), platform);
             }
 
             uint8_t propagate_qualifiers() const {
@@ -219,7 +219,7 @@ namespace michaelcc {
         public:
             void_type() = default;
 
-            bool is_assignable_from(const base_type& other) const override {
+            bool is_assignable_from(const base_type& other, const platform_info& platform) const override {
                 return typeid(other) == typeid(*this);
             }
 
@@ -246,7 +246,7 @@ namespace michaelcc {
             const std::optional<std::string>& name() const noexcept { return m_name; }
             const std::vector<enumerator>& enumerators() const noexcept { return m_enumerators; }
 
-            bool is_assignable_from(const base_type& other) const override {
+            bool is_assignable_from(const base_type& other, const platform_info& platform) const override {
                 if (typeid(other) != typeid(*this)) {
                     return false;
                 }
@@ -301,39 +301,7 @@ namespace michaelcc {
             bool is_signed() const noexcept { return m_int_qualifiers & SIGNED_INT_QUALIFIER; }
             bool is_long() const noexcept { return m_int_qualifiers & LONG_INT_QUALIFIER; }
 
-            bool is_assignable_from(const base_type& other) const override {
-                if (typeid(other) != typeid(*this)) {
-                    if (const enum_type* other_enum = dynamic_cast<const enum_type*>(&other)) {
-                        return true;
-                    }
-                    
-                    return false;
-                }
-
-                const int_type& other_int = static_cast<const int_type&>(other);
-                // Strict signedness matching - unsigned -> signed requires explicit cast
-                if (is_unsigned() != other_int.is_unsigned()) {
-                    return false;
-                }
-                // Compute effective size rank for proper comparison
-                // C standard integer conversion rank:
-                //   char (0) < short (1) < int (2) < long (3) < long long (4)
-                // int_class: CHAR=0, SHORT=1, INT=2, LONG=3 (represents long long)
-                // LONG_INT_QUALIFIER on INT_INT_CLASS makes it "long int" (rank 3)
-                auto size_rank = [](int_class cls, bool is_long) -> int {
-                    switch (cls) {
-                        case CHAR_INT_CLASS:  return 0;  // char
-                        case SHORT_INT_CLASS: return 1;  // short
-                        case INT_INT_CLASS:   return is_long ? 3 : 2;  // long int vs int
-                        case LONG_INT_CLASS:  return 4;  // long long
-                        default: return -1;
-                    }
-                };
-                int this_rank = size_rank(m_class, is_long());
-                int other_rank = size_rank(other_int.type_class(), other_int.is_long());
-                // Allow smaller or equal rank to be assigned to this type
-                return this_rank >= other_rank;
-            }
+            bool is_assignable_from(const base_type& other, const platform_info& platform) const override;
 
             void to_string(std::ostringstream& ss) const override {
                 if (is_unsigned()) ss << "unsigned ";
@@ -358,7 +326,7 @@ namespace michaelcc {
 
             float_class type_class() const noexcept { return m_class; }
 
-            bool is_assignable_from(const base_type& other) const override {
+            bool is_assignable_from(const base_type& other, const platform_info& platform) const override {
                 if (typeid(other) != typeid(*this)) {
                     return false;
                 }
@@ -382,13 +350,13 @@ namespace michaelcc {
 
             const qual_type& element_type() const noexcept { return m_element_type; }
 
-            bool is_assignable_from(const base_type& other) const override {
+            bool is_assignable_from(const base_type& other, const platform_info& platform) const override {
                 if (typeid(other) != typeid(*this)) {
                     return false;
                 }
 
                 const array_type& other_arr = static_cast<const array_type&>(other);
-                return m_element_type == other_arr.element_type();
+                return m_element_type.is_equivalent(other_arr.element_type(), platform);
             }
 
             void to_string(std::ostringstream& ss) const override {
@@ -411,7 +379,7 @@ namespace michaelcc {
             const qual_type& return_type() const noexcept { return m_return_type; }
             const std::vector<qual_type>& parameter_types() const noexcept { return m_parameter_types; }
 
-            bool is_assignable_from(const base_type& other) const override {
+            bool is_assignable_from(const base_type& other, const platform_info& platform) const override {
                 if (typeid(other) != typeid(*this)) {
                     return false;
                 }
@@ -422,12 +390,12 @@ namespace michaelcc {
                 }
                 for (size_t i = 0; i < m_parameter_types.size(); i++) {
                     // Parameters are contravariant
-                    if (!other_fptr.parameter_types()[i].type()->is_assignable_from(*m_parameter_types[i].type())) {
+                    if (!other_fptr.parameter_types()[i].type()->is_assignable_from(*m_parameter_types[i].type(), platform)) {
                         return false;
                     }
                 }
 
-                return m_return_type.type()->is_assignable_from(*other_fptr.return_type().type());
+                return m_return_type.type()->is_assignable_from(*other_fptr.return_type().type(), platform);
             }
 
             void to_string(std::ostringstream& ss) const override {
@@ -451,14 +419,14 @@ namespace michaelcc {
 
             const qual_type& pointee_type() const noexcept { return m_pointee_type; }
 
-            bool is_assignable_from(const base_type& other) const override {
+            bool is_assignable_from(const base_type& other, const platform_info& platform) const override {
                 // Array-to-pointer decay: int[] can be assigned to int*
                 if (const array_type* other_arr = dynamic_cast<const array_type*>(&other)) {
                     // void* accepts any array
                     if (dynamic_cast<const void_type*>(m_pointee_type.type().get()) != nullptr) {
                         return true;
                     }
-                    return m_pointee_type.type()->is_assignable_from(*other_arr->element_type().type());
+                    return m_pointee_type.type()->is_assignable_from(*other_arr->element_type().type(), platform);
                 }
 
                 if (typeid(other) != typeid(*this)) {
@@ -477,7 +445,7 @@ namespace michaelcc {
                     return true;
                 }
 
-                return m_pointee_type.type()->is_assignable_from(*other_ptr.pointee_type().type());
+                return m_pointee_type.type()->is_assignable_from(*other_ptr.pointee_type().type(), platform);
             }
 
             void to_string(std::ostringstream& ss) const override {
@@ -512,7 +480,7 @@ namespace michaelcc {
             const std::optional<std::string>& name() const noexcept { return m_name; }
             const std::vector<member>& fields() const noexcept { return m_fields; }
 
-            bool is_assignable_from(const base_type& other) const override {
+            bool is_assignable_from(const base_type& other, const platform_info& platform) const override {
                 if (typeid(other) != typeid(*this)) {
                     return false;
                 }
@@ -530,7 +498,7 @@ namespace michaelcc {
                 }
 
                 for (size_t i = 0; i < m_fields.size(); i++) {
-                    if (m_fields[i].member_type != other_struct.fields()[i].member_type) {
+                    if (!m_fields[i].member_type.is_equivalent(other_struct.fields()[i].member_type, platform)) {
                         return false;
                     }
                 }
@@ -540,7 +508,7 @@ namespace michaelcc {
 
             bool is_implemented() const noexcept { 
                 for (const auto& field : m_fields) {
-                    if (field.member_type.type()->is_assignable_from(void_type())) {
+                    if (dynamic_cast<const void_type*>(field.member_type.type().get()) != nullptr) {
                         return false;
                     }
                 }
@@ -591,7 +559,7 @@ namespace michaelcc {
             const std::optional<std::string>& name() const noexcept { return m_name; }
             const std::vector<member>& members() const noexcept { return m_members; }
 
-            bool is_assignable_from(const base_type& other) const override {
+            bool is_assignable_from(const base_type& other, const platform_info& platform) const override {
                 if (typeid(other) != typeid(*this)) {
                     return false;
                 }
@@ -614,7 +582,7 @@ namespace michaelcc {
                 }
                 for (const auto& m : other_union.members()) {
                     auto it = member_types.find(m.name);
-                    if (it == member_types.end() || it->second != m.member_type) {
+                    if (it == member_types.end() || !it->second.is_equivalent(m.member_type, platform)) {
                         return false;
                     }
                 }
@@ -624,7 +592,7 @@ namespace michaelcc {
 
             bool is_implemented() const noexcept { 
                 for (const auto& member : m_members) {
-                    if (member.member_type.type()->is_assignable_from(void_type())) {
+                    if (dynamic_cast<const void_type*>(member.member_type.type().get()) != nullptr) {
                         return false;
                     }
                 }
