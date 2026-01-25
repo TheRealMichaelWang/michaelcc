@@ -1,10 +1,10 @@
-#include "logic/dataflow/constant_folding.hpp"
+#include "logic/optimization/constant_folding.hpp"
 #include "logic/logical.hpp"
 #include "logic/typing.hpp"
 #include "logic/semantic.hpp"
 
 namespace michaelcc {
-    namespace dataflow {
+    namespace optimization {
 
         // Helper to fold float arithmetic operations
         static std::unique_ptr<logical_ir::expression> fold_float_arithmetic(

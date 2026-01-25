@@ -1,11 +1,11 @@
 #ifndef MICHAELCC_IR_SIMPLIFY_HPP
 #define MICHAELCC_IR_SIMPLIFY_HPP
 
-#include "logic/dataflow.hpp"
+#include "logic/optimization.hpp"
 #include "logic/logical.hpp"
 
 namespace michaelcc {
-    namespace dataflow {
+    namespace optimization {
         class ir_simplify_pass final : public transform_pass {
         private:
             class expression_pass : public default_expression_pass {

@@ -1,11 +1,11 @@
 #ifndef MICHAELCC_CONSTANT_FOLDING_HPP
 #define MICHAELCC_CONSTANT_FOLDING_HPP
 
-#include "logic/dataflow.hpp"
+#include "logic/optimization.hpp"
 #include "logic/type_info.hpp"
 
 namespace michaelcc {
-    namespace dataflow {
+    namespace optimization {
         class constant_folding_pass final : public transform_pass {
         private:
             class expression_pass : public default_expression_pass {

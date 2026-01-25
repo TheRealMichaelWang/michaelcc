@@ -1,10 +1,10 @@
-#include "logic/dataflow/constant_prop.hpp"
+#include "logic/optimization/constant_prop.hpp"
 #include "logic/logical.hpp"
 #include <memory>
 #include <variant>
 
 namespace michaelcc {
-    namespace dataflow {
+    namespace optimization {
         void variable_use_analyzer::visit(const logical_ir::variable_declaration& node) {
             m_variable_metrics.insert({ 
                 node.variable(), 

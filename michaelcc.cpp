@@ -4,10 +4,10 @@
 #include "syntax/ast.hpp"
 #include "syntax/parser.hpp"
 #include "logic/semantic.hpp"
-#include "logic/dataflow/constant_folding.hpp"
-#include "logic/dataflow/dead_code.hpp"
-#include "logic/dataflow/constant_prop.hpp"
-#include "logic/dataflow/ir_simplify.hpp"
+#include "logic/optimization/constant_folding.hpp"
+#include "logic/optimization/dead_code.hpp"
+#include "logic/optimization/constant_prop.hpp"
+#include "logic/optimization/ir_simplify.hpp"
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -57,13 +57,13 @@ int main()
 		auto translation_unit = lowerer.release_translation_unit();
 
 
-		auto passes = std::vector<std::unique_ptr<michaelcc::dataflow::transform_pass>>();
-		passes.emplace_back(std::make_unique<michaelcc::dataflow::constant_folding_pass>(platform_info));
-		passes.emplace_back(std::make_unique<michaelcc::dataflow::constant_prop_pass>(translation_unit, platform_info));
-		passes.emplace_back(std::make_unique<michaelcc::dataflow::ir_simplify_pass>());
-		passes.emplace_back(std::make_unique<michaelcc::dataflow::dead_code_pass>());
+		auto passes = std::vector<std::unique_ptr<michaelcc::optimization::transform_pass>>();
+		passes.emplace_back(std::make_unique<michaelcc::optimization::constant_folding_pass>(platform_info));
+		passes.emplace_back(std::make_unique<michaelcc::optimization::constant_prop_pass>(translation_unit, platform_info));
+		passes.emplace_back(std::make_unique<michaelcc::optimization::ir_simplify_pass>());
+		passes.emplace_back(std::make_unique<michaelcc::optimization::dead_code_pass>());
 		
-		int passes_run = michaelcc::dataflow::transform_pass::transform(translation_unit, passes);
+		int passes_run = michaelcc::optimization::transform_pass::transform(translation_unit, passes);
 
 		cout << michaelcc::logical_ir::to_tree_string(translation_unit) << endl;
 		cout << "Passes run: " << passes_run << endl;

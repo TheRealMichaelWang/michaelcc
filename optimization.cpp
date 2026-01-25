@@ -1,11 +1,11 @@
-#include "logic/dataflow.hpp"
+#include "logic/optimization.hpp"
 #include "logic/logical.hpp"
 #include "logic/typing.hpp"
 #include "logic/logical.hpp"
 #include <memory>
 
 namespace michaelcc {
-    namespace dataflow {
+    namespace optimization {
         // expression_traverser constructor
         transform_pass::expression_traverser::expression_traverser(transform_pass& pass) : m_pass(pass) { }
 

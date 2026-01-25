@@ -1,11 +1,11 @@
 #ifndef MICHAELCC_DEAD_CODE_HPP
 #define MICHAELCC_DEAD_CODE_HPP
 
-#include "logic/dataflow.hpp"
+#include "logic/optimization.hpp"
 #include "logic/logical.hpp"
 
 namespace michaelcc {
-    namespace dataflow {
+    namespace optimization {
         class dead_code_pass final : public transform_pass {
         private:
             class expression_pass : public default_expression_pass {

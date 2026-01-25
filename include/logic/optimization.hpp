@@ -1,5 +1,5 @@
-#ifndef MICHAELCC_DATAFLOW_HPP
-#define MICHAELCC_DATAFLOW_HPP
+#ifndef MICHAELCC_OPTIMIZATION_HPP
+#define MICHAELCC_OPTIMIZATION_HPP
 
 #include "logical.hpp"
 #include "symbols.hpp"
@@ -9,7 +9,7 @@
 #include <functional>
 #include <vector>
 namespace michaelcc {
-    namespace dataflow {
+    namespace optimization {
         class transform_pass {
         public:
             class pass_mutator {

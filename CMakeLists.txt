@@ -21,7 +21,7 @@ add_executable(michaelcc
     parser.cpp
     semantic.cpp
     linker.cpp
-    dataflow.cpp
+    optimization.cpp
     constant_folding.cpp
     dead_code.cpp
     constant_prop.cpp

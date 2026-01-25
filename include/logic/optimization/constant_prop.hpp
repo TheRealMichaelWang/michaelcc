@@ -1,8 +1,8 @@
 #ifndef MICHAELCC_CONSTANT_PROPAGATION
 #define MICHAELCC_CONSTANT_PROPAGATION
 
-//#include "logic/dataflow.hpp"
-#include "logic/dataflow.hpp"
+//#include "logic/optimization.hpp"
+#include "logic/optimization.hpp"
 #include "logic/logical.hpp"
 #include "logic/typing.hpp"
 #include "platform.hpp"
@@ -13,7 +13,7 @@
 #include <vector>
 
 namespace michaelcc {
-    namespace dataflow {
+    namespace optimization {
         class variable_use_analyzer : public logical_ir::const_visitor{
         public:
             struct variable_metrics {

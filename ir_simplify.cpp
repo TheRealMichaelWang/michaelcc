@@ -1,10 +1,10 @@
-#include "logic/dataflow/ir_simplify.hpp"
+#include "logic/optimization/ir_simplify.hpp"
 #include "logic/logical.hpp"
 #include <memory>
 #include <variant>
 
 namespace michaelcc {
-    namespace dataflow {
+    namespace optimization {
         std::unique_ptr<logical_ir::expression> ir_simplify_pass::expression_pass::dispatch(std::unique_ptr<logical_ir::set_address>&& node) {
             if (auto address_of = dynamic_cast<logical_ir::address_of*>(node->destination().get())) {
                 if (std::holds_alternative<std::shared_ptr<logical_ir::variable>>(address_of->operand())) {

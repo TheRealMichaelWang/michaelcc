@@ -1,9 +1,9 @@
-#include "logic/dataflow/dead_code.hpp"
+#include "logic/optimization/dead_code.hpp"
 #include "logic/logical.hpp"
 #include "logic/analysis/side_effects.hpp"
 
 namespace michaelcc {
-    namespace dataflow {
+    namespace optimization {
         std::unique_ptr<logical_ir::expression> dead_code_pass::expression_pass::dispatch(std::unique_ptr<logical_ir::conditional_expression>&& node) {
             if (is_truey(*node->condition())) {
                 mark_ir_mutated();
