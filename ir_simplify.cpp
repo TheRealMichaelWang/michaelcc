@@ -91,10 +91,14 @@ namespace michaelcc {
             const auto& operand = node->operand();
             const auto& target_type = node->get_type();
 
-            if (target_type.is_equivalent(operand->get_type(), m_pass.m_layout_calculator.get_platform_info())) {
-                mark_ir_mutated();
-                return node->release_operand();
-            }
+            logic::type_cast* current_type_cast = node.get();
+            do {
+                if (target_type.is_equivalent(current_type_cast->operand()->get_type(), m_pass.m_layout_calculator.get_platform_info())) {
+                    mark_ir_mutated();
+                    return current_type_cast->release_operand();
+                }
+                current_type_cast = dynamic_cast<logic::type_cast*>(current_type_cast->operand().get());
+            } while (current_type_cast);
 
             return node;
         }
