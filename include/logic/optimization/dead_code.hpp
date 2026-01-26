@@ -11,6 +11,7 @@ namespace michaelcc {
             class expression_pass : public default_expression_pass {
             public:
                 std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::conditional_expression>&& node) override;
+                std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::arithmetic_operator>&& node) override;
             };
 
             class statement_pass : public default_statement_pass {
@@ -30,6 +31,16 @@ namespace michaelcc {
             static bool is_falsey(const logic::expression& expression) {
                 if (auto integer_constant = dynamic_cast<const logic::integer_constant*>(&expression)) {
                     return integer_constant->value() == 0;
+                }
+                return false;
+            }
+
+            static bool is_one(const logic::expression& expression) {
+                if (auto integer_constant = dynamic_cast<const logic::integer_constant*>(&expression)) {
+                    return integer_constant->value() == 1;
+                }
+                if (auto floating_constant = dynamic_cast<const logic::floating_constant*>(&expression)) {
+                    return floating_constant->value() == 1.0;
                 }
                 return false;
             }
