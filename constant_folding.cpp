@@ -291,11 +291,6 @@ namespace michaelcc {
             const auto& operand = node->operand();
             const auto& target_type = node->get_type();
 
-            if (target_type.is_equivalent(operand->get_type(), m_layout_calculator.get_platform_info())) {
-                mark_ir_mutated();
-                return node->release_operand();
-            }
-
             // Integer constant being cast
             if (const auto* int_const = dynamic_cast<const logic::integer_constant*>(operand.get())) {
                 const auto* int_type = dynamic_cast<const typing::int_type*>(int_const->get_type().type().get());

@@ -86,5 +86,17 @@ namespace michaelcc {
             }
             return node;
         }
+
+        std::unique_ptr<logic::expression> ir_simplify_pass::expression_pass::dispatch(std::unique_ptr<logic::type_cast>&& node) {
+            const auto& operand = node->operand();
+            const auto& target_type = node->get_type();
+
+            if (target_type.is_equivalent(operand->get_type(), m_pass.m_layout_calculator.get_platform_info())) {
+                mark_ir_mutated();
+                return node->release_operand();
+            }
+
+            return node;
+        }
     }
 }

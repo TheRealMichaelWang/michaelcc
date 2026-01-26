@@ -6,7 +6,6 @@
 #include "logic/semantic.hpp"
 #include "logic/optimization/constant_folding.hpp"
 #include "logic/optimization/dead_code.hpp"
-#include "logic/optimization/constant_prop.hpp"
 #include "logic/optimization/ir_simplify.hpp"
 #include <fstream>
 #include <iostream>
@@ -59,8 +58,7 @@ int main()
 
 		auto passes = std::vector<std::unique_ptr<michaelcc::optimization::pass>>();
 		passes.emplace_back(michaelcc::optimization::make_constant_folding_pass(platform_info));
-		passes.emplace_back(michaelcc::optimization::make_constant_prop_pass(translation_unit, platform_info));
-		passes.emplace_back(std::make_unique<michaelcc::optimization::ir_simplify_pass>());
+		passes.emplace_back(std::make_unique<michaelcc::optimization::ir_simplify_pass>(platform_info));
 		passes.emplace_back(std::make_unique<michaelcc::optimization::dead_code_pass>());
 		
 		int passes_run = michaelcc::optimization::transform(translation_unit, passes);

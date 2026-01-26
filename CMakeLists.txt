@@ -24,7 +24,6 @@ add_executable(michaelcc
     optimization.cpp
     constant_folding.cpp
     dead_code.cpp
-    constant_prop.cpp
     ir_simplify.cpp
     type_info.cpp
 )
