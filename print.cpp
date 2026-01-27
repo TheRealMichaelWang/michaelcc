@@ -945,6 +945,13 @@ public:
         after_print(2);
     }
 
+    void visit(const logic::compound_expression& node) override {
+        before_print();
+        print_indent();
+        m_out << "compound_expression\n";
+        after_print(1);
+    }
+
     // expression_statement: 1 child (expression)
     void visit(const logic::expression_statement& node) override {
         before_print();

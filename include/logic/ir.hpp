@@ -170,6 +170,7 @@ namespace michaelcc {
 			compound_expression,
 			set_address,
 			set_variable,
+			compound_expression,
 			enumerator_literal
 		>;
 
@@ -197,6 +198,7 @@ namespace michaelcc {
 			const compound_expression,
 			const set_address,
 			const set_variable,
+			const compound_expression,
 			const enumerator_literal
 		>;
 		template<typename ReturnType>
@@ -775,35 +777,6 @@ namespace michaelcc {
 			}
 		};
 
-		class compound_expression final : public expression {
-		private:
-			std::shared_ptr<control_block> m_control_block;
-			std::unique_ptr<expression> m_return_expression;
-
-		public:
-			compound_expression(std::shared_ptr<control_block>&& control_block, std::unique_ptr<expression>&& return_expression)
-				: m_control_block(std::move(control_block)), m_return_expression(std::move(return_expression)) {}
-
-			const std::shared_ptr<control_block>& control_block() const noexcept { return m_control_block; }
-			const std::unique_ptr<expression>& return_expression() const noexcept { return m_return_expression; }
-
-			std::unique_ptr<expression> release_return_expression() noexcept { return std::move(m_return_expression); }
-
-			const typing::qual_type get_type() const override { return m_return_expression->get_type(); }
-
-			void mutable_accept(visitor& v) override {
-				v.visit(*this);
-				m_control_block->mutable_accept(v);
-				m_return_expression->mutable_accept(v);
-			}
-
-			void accept(const_visitor& v) const override {
-				v.visit(*this);
-				m_control_block->accept(v);
-				m_return_expression->accept(v);
-			}
-		};
-
 		class expression_statement final : public statement {
 		private:
 			std::unique_ptr<expression> m_expression;
@@ -858,12 +831,16 @@ namespace michaelcc {
 		private:
 			std::unique_ptr<expression> m_value;
 			std::weak_ptr<function_definition> m_function;
+
+			bool m_is_compound_return;
 		public:
-			explicit return_statement(std::unique_ptr<expression>&& value, std::weak_ptr<function_definition>&& function)
-				: m_value(std::move(value)), m_function(std::move(function)) {}
+			explicit return_statement(std::unique_ptr<expression>&& value, std::weak_ptr<function_definition>&& function, bool is_compound_return = false)
+				: m_value(std::move(value)), m_function(std::move(function)), m_is_compound_return(is_compound_return) {}
 
 			const std::unique_ptr<expression>& value() const noexcept { return m_value; }
 			const std::weak_ptr<function_definition>& function() const noexcept { return m_function; }
+
+			bool is_compound_return() const noexcept { return m_is_compound_return; }
 
 			void mutable_accept(visitor& v) override {
 				v.visit(*this);
@@ -877,6 +854,30 @@ namespace michaelcc {
 				if (m_value) {
 					m_value->accept(v);
 				}
+			}
+		};
+
+		class compound_expression final : public expression {
+		private:
+			std::shared_ptr<control_block> m_control_block;
+			typing::qual_type m_return_type;
+
+		public:
+			compound_expression(std::shared_ptr<control_block>&& control_block, typing::qual_type&& return_type)
+			: m_control_block(std::move(control_block)), m_return_type(std::move(return_type)) { }
+
+			const std::shared_ptr<control_block>& control_block() const noexcept { return m_control_block; }
+
+			const typing::qual_type get_type() const override { return m_return_type; }
+
+			void mutable_accept(visitor& v) override {
+				v.visit(*this);
+				m_control_block->mutable_accept(v);
+			}
+
+			void accept(const_visitor& v) const override {
+				v.visit(*this);
+				m_control_block->accept(v);
 			}
 		};
 
