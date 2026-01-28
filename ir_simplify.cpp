@@ -39,9 +39,18 @@ namespace michaelcc {
 
         std::unique_ptr<logic::expression> ir_simplify_pass::expression_pass::dispatch(std::unique_ptr<logic::compound_expression>&& node) {
             if (node->control_block()->statements().empty()) {
-                return node->release_return_expression();
+                mark_ir_mutated();
+                return nullptr;
             }
-            return node;
+
+            if (node->control_block()->statements().size() == 1) {
+                if (auto return_statement = dynamic_cast<logic::return_statement*>(node->control_block()->statements()[0].get())) {
+                    if (return_statement->is_compound_return()) {
+                        mark_ir_mutated();
+                        return return_statement->release_value();
+                    }
+                }
+            }
         }
 
         std::unique_ptr<logic::expression> ir_simplify_pass::expression_pass::dispatch(std::unique_ptr<logic::member_access>&& node) {

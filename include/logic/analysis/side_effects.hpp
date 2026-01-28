@@ -69,8 +69,8 @@ namespace michaelcc {
                     bool dispatch(const logic::union_initializer& node) override { return (*this)(*node.initializer()); }
                     bool dispatch(const logic::function_call& node) override { return true; }
 
-                    bool dispatch(const logic::compound_expression& node) override { 
-                        return m_side_effects_analyzer.expression_has_side_effects(*node.return_expression()) || m_side_effects_analyzer.control_block_has_side_effects(*node.control_block());
+                    bool dispatch(const logic::compound_expression& node) override {
+                        return m_side_effects_analyzer.control_block_has_side_effects(*node.control_block());
                     }
                 };
                 
@@ -96,7 +96,7 @@ namespace michaelcc {
                     bool dispatch(const logic::loop_statement& node) override { return control_block_analyzer(*node.body()); }
                     bool dispatch(const logic::break_statement& node) override { return false; }
                     bool dispatch(const logic::continue_statement& node) override { return false; }
-                    bool dispatch(const logic::return_statement& node) override { return true; }
+                    bool dispatch(const logic::return_statement& node) override { return !node.is_compound_return(); }
 
                     bool dispatch(const logic::expression_statement& node) override { 
                         return node.expression() != nullptr && m_side_effects_analyzer.expression_has_side_effects(*node.expression()); 

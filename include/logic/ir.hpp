@@ -840,6 +840,8 @@ namespace michaelcc {
 			const std::unique_ptr<expression>& value() const noexcept { return m_value; }
 			const std::weak_ptr<function_definition>& function() const noexcept { return m_function; }
 
+			std::unique_ptr<expression> release_value() noexcept { return std::move(m_value); }
+
 			bool is_compound_return() const noexcept { return m_is_compound_return; }
 
 			void mutable_accept(visitor& v) override {

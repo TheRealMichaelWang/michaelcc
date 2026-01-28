@@ -196,8 +196,8 @@ namespace michaelcc {
 
         std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::compound_expression& node) {
             auto to_transform = std::make_unique<logic::compound_expression>(
-                m_pass.transform_control_block(*node.control_block()), 
-                m_pass.m_expression_traverser(*node.return_expression())
+                m_pass.transform_control_block(*node.control_block()),
+                typing::qual_type(node.get_type())
             );
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
