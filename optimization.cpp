@@ -330,8 +330,7 @@ namespace michaelcc {
                         std::move(new_name), 
                         variable->qualifiers(), 
                         typing::qual_type(variable->get_type()), 
-                        variable->is_global(), 
-                        std::weak_ptr<logic::symbol_context>(context.new_context)
+                        variable->is_global()
                     );
                 }
             }

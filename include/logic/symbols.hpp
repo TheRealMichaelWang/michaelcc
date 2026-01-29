@@ -16,22 +16,14 @@ namespace michaelcc {
         class symbol {
         protected:
             std::string m_name;
-            std::weak_ptr<symbol_context> m_context;
 
         public:
-            explicit symbol(std::string&& name, std::weak_ptr<symbol_context>&& context) : m_name(std::move(name)), m_context(std::move(context)) {}
+            explicit symbol(std::string&& name) : m_name(std::move(name)) {}
             virtual ~symbol() = default;
 
             const std::string& name() const noexcept { return m_name; }
 
             virtual std::string to_string() const noexcept = 0;
-
-            void set_context(std::weak_ptr<symbol_context>&& context) { 
-                if (auto existing = m_context.lock()) {
-                    throw std::runtime_error("Context already set");
-                }
-                m_context = std::move(context); 
-            }
         };
 
         class symbol_context {
@@ -63,6 +55,8 @@ namespace michaelcc {
             }
 
             const std::vector<std::shared_ptr<symbol>>& symbols() const noexcept { return m_symbols; }
+
+            std::vector<std::shared_ptr<symbol>> release_symbols() noexcept { return std::move(m_symbols); } 
         };
 
         class symbol_explorer {

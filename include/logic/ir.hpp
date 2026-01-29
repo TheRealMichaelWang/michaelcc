@@ -234,8 +234,8 @@ namespace michaelcc {
             typing::qual_type m_type;
 			bool m_is_global;
 		public:
-			variable(std::string&& name, uint8_t qualifiers, typing::qual_type&& var_type, bool is_global, std::weak_ptr<symbol_context>&& context)
-				: symbol(std::move(name), std::move(context)), m_qualifiers(qualifiers), m_type(std::move(var_type)), m_is_global(is_global) {}
+			variable(std::string&& name, uint8_t qualifiers, typing::qual_type&& var_type, bool is_global)
+				: symbol(std::move(name)), m_qualifiers(qualifiers), m_type(std::move(var_type)), m_is_global(is_global) {}
 
 			uint8_t qualifiers() const noexcept { return m_qualifiers; }
 			const typing::qual_type& get_type() const noexcept { return m_type; }
@@ -997,8 +997,8 @@ namespace michaelcc {
 			source_location m_location;
 
 		public:
-			explicit function_definition(std::string&& name, typing::qual_type&& return_type, std::vector<std::shared_ptr<variable>>&& parameters, uint8_t qualifiers, std::weak_ptr<symbol_context>&& context, source_location&& location)
-				: symbol(std::move(name), std::move(context)), control_block(), m_return_type(std::move(return_type)), m_parameters(std::move(parameters)), m_qualifiers(qualifiers), m_location(std::move(location)) {}
+			explicit function_definition(std::string&& name, typing::qual_type&& return_type, std::vector<std::shared_ptr<variable>>&& parameters, uint8_t qualifiers, source_location&& location)
+				: symbol(std::move(name)), control_block(), m_return_type(std::move(return_type)), m_parameters(std::move(parameters)), m_qualifiers(qualifiers), m_location(std::move(location)) {}
 
 			const typing::qual_type& return_type() const noexcept { return m_return_type; }
 			const std::vector<std::shared_ptr<variable>>& parameters() const noexcept { return m_parameters; }
@@ -1219,8 +1219,8 @@ namespace michaelcc {
 			typing::enum_type::enumerator m_enumerator;
 			std::shared_ptr<typing::enum_type> m_enum_type;
 		public:
-			enumerator_symbol(typing::enum_type::enumerator&& enumerator, std::shared_ptr<typing::enum_type>&& enum_type, std::weak_ptr<symbol_context>&& context)
-				: symbol(std::move(enumerator.name), std::move(context)), m_enumerator(std::move(enumerator)), m_enum_type(std::move(enum_type)) {}
+			enumerator_symbol(typing::enum_type::enumerator&& enumerator, std::shared_ptr<typing::enum_type>&& enum_type)
+				: symbol(std::move(enumerator.name)), m_enumerator(std::move(enumerator)), m_enum_type(std::move(enum_type)) {}
 
 			const typing::enum_type::enumerator& enumerator() const noexcept { return m_enumerator; }
 			const std::shared_ptr<typing::enum_type>& enum_type() const noexcept { return m_enum_type; }

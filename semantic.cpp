@@ -1092,8 +1092,7 @@ logic::variable_declaration semantic_lowerer::lower_variable_declaration(const a
         std::string(node.identifier()),
         node.qualifiers(),
         typing::qual_type(type),
-        is_global,
-        m_symbol_explorer.current_context()
+        is_global
     );
     if(!m_symbol_explorer.add(variable)) {
         std::ostringstream ss;

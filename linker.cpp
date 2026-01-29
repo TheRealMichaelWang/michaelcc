@@ -73,8 +73,7 @@ void semantic_lowerer::forward_declare_types::visit(const ast::enum_declaration&
     for (auto& enumerator : enum_type->enumerators()) {
         m_lowerer.m_translation_unit.declare_global(std::make_shared<logic::enumerator_symbol>(
             typing::enum_type::enumerator(enumerator),
-            std::shared_ptr<typing::enum_type>(enum_type),
-            m_lowerer.m_translation_unit.global_context()
+            std::shared_ptr<typing::enum_type>(enum_type)
         ));
     }
 
@@ -135,8 +134,7 @@ void semantic_lowerer::forward_declare_functions::forward_declare_function(const
             std::string(parameter.param_name),
             parameter.qualifiers,
             m_lowerer.resolve_type(*parameter.param_type).to_owning(),
-            false,
-            std::weak_ptr<logic::symbol_context>()
+            false
         ));
     }
 
@@ -145,7 +143,6 @@ void semantic_lowerer::forward_declare_functions::forward_declare_function(const
         m_lowerer.resolve_type(return_type).to_owning(),
         std::move(logical_parameters),
         qualifiers,
-        std::weak_ptr<logic::symbol_context>(m_lowerer.m_translation_unit.global_context()),
         source_location(location)
     );
 
