@@ -51,6 +51,8 @@ namespace michaelcc {
                     }
                 }
             }
+
+            return node;
         }
 
         std::unique_ptr<logic::expression> ir_simplify_pass::expression_pass::dispatch(std::unique_ptr<logic::member_access>&& node) {

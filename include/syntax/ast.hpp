@@ -1211,20 +1211,24 @@ namespace michaelcc {
             std::unique_ptr<ast_element> m_return_type;
             std::string m_function_name;
             std::vector<function_parameter> m_parameters;
+            uint8_t m_qualifiers;
 
         public:
             function_prototype(std::unique_ptr<ast_element>&& return_type,
                 std::string&& function_name,
                 std::vector<function_parameter>&& parameters,
+                uint8_t qualifiers,
                 source_location&& location)
                 : ast_element(std::move(location)),
                 m_return_type(std::move(return_type)),
                 m_function_name(std::move(function_name)),
-                m_parameters(std::move(parameters)) {}
+                m_parameters(std::move(parameters)),
+                m_qualifiers(qualifiers) {}
 
             const std::unique_ptr<ast_element>& return_type() const noexcept { return m_return_type; }
             const std::string& function_name() const noexcept { return m_function_name; }
             const std::vector<function_parameter>& parameters() const noexcept { return m_parameters; }
+            uint8_t qualifiers() const noexcept { return m_qualifiers; }
 
             std::unique_ptr<ast_element> clone() const override {
                 std::vector<function_parameter> cloned_params;
@@ -1232,7 +1236,7 @@ namespace michaelcc {
                 for (const auto& p : m_parameters) {
                     cloned_params.emplace_back(p.param_type->clone(), std::string(p.param_name), p.qualifiers);
                 }
-                return std::make_unique<function_prototype>(m_return_type->clone(), std::string(m_function_name), std::move(cloned_params), source_location(location()));
+                return std::make_unique<function_prototype>(m_return_type->clone(), std::string(m_function_name), std::move(cloned_params), m_qualifiers, source_location(location()));
             }
 
             void accept(visitor& v) const override {
@@ -1249,6 +1253,7 @@ namespace michaelcc {
             std::unique_ptr<ast_element> m_return_type;
             std::string m_function_name;
             std::vector<function_parameter> m_parameters;
+            uint8_t m_qualifiers;
             context_block m_function_body;
 
         public:
@@ -1256,16 +1261,19 @@ namespace michaelcc {
                 std::string&& function_name,
                 std::vector<function_parameter>&& parameters,
                 context_block&& function_body,
+                uint8_t qualifiers,
                 source_location&& location)
                 : ast_element(std::move(location)),
                 m_return_type(std::move(return_type)),
                 m_function_name(std::move(function_name)),
                 m_parameters(std::move(parameters)),
+                m_qualifiers(qualifiers),
                 m_function_body(std::move(function_body)) {}
 
             const ast_element* return_type() const noexcept { return m_return_type.get(); }
             const std::string& function_name() const noexcept { return m_function_name; }
             const std::vector<function_parameter>& parameters() const noexcept { return m_parameters; }
+            uint8_t qualifiers() const noexcept { return m_qualifiers; }
             const context_block& function_body() const noexcept { return m_function_body; }
 
             std::unique_ptr<ast_element> clone() const override {
@@ -1280,6 +1288,7 @@ namespace michaelcc {
                     std::string(m_function_name),
                     std::move(cloned_params),
                     std::move(*static_cast<context_block*>(cloned_body.release())),
+                    m_qualifiers,
                     source_location(location())
                 );
             }

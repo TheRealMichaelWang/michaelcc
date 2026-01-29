@@ -7,6 +7,7 @@
 #include "logic/optimization/constant_folding.hpp"
 #include "logic/optimization/dead_code.hpp"
 #include "logic/optimization/ir_simplify.hpp"
+#include "logic/optimization/inline_functions.hpp"
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -16,7 +17,7 @@ using namespace std;
 int main()
 {
     cout << "Michael C Compiler" << endl;
-	ifstream infile("../../tests/constant_folding.c");
+	ifstream infile("../tests/constant_folding.c");
 	
 	if (!infile.is_open()) {
 		cerr << "Failed to open file!" << endl;
@@ -27,7 +28,7 @@ int main()
 	ss << infile.rdbuf();
 
 	try {
-		michaelcc::preprocessor preprocessor(ss.str(), "../../tests/constant_folding.c");
+		michaelcc::preprocessor preprocessor(ss.str(), "../tests/constant_folding.c");
 		preprocessor.preprocess();
 		vector<michaelcc::token> tokens = preprocessor.result();
 
@@ -60,7 +61,7 @@ int main()
 		passes.emplace_back(michaelcc::optimization::make_constant_folding_pass(platform_info));
 		passes.emplace_back(std::make_unique<michaelcc::optimization::ir_simplify_pass>(platform_info));
 		passes.emplace_back(std::make_unique<michaelcc::optimization::dead_code_pass>());
-		
+		passes.emplace_back(std::make_unique<michaelcc::optimization::inline_functions_pass>());
 		int passes_run = michaelcc::optimization::transform(translation_unit, passes);
 
 		cout << michaelcc::logic::to_tree_string(translation_unit) << endl;

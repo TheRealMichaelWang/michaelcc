@@ -127,7 +127,7 @@ void semantic_lowerer::implement_type_declarations::visit(const ast::union_decla
     }
 }
 
-void semantic_lowerer::forward_declare_functions::forward_declare_function(const std::string& function_name, const ast::ast_element& return_type, const std::vector<ast::function_parameter>& parameters, const source_location& location) {
+void semantic_lowerer::forward_declare_functions::forward_declare_function(const std::string& function_name, const ast::ast_element& return_type, const std::vector<ast::function_parameter>& parameters, const uint8_t qualifiers, const source_location& location) {
     std::vector<std::shared_ptr<logic::variable>> logical_parameters;
     logical_parameters.reserve(parameters.size());
     for (const ast::function_parameter& parameter : parameters) {
@@ -144,6 +144,7 @@ void semantic_lowerer::forward_declare_functions::forward_declare_function(const
         std::string(function_name),
         m_lowerer.resolve_type(return_type).to_owning(),
         std::move(logical_parameters),
+        qualifiers,
         std::weak_ptr<logic::symbol_context>(m_lowerer.m_translation_unit.global_context()),
         source_location(location)
     );

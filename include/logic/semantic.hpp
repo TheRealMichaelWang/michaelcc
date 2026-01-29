@@ -73,16 +73,16 @@ namespace michaelcc {
         private:
             semantic_lowerer& m_lowerer;
 
-            void forward_declare_function(const std::string& function_name, const ast::ast_element& return_type, const std::vector<ast::function_parameter>& parameters, const source_location& location);
+            void forward_declare_function(const std::string& function_name, const ast::ast_element& return_type, const std::vector<ast::function_parameter>& parameters, const uint8_t qualifiers, const source_location& location);
         public:
             forward_declare_functions(semantic_lowerer& lowerer) : m_lowerer(lowerer) { }
 
             void visit(const ast::function_declaration& node) override {
-                forward_declare_function(node.function_name(), *node.return_type(), node.parameters(), node.location());
+                forward_declare_function(node.function_name(), *node.return_type(), node.parameters(), node.qualifiers(), node.location());
             }
 
             void visit(const ast::function_prototype& node) override {
-                forward_declare_function(node.function_name(), *node.return_type(), node.parameters(), node.location());
+                forward_declare_function(node.function_name(), *node.return_type(), node.parameters(), node.qualifiers(), node.location());
             }
         };
 

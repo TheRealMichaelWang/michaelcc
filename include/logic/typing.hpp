@@ -17,6 +17,13 @@ namespace michaelcc {
     struct platform_info;
 
     namespace typing {
+        // Function qualifiers (for function declarations)
+        enum function_qualifier {
+            NO_FUNCTION_QUALIFIER = 0,
+            INLINE_FUNCTION_QUALIFIER = 1,
+            TAIL_CALL_FUNCTION_QUALIFIER = 2
+        };
+
 		// Storage class specifiers (for declarations)
 		enum storage_class {
 			NO_STORAGE_CLASS = 0,

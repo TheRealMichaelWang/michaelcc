@@ -196,7 +196,7 @@ namespace michaelcc {
 
         std::unique_ptr<logic::expression> default_pass::expression_traverser::dispatch(const logic::compound_expression& node) {
             auto to_transform = std::make_unique<logic::compound_expression>(
-                m_pass.transform_control_block(*node.control_block()),
+                m_pass.transform_control_block(*node.control_block(), {}),
                 typing::qual_type(node.get_type())
             );
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
@@ -207,9 +207,10 @@ namespace michaelcc {
         }
 
         // statement_traverser methods
-        std::shared_ptr<logic::control_block> default_pass::transform_control_block(const logic::control_block& node) {
+        std::shared_ptr<logic::control_block> default_pass::transform_control_block(const logic::control_block& node, std::vector<std::unique_ptr<logic::statement>>&& preamble_statements) {
             std::shared_ptr<logic::control_block> result = std::make_shared<logic::control_block>();
             std::vector<std::unique_ptr<logic::statement>> statements;
+            statements.insert(statements.end(), std::make_move_iterator(preamble_statements.begin()), std::make_move_iterator(preamble_statements.end()));
             statements.reserve(node.statements().size());
             for (const auto& statement : node.statements()) {
                 auto transformed_statement = m_statement_traverser(*statement);
@@ -261,7 +262,10 @@ namespace michaelcc {
                 value = m_pass.m_expression_traverser(*node.value());
             }
             
-            auto to_transform = std::make_unique<logic::return_statement>(std::move(value), std::weak_ptr<logic::function_definition>());
+            auto to_transform = std::make_unique<logic::return_statement>(
+                std::move(value), 
+                std::weak_ptr<logic::function_definition>(node.function())
+            );
             return m_pass.m_statement_pass->dispatch(std::move(to_transform));
         }
 
@@ -270,12 +274,12 @@ namespace michaelcc {
             
             std::shared_ptr<logic::control_block> else_body = nullptr;
             if (node.else_body()) {
-                else_body = m_pass.transform_control_block(*node.else_body());
+                else_body = m_pass.transform_control_block(*node.else_body(), {});
             }
             
             auto to_transform = std::make_unique<logic::if_statement>(
                 std::move(condition), 
-                m_pass.transform_control_block(*node.then_body()),
+                m_pass.transform_control_block(*node.then_body(), {}),
                 std::move(else_body)
             );
             return m_pass.m_statement_pass->dispatch(std::move(to_transform));
@@ -284,7 +288,7 @@ namespace michaelcc {
         std::unique_ptr<logic::statement> default_pass::statement_traverser::dispatch(const logic::loop_statement& node) {
             std::unique_ptr<logic::expression> condition = m_pass.m_expression_traverser(*node.condition());
             auto to_transform = std::make_unique<logic::loop_statement>(
-                m_pass.transform_control_block(*node.body()),
+                m_pass.transform_control_block(*node.body(), {}),
                 std::move(condition),
                 node.check_condition_first()
             );
@@ -300,7 +304,9 @@ namespace michaelcc {
         }
         
         std::unique_ptr<logic::statement> default_pass::statement_traverser::dispatch(const logic::statement_block& node) {
-            auto to_transform = std::make_unique<logic::statement_block>(m_pass.transform_control_block(*node.control_block()));
+            auto to_transform = std::make_unique<logic::statement_block>(
+                m_pass.transform_control_block(*node.control_block(), {})
+            );
             return m_pass.m_statement_pass->dispatch(std::move(to_transform));
         }
 

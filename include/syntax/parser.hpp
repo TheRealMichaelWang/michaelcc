@@ -69,6 +69,7 @@ namespace michaelcc {
 		std::unique_ptr<ast::enum_declaration> parse_enum_declaration();
 		std::unique_ptr<ast::typedef_declaration> parse_typedef_declaration();
 
+		uint8_t parse_function_qualifiers();
 		std::vector<ast::function_parameter> parse_parameter_list();
 		std::unique_ptr<ast::function_prototype> parse_function_prototype();
 		std::unique_ptr<ast::function_declaration> parse_function_declaration();

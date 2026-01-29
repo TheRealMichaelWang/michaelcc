@@ -864,6 +864,10 @@ std::unique_ptr<ast::typedef_declaration> michaelcc::parser::parse_typedef_decla
     return std::make_unique<ast::typedef_declaration>(std::move(decl.type), std::move(decl.identifier), std::move(location));
 }
 
+uint8_t parser::parse_function_qualifiers() {
+    return typing::NO_FUNCTION_QUALIFIER;
+}
+
 std::vector<ast::function_parameter> parser::parse_parameter_list() {
     std::vector<ast::function_parameter> params;
     match_token(MICHAELCC_TOKEN_OPEN_PAREN);
@@ -888,6 +892,7 @@ std::vector<ast::function_parameter> parser::parse_parameter_list() {
 std::unique_ptr<ast::function_prototype> parser::parse_function_prototype() {
     source_location location = current_loc;
     
+    uint8_t qualifiers = parse_function_qualifiers();
     auto return_type = parse_type();
     std::string func_name = current_token().string();
     next_token();
@@ -896,13 +901,14 @@ std::unique_ptr<ast::function_prototype> parser::parse_function_prototype() {
     next_token();
 
     return std::make_unique<ast::function_prototype>(
-        std::move(return_type), std::move(func_name), std::move(params), std::move(location)
+        std::move(return_type), std::move(func_name), std::move(params), qualifiers, std::move(location)
     );
 }
 
 std::unique_ptr<ast::function_declaration> parser::parse_function_declaration() {
     source_location location = current_loc;
 
+    uint8_t qualifiers = parse_function_qualifiers();
     auto return_type = parse_type();
     std::string func_name = current_token().string();
     next_token();
@@ -910,7 +916,7 @@ std::unique_ptr<ast::function_declaration> parser::parse_function_declaration() 
     auto body = parse_block();
     
     return std::make_unique<ast::function_declaration>(
-        std::move(return_type), std::move(func_name), std::move(params), std::move(body), std::move(location)
+        std::move(return_type), std::move(func_name), std::move(params), std::move(body), qualifiers, std::move(location)
     );
 }
 

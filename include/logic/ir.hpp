@@ -993,15 +993,21 @@ namespace michaelcc {
 		private:
 			typing::qual_type m_return_type;
 			std::vector<std::shared_ptr<variable>> m_parameters;
+			uint8_t m_qualifiers;
 			source_location m_location;
 
 		public:
-			explicit function_definition(std::string&& name, typing::qual_type&& return_type, std::vector<std::shared_ptr<variable>>&& parameters, std::weak_ptr<symbol_context>&& context, source_location&& location)
-				: symbol(std::move(name), std::move(context)), control_block(), m_return_type(std::move(return_type)), m_parameters(std::move(parameters)), m_location(std::move(location)) {}
+			explicit function_definition(std::string&& name, typing::qual_type&& return_type, std::vector<std::shared_ptr<variable>>&& parameters, uint8_t qualifiers, std::weak_ptr<symbol_context>&& context, source_location&& location)
+				: symbol(std::move(name), std::move(context)), control_block(), m_return_type(std::move(return_type)), m_parameters(std::move(parameters)), m_qualifiers(qualifiers), m_location(std::move(location)) {}
 
 			const typing::qual_type& return_type() const noexcept { return m_return_type; }
 			const std::vector<std::shared_ptr<variable>>& parameters() const noexcept { return m_parameters; }
 			const source_location& location() const noexcept { return m_location; }
+
+			uint8_t qualifiers() const noexcept { return m_qualifiers; }
+
+			bool should_inline() const noexcept { return m_qualifiers & typing::INLINE_FUNCTION_QUALIFIER; }
+			bool should_tail_call_optimize() const noexcept { return m_qualifiers & typing::TAIL_CALL_FUNCTION_QUALIFIER; }
 
             std::string to_string() const noexcept override {
                 return std::format("function {}", name());
@@ -1241,6 +1247,10 @@ namespace michaelcc {
 
 			const callable& callee() const noexcept { return m_callee; }
 			const std::vector<std::unique_ptr<expression>>& arguments() const noexcept { return m_arguments; }
+
+			std::vector<std::unique_ptr<expression>> release_arguments() noexcept {
+				return std::move(m_arguments);
+			}
 
 			std::vector<typing::qual_type> parameter_types() const {
 				return std::visit(overloaded { 

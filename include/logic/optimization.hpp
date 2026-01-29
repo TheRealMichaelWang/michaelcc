@@ -173,10 +173,10 @@ namespace michaelcc {
             statement_traverser m_statement_traverser;
 
             std::shared_ptr<logic::variable> replace_variable(const std::shared_ptr<logic::variable>& variable) const;
-            std::shared_ptr<logic::control_block> transform_control_block(const logic::control_block& node);
-
-            friend class default_statement_pass;
-        public:
+        protected:
+            std::shared_ptr<logic::control_block> transform_control_block(const logic::control_block& node, std::vector<std::unique_ptr<logic::statement>>&& preamble_statements = {});
+        
+            public:
             default_pass(std::unique_ptr<expression_pass>&& expression_transformer, 
                 std::unique_ptr<statement_pass>&& statement_transformer, 
                 std::function<std::string(const std::string&)> variable_name_transformer = [](const std::string& name) { return std::format("_{}", name); },
