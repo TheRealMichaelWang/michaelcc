@@ -3,6 +3,7 @@
 
 #include "logic/optimization.hpp"
 #include "logic/ir.hpp"
+#include "logic/typing.hpp"
 #include <memory>
 
 namespace michaelcc {

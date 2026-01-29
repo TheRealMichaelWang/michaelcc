@@ -27,6 +27,11 @@ namespace michaelcc {
                 std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::type_cast>&& node) override;
             };
 
+            class statement_pass : public default_statement_pass {
+            protected:
+                std::unique_ptr<logic::statement> dispatch(std::unique_ptr<logic::expression_statement>&& node) override;
+            };
+
             type_layout_calculator m_layout_calculator;
         public:
             ir_simplify_pass(const platform_info& platform_info) : m_layout_calculator(platform_info), default_pass(

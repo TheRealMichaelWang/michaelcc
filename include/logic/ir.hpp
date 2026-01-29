@@ -868,8 +868,9 @@ namespace michaelcc {
 			compound_expression(std::shared_ptr<control_block>&& control_block, typing::qual_type&& return_type)
 			: m_control_block(std::move(control_block)), m_return_type(std::move(return_type)) { }
 
+			std::shared_ptr<control_block> release_control_block() noexcept { return std::move(m_control_block); }
+			
 			const std::shared_ptr<control_block>& control_block() const noexcept { return m_control_block; }
-
 			const typing::qual_type get_type() const override { return m_return_type; }
 
 			void mutable_accept(visitor& v) override {
