@@ -181,6 +181,15 @@ void semantic_lowerer::forward_declare_functions::forward_declare_function(const
                 m_lowerer.resolve_type(return_type).to_string()
             ), location);
         }
+
+        if (existing_function->qualifiers() != qualifiers) {
+            throw m_lowerer.panic(std::format(
+                "Qualifier mismatch for function {}; Function originally declared with qualifiers {}, but now declared with qualifiers {}.", 
+                function_name,
+                existing_function->qualifiers(),
+                qualifiers
+            ), location);
+        }
     } else {
         m_lowerer.m_translation_unit.declare_global(std::move(function_definition));
     }
