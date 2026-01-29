@@ -71,6 +71,8 @@ namespace michaelcc {
 				{ "unsigned", MICHAELCC_TOKEN_UNSIGNED },
 				{ "void", MICHAELCC_TOKEN_VOID },
 				{ "volatile", MICHAELCC_TOKEN_VOLATILE },
+				{ "inline", MICHAELCC_TOKEN_INLINE },
+				{ "tail_call_optimize", MICHAELCC_TOKEN_TAIL_CALL_OPTIMIZE },
 				{ "while", MICHAELCC_TOKEN_WHILE },
 			};
 

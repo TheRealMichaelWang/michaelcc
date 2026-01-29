@@ -865,7 +865,15 @@ std::unique_ptr<ast::typedef_declaration> michaelcc::parser::parse_typedef_decla
 }
 
 uint8_t parser::parse_function_qualifiers() {
-    return typing::NO_FUNCTION_QUALIFIER;
+    uint8_t qualifiers = typing::NO_FUNCTION_QUALIFIER;
+    for (;;) {
+        switch (current_token().type()) {
+        case MICHAELCC_TOKEN_INLINE: qualifiers |= typing::INLINE_FUNCTION_QUALIFIER; next_token(); continue;
+        case MICHAELCC_TOKEN_TAIL_CALL_OPTIMIZE: qualifiers |= typing::TAIL_CALL_FUNCTION_QUALIFIER; next_token(); continue;
+        default:
+            return qualifiers;
+        }
+    }
 }
 
 std::vector<ast::function_parameter> parser::parse_parameter_list() {
