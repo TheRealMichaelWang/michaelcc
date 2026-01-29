@@ -4,6 +4,7 @@
 #include "syntax/tokens.hpp"
 #include "logic/typing.hpp"
 #include "logic/analysis/return_analysis.hpp"
+#include "logic/analysis/recursion_analysis.hpp"
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -1219,6 +1220,14 @@ void semantic_lowerer::lower(const std::vector<std::unique_ptr<ast::ast_element>
     }
     m_symbol_explorer.exit();
 
+    logic::analysis::function_dependency_analyzer function_dependency_analyzer;
+    for (const auto& symbol : m_translation_unit.global_symbols()) {
+        std::shared_ptr<logic::function_definition> function = std::dynamic_pointer_cast<logic::function_definition>(symbol);
+        if (function) {
+            function_dependency_analyzer.analyze_function(function);
+        }
+    }
+
     for (const auto& symbol : m_translation_unit.global_symbols()) {
         std::shared_ptr<logic::function_definition> function = std::dynamic_pointer_cast<logic::function_definition>(symbol);
         if (function) {
@@ -1226,6 +1235,34 @@ void semantic_lowerer::lower(const std::vector<std::unique_ptr<ast::ast_element>
                 std::ostringstream ss;
                 ss << "Function \"" << function->name() << "\" is not implemented.";
                 throw panic(ss.str(), function->location());
+            }
+
+            if (function->should_inline()) {
+                if (function_dependency_analyzer.is_recursive(function)) {
+                    std::ostringstream ss;
+                    ss << "Function \"" << function->name() << "\" is recursive and cannot be inlined.";
+                    throw panic(ss.str(), function->location());
+                }
+
+                auto mutual_recursion = function_dependency_analyzer.get_mutual_recursion(function, true);
+                if (mutual_recursion) {
+                    std::ostringstream ss;
+                    ss << "Function \"" << function->name() << "\" is mutually recursive and cannot be inlined. Note that ";
+                    for (const auto& f : *mutual_recursion) {
+                        ss << f->name();
+                        if (f != mutual_recursion->back()) {
+                            ss << ", ";
+                        }
+                    }
+                    ss << "mutually inline one another.";
+                    throw panic(ss.str(), function->location());
+                }
+
+                if (function_dependency_analyzer.has_inline_dependencies(function)) {
+                    std::ostringstream ss;
+                    ss << "Function \"" << function->name() << "\" invokes inline functions and hence cannot be inlined. This is a temporary limitation and will be fixed in the future.";
+                    throw panic(ss.str(), function->location());
+                }
             }
         }
     }
