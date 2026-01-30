@@ -21,9 +21,9 @@ add_executable(michaelcc
     parser.cpp
     semantic.cpp
     linker.cpp
-    optimization.cpp
-    constant_folding.cpp
-    dead_code.cpp
-    ir_simplify.cpp
     type_info.cpp
+    logic/optimization.cpp
+    logic/constant_folding.cpp
+    logic/dead_code.cpp
+    logic/ir_simplify.cpp
 )
