@@ -12,13 +12,6 @@ namespace michaelcc {
         private:
             class function_transform_pass final : public default_pass {
             private:
-                class expression_pass : public default_expression_pass {
-                public:
-                    std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::compound_expression>&& node) override {
-                        throw std::runtime_error("Compound expression should not be present in the logic IR after the inline functions pass");
-                    }
-                };
-
                 class statement_pass : public default_statement_pass {
                 public:
                     std::unique_ptr<logic::statement> dispatch(std::unique_ptr<logic::return_statement>&& node) override {

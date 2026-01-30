@@ -1257,12 +1257,6 @@ void semantic_lowerer::lower(const std::vector<std::unique_ptr<ast::ast_element>
                     ss << "mutually inline one another.";
                     throw panic(ss.str(), function->location());
                 }
-
-                if (function_dependency_analyzer.has_inline_dependencies(function)) {
-                    std::ostringstream ss;
-                    ss << "Function \"" << function->name() << "\" invokes inline functions and hence cannot be inlined. This is a temporary limitation and will be fixed in the future.";
-                    throw panic(ss.str(), function->location());
-                }
             }
         }
     }
