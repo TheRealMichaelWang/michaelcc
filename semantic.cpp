@@ -705,7 +705,7 @@ std::unique_ptr<logic::expression> semantic_lowerer::expression_resolver::dispat
                     throw panic(ss.str(), node.location());
                 }
             }
-            return std::make_unique<logic::function_call>(std::make_shared<logic::function_reference>(std::move(function)), std::move(arguments));
+            return std::make_unique<logic::function_call>(std::move(function), std::move(arguments));
         }
     }
 

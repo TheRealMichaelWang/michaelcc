@@ -932,6 +932,9 @@ std::vector<std::unique_ptr<ast::ast_element>> michaelcc::parser::parse_all()
 {
     auto parse_function_or_variable = [this](size_t backup, source_location backup_loc) {
         // Try to parse as function prototype or declaration
+        if (current_token().type() == MICHAELCC_TOKEN_INLINE || current_token().type() == MICHAELCC_TOKEN_TAIL_CALL_OPTIMIZE) {
+            parse_function_qualifiers();
+        }
         auto return_type = parse_type();
         if (current_token().type() == MICHAELCC_TOKEN_IDENTIFIER) {
             std::string func_name = current_token().string();
@@ -1025,6 +1028,8 @@ std::vector<std::unique_ptr<ast::ast_element>> michaelcc::parser::parse_all()
         case MICHAELCC_TOKEN_DOUBLE:
         case MICHAELCC_TOKEN_IDENTIFIER:
         case MICHAELCC_TOKEN_VOID:
+        case MICHAELCC_TOKEN_INLINE:
+        case MICHAELCC_TOKEN_TAIL_CALL_OPTIMIZE:
             parse_function_or_variable(backup, backup_loc);
             need_semicolon = false;
             break;
