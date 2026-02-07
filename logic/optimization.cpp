@@ -269,7 +269,8 @@ namespace michaelcc {
             
             auto to_transform = std::make_unique<logic::return_statement>(
                 std::move(value), 
-                std::weak_ptr<logic::function_definition>(node.function())
+                std::weak_ptr<logic::function_definition>(node.function()),
+                node.is_compound_return()
             );
             return m_pass.m_statement_pass->dispatch(std::move(to_transform));
         }

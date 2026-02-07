@@ -972,6 +972,9 @@ public:
     void visit(const logic::return_statement& node) override {
         before_print();
         print_indent();
+        if (node.is_compound_return()) {
+            m_out << "compound_";
+        }
         m_out << "return_statement\n";
         after_print(node.value() ? 1 : 0);
     }

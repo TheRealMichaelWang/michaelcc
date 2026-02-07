@@ -2,6 +2,7 @@
 #include "logic/ir.hpp"
 #include <memory>
 #include <variant>
+#include <iostream>
 
 namespace michaelcc {
     namespace optimization {
@@ -36,6 +37,7 @@ namespace michaelcc {
             }
             return node;
         }
+
 
         std::unique_ptr<logic::expression> ir_simplify_pass::expression_pass::dispatch(std::unique_ptr<logic::compound_expression>&& node) {
             if (node->control_block()->statements().empty()) {
