@@ -30,8 +30,7 @@ namespace michaelcc {
                 : m_layout_calculator(platform_info),
                 default_pass(
                     std::make_unique<expression_pass>(m_layout_calculator), 
-                    std::make_unique<default_statement_pass>(), 
-                    [](const std::string& name) { return name; }
+                    std::make_unique<default_statement_pass>()
                 ) { }
         };
 

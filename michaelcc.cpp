@@ -8,6 +8,7 @@
 #include "logic/optimization/dead_code.hpp"
 #include "logic/optimization/ir_simplify.hpp"
 #include "logic/optimization/inline_functions.hpp"
+#include "logic/optimization/pointer_propagation.hpp"
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -62,6 +63,7 @@ int main()
 		passes.emplace_back(std::make_unique<michaelcc::optimization::ir_simplify_pass>(platform_info));
 		passes.emplace_back(std::make_unique<michaelcc::optimization::dead_code_pass>());
 		passes.emplace_back(std::make_unique<michaelcc::optimization::inline_functions_pass>());
+		passes.emplace_back(std::make_unique<michaelcc::optimization::pointer_propagation_pass>());
 		int passes_run = michaelcc::optimization::transform(translation_unit, passes);
 
 		cout << michaelcc::logic::to_tree_string(translation_unit) << endl;

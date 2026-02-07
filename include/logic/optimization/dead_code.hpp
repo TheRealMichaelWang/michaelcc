@@ -47,8 +47,7 @@ namespace michaelcc {
         public:
             dead_code_pass() : default_pass(
                 std::make_unique<expression_pass>(), 
-                std::make_unique<statement_pass>(), 
-                [](const std::string& name) { return name; }
+                std::make_unique<statement_pass>()
             ) { }
         };
     }

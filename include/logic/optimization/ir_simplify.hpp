@@ -36,8 +36,7 @@ namespace michaelcc {
         public:
             ir_simplify_pass(const platform_info& platform_info) : m_layout_calculator(platform_info), default_pass(
                 std::make_unique<expression_pass>(*this), 
-                std::make_unique<default_statement_pass>(), 
-                [](const std::string& name) { return name; }
+                std::make_unique<default_statement_pass>()
             ) { }
         };
     }

@@ -208,6 +208,11 @@ namespace michaelcc {
 
         // statement_traverser methods
         std::shared_ptr<logic::control_block> default_pass::transform_control_block(const logic::control_block& node, std::vector<std::unique_ptr<logic::statement>>&& preamble_statements) {
+            if (!m_ran_preamble_pass && m_preamble_visitor) {
+                node.accept(*m_preamble_visitor);
+                m_ran_preamble_pass = true;
+            }
+
             std::shared_ptr<logic::control_block> result = std::make_shared<logic::control_block>();
             std::vector<std::unique_ptr<logic::statement>> statements;
             statements.insert(statements.end(), std::make_move_iterator(preamble_statements.begin()), std::make_move_iterator(preamble_statements.end()));
@@ -313,14 +318,14 @@ namespace michaelcc {
         // default_pass constructor
         default_pass::default_pass(std::unique_ptr<expression_pass>&& expression_transformer, 
             std::unique_ptr<statement_pass>&& statement_transformer, 
-            std::function<std::string(const std::string&)> variable_name_transformer,
-            std::vector<replace_variable_context> replace_variable_contexts) 
+            std::unique_ptr<logic::const_visitor>&& preamble_visitor,
+            std::function<std::string(const std::string&)> variable_name_transformer) 
             : m_expression_pass(std::move(expression_transformer)), 
             m_statement_pass(std::move(statement_transformer)),
             m_expression_traverser(*this),
             m_statement_traverser(*this),
-            m_variable_name_transformer(variable_name_transformer),
-            m_replace_variable_contexts() { }
+            m_preamble_visitor(std::move(preamble_visitor)),
+            m_variable_name_transformer(variable_name_transformer) { }
 
         std::shared_ptr<logic::variable> default_pass::replace_variable(const std::shared_ptr<logic::variable>& variable) const {
             for (const auto& context : m_replace_variable_contexts) {

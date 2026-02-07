@@ -2,6 +2,7 @@
 #define MICHAELCC_OPTIMIZATION_HPP
 
 #include "ir.hpp"
+#include "logic/ir.hpp"
 #include "symbols.hpp"
 
 #include <memory>
@@ -171,6 +172,8 @@ namespace michaelcc {
 
             expression_traverser m_expression_traverser;
             statement_traverser m_statement_traverser;
+            std::unique_ptr<logic::const_visitor> m_preamble_visitor;
+            bool m_ran_preamble_pass = false;
 
             std::shared_ptr<logic::variable> replace_variable(const std::shared_ptr<logic::variable>& variable) const;
         protected:
@@ -179,12 +182,16 @@ namespace michaelcc {
             public:
             default_pass(std::unique_ptr<expression_pass>&& expression_transformer, 
                 std::unique_ptr<statement_pass>&& statement_transformer, 
-                std::function<std::string(const std::string&)> variable_name_transformer = [](const std::string& name) { return std::format("_{}", name); },
-                std::vector<replace_variable_context> replace_variable_contexts = {});
+                std::unique_ptr<logic::const_visitor>&& preamble_visitor = nullptr,
+                std::function<std::string(const std::string&)> variable_name_transformer = [](const std::string& name) { return std::format("_{}", name); });
 
             ~default_pass() = default;
 
             void transform(logic::translation_unit& unit) {
+                if (!m_ran_preamble_pass && m_preamble_visitor) {
+                    unit.accept(*m_preamble_visitor);
+                    m_ran_preamble_pass = true;
+                }
                 unit.transform(m_expression_traverser, m_statement_traverser);
                 m_is_ir_mutated = m_expression_pass->is_ir_mutated() || m_statement_pass->is_ir_mutated();
             }
@@ -194,6 +201,7 @@ namespace michaelcc {
             void reset() { 
                 m_replace_variable_contexts.clear(); 
                 m_is_ir_mutated = false; 
+                m_ran_preamble_pass = false;
                 m_expression_pass->reset_mutation_flag();
                 m_statement_pass->reset_mutation_flag();
             }
