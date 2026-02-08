@@ -2,6 +2,7 @@
 #include "logic/ir.hpp"
 #include "logic/typing.hpp"
 #include "logic/semantic.hpp"
+#include <cstdint>
 
 namespace michaelcc {
     namespace optimization {
@@ -28,7 +29,7 @@ namespace michaelcc {
             }
 
             if (result_type.is_same_type<typing::int_type>()) {
-                return std::make_unique<logic::integer_constant>(static_cast<uint64_t>(result_val), std::move(result_type));
+                return std::make_unique<logic::integer_constant>(static_cast<int64_t>(result_val), std::move(result_type));
             }
             return std::make_unique<logic::floating_constant>(result_val, std::move(result_type));
         }
@@ -46,9 +47,9 @@ namespace michaelcc {
                 typing::int_type* left_int_type = static_cast<typing::int_type*>(left_int->get_type().type().get());
                 typing::int_type* right_int_type = static_cast<typing::int_type*>(right_int->get_type().type().get());
 
-                uint64_t left_val = left_int->value();
-                uint64_t right_val = right_int->value();
-                uint64_t result_val = 0;
+                int64_t left_val = left_int->value();
+                int64_t right_val = right_int->value();
+                int64_t result_val = 0;
                 
                 auto result_type = semantic_lowerer::arbitrate_return_type(left_int->get_type(), right_int->get_type(), m_layout_calculator.get_platform_info(), mode);
                 if (!result_type) return node;
@@ -74,7 +75,7 @@ namespace michaelcc {
                         if (left_int_type->is_unsigned() || right_int_type->is_unsigned()) {
                             result_val = left_val / right_val;
                         } else {
-                            result_val = static_cast<uint64_t>(static_cast<int64_t>(left_val) / static_cast<int64_t>(right_val));
+                            result_val = left_val / right_val;
                         }
                         break;
                     case MICHAELCC_TOKEN_MODULO:
@@ -82,7 +83,7 @@ namespace michaelcc {
                         if (left_int_type->is_unsigned() || right_int_type->is_unsigned()) {
                             result_val = left_val % right_val;
                         } else {
-                            result_val = static_cast<uint64_t>(static_cast<int64_t>(left_val) % static_cast<int64_t>(right_val));
+                            result_val = left_val % right_val;
                         }
                         break;
                     case MICHAELCC_TOKEN_AND:
@@ -98,7 +99,7 @@ namespace michaelcc {
                     case MICHAELCC_TOKEN_BITSHIFT_RIGHT: {
                         // Compute bit width of left operand type to avoid UB
                         // Shifting by >= bit width is undefined behavior in C
-                        const uint64_t bit_width = m_layout_calculator(*left_int_type).size * 8;
+                        const size_t bit_width = m_layout_calculator(*left_int_type).size * 8;
                         
                         // Don't fold if shift amount >= bit width (UB in C)
                         if (right_val >= bit_width) {
@@ -112,7 +113,7 @@ namespace michaelcc {
                             if (left_int_type->is_unsigned()) {
                                 result_val = left_val >> right_val;
                             } else {
-                                result_val = static_cast<uint64_t>(static_cast<int64_t>(left_val) >> right_val);
+                                result_val = left_val >> right_val;
                             }
                         }
                         break;
@@ -322,9 +323,9 @@ namespace michaelcc {
                 // Cast to integer type
                 if (target_type.is_same_type<typing::int_type>()) {
                     const auto* target_int_type = static_cast<const typing::int_type*>(target_type.type().get());
-                    uint64_t value = target_int_type->is_unsigned()
-                        ? static_cast<uint64_t>(float_const->value())
-                        : static_cast<uint64_t>(static_cast<int64_t>(float_const->value()));
+                    int64_t value = target_int_type->is_unsigned()
+                        ? static_cast<int64_t>(float_const->value())
+                        : static_cast<int64_t>(float_const->value());
                     mark_ir_mutated();
                     return std::make_unique<logic::integer_constant>(
                         value,

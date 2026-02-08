@@ -259,13 +259,13 @@ namespace michaelcc {
 
 		class integer_constant final : public expression {
 		private:
-			uint64_t m_value;
+			int64_t m_value;
 			typing::qual_type m_type;
 		public:
-			integer_constant(uint64_t value, typing::qual_type&& int_type)
+			integer_constant(int64_t value, typing::qual_type&& int_type)
 				: m_value(value), m_type(std::move(int_type)) {}
 
-			uint64_t value() const noexcept { return m_value; }
+			int64_t value() const noexcept { return m_value; }
 			
             const typing::qual_type get_type() const override { 
                 return m_type; 

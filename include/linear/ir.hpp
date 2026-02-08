@@ -6,15 +6,8 @@
 
 namespace michaelcc {
 	namespace linear {
-        enum size_type {
-            BYTE,
-            HALF_WORD,
-            WORD,
-            DOUBLE_WORD
-        };
-
-        struct virtual_register { size_t id; size_type size; };
-        struct literal { uint64_t value; size_type size; };
+        struct virtual_register { size_t id; size_t size_bits; };
+        struct literal { uint64_t value; size_t size_bits; };
 
         using operand = std::variant<virtual_register, literal>;
 
