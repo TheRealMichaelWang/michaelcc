@@ -70,6 +70,8 @@ const std::string michaelcc::token_to_str(token_type type) {
         "void",
         "volatile",
         "while",
+        "inline",
+        "tail_call_optimize",
         "IDENTIFIER",
 
         //operators
