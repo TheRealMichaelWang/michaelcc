@@ -2,7 +2,6 @@
 #include "logic/ir.hpp"
 #include <memory>
 #include <variant>
-#include <iostream>
 
 namespace michaelcc {
     namespace optimization {
@@ -54,6 +53,16 @@ namespace michaelcc {
                 }
             }
 
+            return node;
+        }
+
+        std::unique_ptr<logic::expression> ir_simplify_pass::expression_pass::dispatch(std::unique_ptr<logic::function_call>&& node) {
+            if (std::holds_alternative<std::unique_ptr<logic::expression>>(node->callee())) {
+                if (auto function_reference = dynamic_cast<logic::function_reference*>(std::get<std::unique_ptr<logic::expression>>(node->callee()).get())) {
+                    mark_ir_mutated();
+                    return std::make_unique<logic::function_call>(std::shared_ptr<logic::function_definition>(function_reference->get_function()), node->release_arguments());
+                }
+            }
             return node;
         }
 

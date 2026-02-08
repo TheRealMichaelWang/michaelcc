@@ -154,7 +154,7 @@ namespace michaelcc {
                 [this](const std::shared_ptr<logic::function_definition>& callee) -> logic::function_call::callable {
                     return std::shared_ptr<logic::function_definition>(callee);
                 },
-                [this](const std::shared_ptr<logic::expression>& callee) -> logic::function_call::callable {
+                [this](const std::unique_ptr<logic::expression>& callee) -> logic::function_call::callable {
                     return (*this)(*callee);
                 }
             }, node.callee());

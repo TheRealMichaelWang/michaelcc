@@ -20,6 +20,7 @@ namespace michaelcc {
                 std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::set_address>&& node) override;
                 std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::dereference>&& node) override;
                 std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::compound_expression>&& node) override;
+                std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::function_call>&& node) override;
 
                 std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::member_access>&& node) override;
                 std::unique_ptr<logic::expression> dispatch(std::unique_ptr<logic::array_index>&& node) override;
@@ -36,7 +37,7 @@ namespace michaelcc {
         public:
             ir_simplify_pass(const platform_info& platform_info) : m_layout_calculator(platform_info), default_pass(
                 std::make_unique<expression_pass>(*this), 
-                std::make_unique<default_statement_pass>()
+                std::make_unique<statement_pass>()
             ) { }
         };
     }

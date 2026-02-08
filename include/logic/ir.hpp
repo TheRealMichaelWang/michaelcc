@@ -1237,7 +1237,7 @@ namespace michaelcc {
 
 		class function_call final : public expression {
 		public:
-			using callable = std::variant<std::shared_ptr<function_definition>, std::shared_ptr<expression>>;
+			using callable = std::variant<std::shared_ptr<function_definition>, std::unique_ptr<expression>>;
 		private:
 			callable m_callee;
 			std::vector<std::unique_ptr<expression>> m_arguments;
@@ -1262,7 +1262,7 @@ namespace michaelcc {
 							parameter_types.push_back(parameter->get_type());
 						}
 						return parameter_types;
-					}, [](const std::shared_ptr<expression>& expression) -> std::vector<typing::qual_type> {
+					}, [](const std::unique_ptr<expression>& expression) -> std::vector<typing::qual_type> {
 						return std::dynamic_pointer_cast<typing::function_pointer_type>(expression->get_type().type())->parameter_types();
 					}
 				}, m_callee);
@@ -1272,7 +1272,7 @@ namespace michaelcc {
 				return std::visit(overloaded { 
 					[](const std::shared_ptr<function_definition>& function) {
 						return function->return_type();
-					}, [](const std::shared_ptr<expression>& expression) {
+					}, [](const std::unique_ptr<expression>& expression) {
 						auto type = expression->get_type();
 						if (!type.is_same_type<typing::function_pointer_type>()) {
 							throw std::runtime_error("Callee is not a function pointer");
@@ -1284,8 +1284,8 @@ namespace michaelcc {
 
 			void mutable_accept(visitor& v) override {
 				v.visit(*this);
-				if (std::holds_alternative<std::shared_ptr<expression>>(m_callee)) {
-					std::get<std::shared_ptr<expression>>(m_callee)->mutable_accept(v);
+				if (std::holds_alternative<std::unique_ptr<expression>>(m_callee)) {
+					std::get<std::unique_ptr<expression>>(m_callee)->mutable_accept(v);
 				} 
 				for (const auto& arg : m_arguments) {
 					arg->mutable_accept(v);
@@ -1294,8 +1294,8 @@ namespace michaelcc {
 
 			void accept(const_visitor& v) const override {
 				v.visit(*this);
-				if (std::holds_alternative<std::shared_ptr<expression>>(m_callee)) {
-					std::get<std::shared_ptr<expression>>(m_callee)->accept(v);
+				if (std::holds_alternative<std::unique_ptr<expression>>(m_callee)) {
+					std::get<std::unique_ptr<expression>>(m_callee)->accept(v);
 				}
 				for (const auto& arg : m_arguments) {
 					arg->accept(v);
