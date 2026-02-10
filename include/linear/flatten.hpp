@@ -182,7 +182,7 @@ namespace michaelcc {
         linear::function_definition lower_function(const logic::function_definition& func);
 
         // Lower an entire translation unit into a linear program.
-        linear::program lower(const logic::translation_unit& unit);
+        linear::program lower(const logic::program& unit);
     };
 }
 

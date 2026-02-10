@@ -14,7 +14,7 @@ namespace michaelcc {
         class pass {
         public:
             virtual ~pass() = default;
-            virtual void transform(logic::translation_unit& unit) = 0;
+            virtual void transform(logic::program& unit) = 0;
             virtual bool is_ir_mutated() const noexcept = 0;
             virtual void reset() = 0;
         };
@@ -26,7 +26,7 @@ namespace michaelcc {
         public:
             compound_pass(std::vector<std::unique_ptr<pass>>&& passes) : m_passes(std::move(passes)) { }
 
-            void transform(logic::translation_unit& unit) override {
+            void transform(logic::program& unit) override {
                 for (auto& pass : m_passes) {
                     pass->transform(unit);
                 }
@@ -48,7 +48,7 @@ namespace michaelcc {
             }
         };
 
-        int transform(logic::translation_unit&unit, std::vector<std::unique_ptr<pass>>& passes, int max_passes = 1000);
+        int transform(logic::program&unit, std::vector<std::unique_ptr<pass>>& passes, int max_passes = 1000);
 
         class default_pass : public pass {
         private:
@@ -187,7 +187,7 @@ namespace michaelcc {
 
             ~default_pass() = default;
 
-            void transform(logic::translation_unit& unit) {
+            void transform(logic::program& unit) {
                 if (!m_ran_preamble_pass && m_preamble_visitor) {
                     unit.accept(*m_preamble_visitor);
                     m_ran_preamble_pass = true;

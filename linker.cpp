@@ -9,7 +9,7 @@ void semantic_lowerer::forward_declare_types::visit(const ast::struct_declaratio
     // Skip struct references (empty fields) or anonymous structs (no name)
     if (node.fields().empty() || !node.struct_name().has_value()) return;
 
-    if (m_lowerer.m_translation_unit.lookup_struct(node.struct_name().value()) != nullptr) {
+    if (m_lowerer.m_program.lookup_struct(node.struct_name().value()) != nullptr) {
         throw m_lowerer.panic("Redeclaration of struct " + node.struct_name().value(), node.location());
     }
 
@@ -22,14 +22,14 @@ void semantic_lowerer::forward_declare_types::visit(const ast::struct_declaratio
         });
     }
 
-    m_lowerer.m_translation_unit.declare_struct(std::make_shared<typing::struct_type>(node.struct_name().value(), std::move(fields)));
+    m_lowerer.m_program.declare_struct(std::make_shared<typing::struct_type>(node.struct_name().value(), std::move(fields)));
 }
 
 void semantic_lowerer::forward_declare_types::visit(const ast::union_declaration& node) {
     // Skip union references (empty members) or anonymous unions (no name)
     if (node.members().empty() || !node.union_name().has_value()) return;
 
-    if (m_lowerer.m_translation_unit.lookup_union(node.union_name().value()) != nullptr) {
+    if (m_lowerer.m_program.lookup_union(node.union_name().value()) != nullptr) {
         throw m_lowerer.panic("Redeclaration of union " + node.union_name().value(), node.location());
     }
 
@@ -42,14 +42,14 @@ void semantic_lowerer::forward_declare_types::visit(const ast::union_declaration
             0
         });
     }
-    m_lowerer.m_translation_unit.declare_union(std::make_shared<typing::union_type>(node.union_name().value(), std::move(members)));
+    m_lowerer.m_program.declare_union(std::make_shared<typing::union_type>(node.union_name().value(), std::move(members)));
 }
 
 void semantic_lowerer::forward_declare_types::visit(const ast::enum_declaration& node) {
     // Skip enum references (empty enumerators) or anonymous enums (no name)
     if (node.enumerators().empty() || !node.enum_name().has_value()) return;
 
-    if (m_lowerer.m_translation_unit.lookup_enum(node.enum_name().value()) != nullptr) {
+    if (m_lowerer.m_program.lookup_enum(node.enum_name().value()) != nullptr) {
         throw m_lowerer.panic("Redeclaration of enum " + node.enum_name().value(), node.location());
     }
 
@@ -71,20 +71,20 @@ void semantic_lowerer::forward_declare_types::visit(const ast::enum_declaration&
         std::move(enumerators)
     );
     for (auto& enumerator : enum_type->enumerators()) {
-        m_lowerer.m_translation_unit.declare_global(std::make_shared<logic::enumerator_symbol>(
+        m_lowerer.m_program.declare_global(std::make_shared<logic::enumerator_symbol>(
             typing::enum_type::enumerator(enumerator),
             std::shared_ptr<typing::enum_type>(enum_type)
         ));
     }
 
-    m_lowerer.m_translation_unit.declare_enum(std::move(enum_type));
+    m_lowerer.m_program.declare_enum(std::move(enum_type));
 }
 
 void semantic_lowerer::implement_type_declarations::visit(const ast::struct_declaration& node) {
     // Skip anonymous structs or struct references without fields - they're handled inline during type resolution
     if (!node.struct_name().has_value() || node.fields().empty()) { return; }
 
-    auto struct_type = m_lowerer.m_translation_unit.lookup_struct(node.struct_name().value());
+    auto struct_type = m_lowerer.m_program.lookup_struct(node.struct_name().value());
     if (struct_type == nullptr) {
         throw m_lowerer.panic("Undefined struct " + node.struct_name().value(), node.location());
     }
@@ -107,7 +107,7 @@ void semantic_lowerer::implement_type_declarations::visit(const ast::union_decla
     // Skip anonymous unions or union references without members - they're handled inline during type resolution
     if (!node.union_name().has_value() || node.members().empty()) { return; }
 
-    auto union_type = m_lowerer.m_translation_unit.lookup_union(node.union_name().value());
+    auto union_type = m_lowerer.m_program.lookup_union(node.union_name().value());
 
     if (union_type == nullptr) {
         throw m_lowerer.panic("Undefined union " + node.union_name().value(), node.location());
@@ -146,7 +146,7 @@ void semantic_lowerer::forward_declare_functions::forward_declare_function(const
         source_location(location)
     );
 
-    auto existing_symbol = m_lowerer.m_translation_unit.lookup_global(function_name);
+    auto existing_symbol = m_lowerer.m_program.lookup_global(function_name);
     if (existing_symbol) {
         std::shared_ptr<logic::function_definition> existing_function = std::dynamic_pointer_cast<logic::function_definition>(existing_symbol);
         if (!existing_function) {
@@ -191,6 +191,6 @@ void semantic_lowerer::forward_declare_functions::forward_declare_function(const
             ), location);
         }
     } else {
-        m_lowerer.m_translation_unit.declare_global(std::move(function_definition));
+        m_lowerer.m_program.declare_global(std::move(function_definition));
     }
 }

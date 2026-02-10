@@ -343,7 +343,7 @@ namespace michaelcc {
             return variable;
         }
 
-        int transform(logic::translation_unit&unit, std::vector<std::unique_ptr<pass>>& passes, int max_passes) {
+        int transform(logic::program&unit, std::vector<std::unique_ptr<pass>>& passes, int max_passes) {
             for (int i = 0; i < max_passes; i++) {
                 for (auto& pass : passes) {
                     pass->reset();
@@ -366,7 +366,7 @@ namespace michaelcc {
     }
 
     namespace logic {
-        void translation_unit::transform(expression_transformer& expression_transformer, statement_transformer& statement_transformer) {
+        void program::transform(expression_transformer& expression_transformer, statement_transformer& statement_transformer) {
             std::vector<variable_declaration> new_static_variable_declarations;
             new_static_variable_declarations.reserve(m_static_variable_declarations.size());
             for(variable_declaration& declaration : m_static_variable_declarations) {

@@ -50,7 +50,7 @@ namespace michaelcc {
 		class break_statement;
 		class continue_statement;
 		class enumerator_literal;
-		class translation_unit;
+		class program;
 
 		class visitor : public mutable_generic_visitor<
 			variable,
@@ -87,7 +87,7 @@ namespace michaelcc {
 			break_statement,
 			continue_statement,
 			enumerator_literal,
-			translation_unit
+			program
 		> { 
 		private:
 			symbol_explorer m_explorer;
@@ -131,7 +131,7 @@ namespace michaelcc {
 			break_statement,
 			continue_statement,
 			enumerator_literal,
-			translation_unit
+			program
 		>;
 
 		template<typename ReturnType>
@@ -1303,7 +1303,7 @@ namespace michaelcc {
 			}
 		};
 
-		class translation_unit {
+		class program {
 		private:
             std::shared_ptr<symbol_context> m_global_context;
 			std::vector<std::string> m_strings;
@@ -1314,7 +1314,7 @@ namespace michaelcc {
 			
 			std::vector<variable_declaration> m_static_variable_declarations;
 		public:
-            translation_unit() : m_global_context(std::make_shared<symbol_context>()) {}
+            program() : m_global_context(std::make_shared<symbol_context>()) {}
 
             void declare_struct(std::shared_ptr<typing::struct_type>&& struct_type) {
                 std::string name = struct_type->name().value();
@@ -1409,7 +1409,7 @@ namespace michaelcc {
 		};
 
 		// Utility function to print the IR as a tree
-		std::string to_tree_string(const translation_unit& unit);
+		std::string to_tree_string(const program& unit);
 	}
 }
 

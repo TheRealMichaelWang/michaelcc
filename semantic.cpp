@@ -155,7 +155,7 @@ typing::qual_type semantic_lowerer::type_resolver::dispatch(const ast::derived_t
     switch (type.type_kind()) {
         case ast::derived_type::kind::POINTER:
             // Use owning reference - primitives need to stay alive, and named types 
-            // (structs/unions/enums) are kept alive by the translation_unit
+            // (structs/unions/enums) are kept alive by the program
             return typing::qual_type(std::make_shared<typing::pointer_type>(
                 m_lowerer.resolve_type(*type.inner_type())
             ));
@@ -190,7 +190,7 @@ typing::qual_type semantic_lowerer::type_resolver::dispatch(const ast::function_
 
 typing::qual_type semantic_lowerer::type_resolver::dispatch(const ast::struct_declaration& type) {
     if (type.struct_name().has_value()) {
-        auto struct_type = m_lowerer.m_translation_unit.lookup_struct(type.struct_name().value());
+        auto struct_type = m_lowerer.m_program.lookup_struct(type.struct_name().value());
         if (!struct_type) {
             std::ostringstream ss;
             ss << "Struct \"" << type.struct_name().value() << "\" not found.";
@@ -216,7 +216,7 @@ typing::qual_type semantic_lowerer::type_resolver::dispatch(const ast::struct_de
 
 typing::qual_type semantic_lowerer::type_resolver::dispatch(const ast::union_declaration& type) {
     if (type.union_name().has_value()) {
-        auto union_type = m_lowerer.m_translation_unit.lookup_union(type.union_name().value());
+        auto union_type = m_lowerer.m_program.lookup_union(type.union_name().value());
         if (!union_type) {
             std::ostringstream ss;
             ss << "Union \"" << type.union_name().value() << "\" not found.";
@@ -242,7 +242,7 @@ typing::qual_type semantic_lowerer::type_resolver::dispatch(const ast::union_dec
 
 typing::qual_type semantic_lowerer::type_resolver::dispatch(const ast::enum_declaration& type) {
     if (type.enum_name().has_value()) {
-        auto enum_type = m_lowerer.m_translation_unit.lookup_enum(type.enum_name().value());
+        auto enum_type = m_lowerer.m_program.lookup_enum(type.enum_name().value());
         if (!enum_type) {
             std::ostringstream ss;
             ss << "Enum \"" << type.enum_name().value() << "\" not found.";
@@ -408,7 +408,7 @@ std::unique_ptr<logic::expression> semantic_lowerer::expression_resolver::dispat
 }
 
 std::unique_ptr<logic::expression> semantic_lowerer::expression_resolver::dispatch(const ast::string_literal& node) {
-    size_t index = m_lowerer.m_translation_unit.add_string(std::string(node.value()));
+    size_t index = m_lowerer.m_program.add_string(std::string(node.value()));
     return std::make_unique<logic::string_constant>(index);
 }
 
@@ -1197,21 +1197,21 @@ void semantic_lowerer::lower(const std::vector<std::unique_ptr<ast::ast_element>
         element->accept(forward_declare_functions_pass);
     }
 
-    for (auto& [name, struct_type] : m_translation_unit.structs()) {
+    for (auto& [name, struct_type] : m_program.structs()) {
         check_layout_dependencies(struct_type);
     }
-    for (auto& [name, union_type] : m_translation_unit.unions()) {
+    for (auto& [name, union_type] : m_program.unions()) {
         check_layout_dependencies(union_type);
     }
-    for (auto& [name, enum_type] : m_translation_unit.enums()) {
+    for (auto& [name, enum_type] : m_program.enums()) {
         check_layout_dependencies(enum_type);
     }
 
-    m_symbol_explorer.visit(m_translation_unit.global_context());
+    m_symbol_explorer.visit(m_program.global_context());
     for (const auto& element : ast) {
         auto variable_declaration = dynamic_cast<ast::variable_declaration*>(element.get());
         if (variable_declaration) {
-            m_translation_unit.add_static_variable_declaration(lower_variable_declaration(*variable_declaration, true));
+            m_program.add_static_variable_declaration(lower_variable_declaration(*variable_declaration, true));
         }
         auto function_declaration = dynamic_cast<ast::function_declaration*>(element.get());
         if (function_declaration) {
@@ -1221,14 +1221,14 @@ void semantic_lowerer::lower(const std::vector<std::unique_ptr<ast::ast_element>
     m_symbol_explorer.exit();
 
     logic::analysis::function_dependency_analyzer function_dependency_analyzer;
-    for (const auto& symbol : m_translation_unit.global_symbols()) {
+    for (const auto& symbol : m_program.global_symbols()) {
         std::shared_ptr<logic::function_definition> function = std::dynamic_pointer_cast<logic::function_definition>(symbol);
         if (function) {
             function_dependency_analyzer.analyze_function(function);
         }
     }
 
-    for (const auto& symbol : m_translation_unit.global_symbols()) {
+    for (const auto& symbol : m_program.global_symbols()) {
         std::shared_ptr<logic::function_definition> function = std::dynamic_pointer_cast<logic::function_definition>(symbol);
         if (function) {
             if (!function->is_implemented()) {

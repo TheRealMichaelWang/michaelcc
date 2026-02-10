@@ -88,10 +88,10 @@ namespace michaelcc {
 
         class layout_dependency_getter final : public typing::type_dispatcher<const std::vector<std::shared_ptr<typing::base_type>>> {
         private:
-            const logic::translation_unit& m_translation_unit;
+            const logic::program& m_program;
 
         public:
-            layout_dependency_getter(const logic::translation_unit& translation_unit) : m_translation_unit(translation_unit) { }
+            layout_dependency_getter(const logic::program& program) : m_program(program) { }
 
         protected:
             const std::vector<std::shared_ptr<typing::base_type>> dispatch(typing::void_type& type) override { 
@@ -275,7 +275,7 @@ namespace michaelcc {
             return compilation_error(msg, location);
         }
 
-        logic::translation_unit m_translation_unit;
+        logic::program m_program;
         const platform_info m_platform_info;
 
         layout_dependency_getter m_layout_dependency_getter;
@@ -305,8 +305,8 @@ namespace michaelcc {
         std::shared_ptr<logic::function_definition> lower_function_declaration(const ast::function_declaration& node);
     public:
         semantic_lowerer(const platform_info platform_info) 
-            : m_translation_unit(), m_platform_info(platform_info), 
-            m_layout_dependency_getter(m_translation_unit), 
+            : m_program(), m_platform_info(platform_info), 
+            m_layout_dependency_getter(m_program), 
             m_type_layout_calculator(m_platform_info),
             m_address_resolver(*this),
             m_statement_resolver(*this),
@@ -315,9 +315,9 @@ namespace michaelcc {
 
         void lower(const std::vector<std::unique_ptr<ast::ast_element>>& ast);
 
-        const logic::translation_unit& get_translation_unit() const { return m_translation_unit; }
+        const logic::program& get_program() const { return m_program; }
 
-        logic::translation_unit&& release_translation_unit() { return std::move(m_translation_unit); m_translation_unit = logic::translation_unit(); }
+        logic::program&& release_program() { return std::move(m_program); m_program = logic::program(); }
 
         const platform_info& get_platform_info() const noexcept { return m_platform_info; }
     };

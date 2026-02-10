@@ -730,12 +730,12 @@ private:
 public:
     logical_print_visitor(std::ostream& out) : m_out(out) {}
 
-    // translation_unit: children = number of global symbols (vars + funcs)
-    void visit(const logic::translation_unit& node) override {
+    // program: children = number of global symbols (vars + funcs)
+    void visit(const logic::program& node) override {
         before_print();
         print_indent();
-        m_out << "translation_unit\n";
-        // Count how many symbols will be visited (see translation_unit::accept)
+        m_out << "program\n";
+        // Count how many symbols will be visited (see program::accept)
         int child_count = 0;
         for (const auto& sym : node.global_symbols()) {
             if (dynamic_cast<logic::variable*>(sym.get()) ||
@@ -1016,7 +1016,7 @@ public:
 
 namespace michaelcc {
 namespace logic {
-    std::string to_tree_string(const translation_unit& unit) {
+    std::string to_tree_string(const program& unit) {
         std::stringstream ss;
         logical_print_visitor visitor(ss);
         unit.accept(visitor);

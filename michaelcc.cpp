@@ -56,7 +56,7 @@ int main()
 		michaelcc::semantic_lowerer lowerer(platform_info);
 
 		lowerer.lower(ast);
-		auto translation_unit = lowerer.release_translation_unit();
+		auto program = lowerer.release_program();
 
 
 		auto passes = std::vector<std::unique_ptr<michaelcc::optimization::pass>>();
@@ -66,9 +66,9 @@ int main()
 		passes.emplace_back(std::make_unique<michaelcc::optimization::inline_functions_pass>());
 		passes.emplace_back(std::make_unique<michaelcc::optimization::pointer_propagation_pass>());
 		passes.emplace_back(std::make_unique<michaelcc::optimization::const_propagation_pass>(platform_info));
-		int passes_run = michaelcc::optimization::transform(translation_unit, passes);
+		int passes_run = michaelcc::optimization::transform(program, passes);
 
-		cout << michaelcc::logic::to_tree_string(translation_unit) << endl;
+		cout << michaelcc::logic::to_tree_string(program) << endl;
 		cout << "Passes run: " << passes_run << endl;
 	}
 	catch (const michaelcc::compilation_error& error) {

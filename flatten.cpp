@@ -741,7 +741,7 @@ namespace michaelcc {
             func.name(), entry_id, std::move(m_finished_blocks), m_next_vreg_id);
     }
 
-    linear::program logic_lowerer::lower(const logic::translation_unit& unit) {
+    linear::program logic_lowerer::lower(const logic::program& unit) {
         linear::program result;
         result.string_constants = unit.strings();
 
