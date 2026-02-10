@@ -9,6 +9,11 @@ namespace michaelcc {
         struct virtual_register { size_t id; size_t size_bits; };
         struct literal { uint64_t value; size_t size_bits; };
 
+        struct var_info {
+            linear::virtual_register vreg;
+            size_t block_id;
+        };
+
         using operand = std::variant<virtual_register, literal>;
 
         class instruction {
@@ -128,7 +133,6 @@ namespace michaelcc {
             const std::string& name() const noexcept { return m_name; }
         };
 
-
         class function_call : public instruction {
         private:
             std::optional<virtual_register> m_destination;
@@ -144,7 +148,6 @@ namespace michaelcc {
             const std::vector<operand>& arguments() const noexcept { return m_arguments; }
         };
 
-
         class function_return : public instruction {
         private:
             std::optional<operand> m_value;
@@ -156,19 +159,35 @@ namespace michaelcc {
 
 
         // Phi Instruction
-
         class phi_instruction : public instruction {
         private:
             virtual_register m_destination;
-            std::vector<std::pair<size_t, operand>> m_values;
+            std::vector<var_info> m_values;
 
         public:
-            phi_instruction(virtual_register destination, std::vector<std::pair<size_t, operand>>&& values) 
+            phi_instruction(virtual_register destination, std::vector<var_info>&& values) 
                 : m_destination(destination), m_values(std::move(values)) {}
 
             virtual_register destination() const noexcept { return m_destination; }
-            const std::vector<std::pair<size_t, operand>>& values() const noexcept { return m_values; }
+            const std::vector<var_info>& values() const noexcept { return m_values; }
         };
+
+        
+        // Load Effective Address / loads address of a global label
+        class load_effective_address : public instruction {
+        private:
+            virtual_register m_destination;
+            std::string m_label;
+
+        public:
+            load_effective_address(virtual_register destination, std::string label) 
+                : m_destination(destination), m_label(label) {}
+
+            virtual_register destination() const noexcept { return m_destination; }
+            const std::string& label() const noexcept { return m_label; }
+        };
+
+        
 	}
 }
 

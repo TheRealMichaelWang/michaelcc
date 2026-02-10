@@ -3,7 +3,6 @@
 
 #include "linear/ir.hpp"
 #include "logic/ir.hpp"
-#include "logic/type_info.hpp"
 #include "platform.hpp"
 #include <memory>
 #include <optional>
@@ -67,16 +66,23 @@ namespace michaelcc {
         };
 
 
+        struct block_var_ctx {
+            std::unordered_map<std::shared_ptr<logic::variable>, std::vector<linear::var_info>> m_variable_to_vreg;
+        };
+
         struct block_builder {
             size_t id;
             std::vector<std::unique_ptr<linear::instruction>> instructions;
+            std::vector<linear::var_info> incoming_vregs;
+            std::vector<size_t> incoming_block_ids;
+            block_var_ctx var_info;
         };
 
         const platform_info m_platform_info;
-        type_layout_calculator m_layout_calculator;
 
         std::optional<block_builder> m_current_block;
         std::unordered_map<size_t, linear::basic_block> m_finished_blocks;
+        std::unordered_map<size_t, block_var_ctx> m_finished_block_var_ctx;
         size_t m_next_vreg_id = 0;
         size_t m_next_block_id = 0;
 
@@ -84,15 +90,22 @@ namespace michaelcc {
         statement_lowerer m_statement_lowerer;
 
         linear::virtual_register new_vreg(size_t size_bits) {
-            return { m_next_vreg_id++, size_bits };
+            size_t id = m_next_vreg_id;
+            m_next_vreg_id++;
+            return { id, size_bits };
         }
 
-        size_t new_block_id() {
-            return m_next_block_id++;
-        }
+        block_var_ctx reconcile_var_regs(const std::vector<size_t>& incoming_block_ids);
 
-        void begin_block(size_t id) {
-            m_current_block = block_builder{ .id = id };
+        size_t begin_block(std::vector<size_t>&& incoming_block_ids) {
+            size_t id = m_next_block_id;
+            m_next_block_id++;
+            m_current_block = block_builder{ 
+                .id = id, 
+                .incoming_block_ids = std::move(incoming_block_ids), 
+                .var_info = reconcile_var_regs(incoming_block_ids) 
+            };
+            return id;
         }
 
         void emit(std::unique_ptr<linear::instruction>&& inst) {
@@ -101,10 +114,6 @@ namespace michaelcc {
 
         size_t current_block_id() const {
             return m_current_block->id;
-        }
-
-        bool has_open_block() const {
-            return m_current_block.has_value();
         }
 
         void seal_block() {

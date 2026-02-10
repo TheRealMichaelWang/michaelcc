@@ -21,6 +21,7 @@ add_executable(michaelcc
     parser.cpp
     semantic.cpp
     linker.cpp
+    flattener.cpp
     type_info.cpp
     logic/optimization.cpp
     logic/constant_folding.cpp
