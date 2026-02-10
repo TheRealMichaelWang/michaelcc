@@ -83,15 +83,11 @@ namespace michaelcc {
             size_t m_id;
 
         public:
-            basic_block(size_t id) : m_id(id) {}
+            basic_block(size_t id, std::vector<std::unique_ptr<instruction>>&& instructions) 
+                : m_id(id), m_instructions(std::move(instructions)) {}
 
             size_t id() const noexcept { return m_id; }
-            const std::vector<std::unique_ptr<instruction>>& instructions() const noexcept { return m_instructions; }
-            std::vector<std::unique_ptr<instruction>> release_instructions() noexcept { return std::move(m_instructions); }
-
-            void add_instruction(std::unique_ptr<instruction>&& instruction) {
-                m_instructions.push_back(std::move(instruction));
-            }   
+            const std::vector<std::unique_ptr<instruction>>& instructions() const noexcept { return m_instructions; }   
         };
 
         class branch : public instruction {
