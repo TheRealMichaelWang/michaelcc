@@ -2,8 +2,10 @@
 #include "syntax/ast.hpp"
 #include "logic/typing.hpp"
 #include "logic/ir.hpp"
+#include "linear/ir.hpp"
 #include <cctype>
 #include <iomanip>
+#include <sstream>
 
 using namespace michaelcc;
 using namespace michaelcc::ast;
@@ -1023,4 +1025,182 @@ namespace logic {
         return ss.str();
     }
 }
+}
+
+// Linear IR printer
+
+namespace {
+    using namespace michaelcc::linear;
+
+    std::string vreg_str(virtual_register r) {
+        return "v" + std::to_string(r.id) + ":" + std::to_string(r.size_bits);
+    }
+
+    std::string operand_str(const operand& op) {
+        return std::visit(michaelcc::overloaded {
+            [](const virtual_register& r) { return vreg_str(r); },
+            [](const literal& l) { return std::to_string(l.value) + ":" + std::to_string(l.size_bits); }
+        }, op);
+    }
+
+    const char* a_type_name(a_instruction_type t) {
+        switch (t) {
+            case ADD:                      return "add";
+            case SUBTRACT:                 return "sub";
+            case MULTIPLY:                 return "mul";
+            case DIVIDE:                   return "div";
+            case MODULO:                   return "mod";
+            case SHIFT_LEFT:               return "shl";
+            case SHIFT_RIGHT:              return "shr";
+            case BITWISE_AND:              return "and";
+            case BITWISE_OR:               return "or";
+            case BITWISE_XOR:              return "xor";
+            case BITWISE_NOT:              return "not";
+            case AND:                      return "land";
+            case OR:                       return "lor";
+            case XOR:                      return "lxor";
+            case NOT:                      return "lnot";
+            case COMPARE_EQUAL:            return "eq";
+            case COMPARE_NOT_EQUAL:        return "ne";
+            case COMPARE_LESS_THAN:        return "lt";
+            case COMPARE_LESS_THAN_OR_EQUAL: return "le";
+            case COMPARE_GREATER_THAN:     return "gt";
+            case COMPARE_GREATER_THAN_OR_EQUAL: return "ge";
+            default:                       return "??";
+        }
+    }
+
+    namespace lin = michaelcc::linear;
+
+    class instruction_printer : public lin::const_instruction_dispatcher<void> {
+    private:
+        std::ostringstream& m_out;
+
+    protected:
+        void dispatch(const lin::a_instruction& inst) override {
+            m_out << vreg_str(inst.destination()) << " = "
+                  << a_type_name(inst.type()) << " "
+                  << operand_str(inst.operand_a()) << ", "
+                  << operand_str(inst.operand_b());
+        }
+
+        void dispatch(const lin::m_instruction& inst) override {
+            if (inst.type() == lin::LOAD) {
+                m_out << vreg_str(inst.destination()) << " = load ["
+                      << vreg_str(inst.source()) << " + " << inst.offset() << "]";
+            } else {
+                m_out << "store [" << vreg_str(inst.destination()) << " + " << inst.offset()
+                      << "], " << vreg_str(inst.source());
+            }
+        }
+
+        void dispatch(const lin::alloca_instruction& inst) override {
+            m_out << vreg_str(inst.destination()) << " = alloca " << inst.size_bytes();
+        }
+
+        void dispatch(const lin::copy_instruction& inst) override {
+            m_out << vreg_str(inst.destination()) << " = copy " << operand_str(inst.source());
+        }
+
+        void dispatch(const lin::function_param& inst) override {
+            m_out << vreg_str(inst.destination()) << " = param #" << inst.param_index();
+        }
+
+        void dispatch(const lin::global_address& inst) override {
+            m_out << vreg_str(inst.destination()) << " = global @" << inst.symbol_name();
+        }
+
+        void dispatch(const lin::branch& inst) override {
+            m_out << "br bb" << inst.target_block_id();
+        }
+
+        void dispatch(const lin::branch_condition& inst) override {
+            m_out << "br " << operand_str(inst.condition())
+                  << ", bb" << inst.if_true_block_id()
+                  << ", bb" << inst.if_false_block_id();
+        }
+
+        void dispatch(const lin::phi_instruction& inst) override {
+            m_out << vreg_str(inst.destination()) << " = phi ";
+            for (size_t i = 0; i < inst.values().size(); i++) {
+                if (i > 0) m_out << ", ";
+                m_out << "[bb" << inst.values()[i].first << ": "
+                      << operand_str(inst.values()[i].second) << "]";
+            }
+        }
+
+        void dispatch(const lin::function_call& inst) override {
+            if (inst.destination().has_value()) {
+                m_out << vreg_str(*inst.destination()) << " = ";
+            }
+            m_out << "call ";
+            std::visit(michaelcc::overloaded {
+                [&](const std::string& name) { m_out << "@" << name; },
+                [&](const lin::virtual_register& r) { m_out << vreg_str(r); }
+            }, inst.callee());
+            m_out << "(";
+            for (size_t i = 0; i < inst.arguments().size(); i++) {
+                if (i > 0) m_out << ", ";
+                m_out << operand_str(inst.arguments()[i]);
+            }
+            m_out << ")";
+        }
+
+        void dispatch(const lin::function_return& inst) override {
+            if (inst.value().has_value()) {
+                m_out << "ret " << operand_str(*inst.value());
+            } else {
+                m_out << "ret void";
+            }
+        }
+
+    public:
+        instruction_printer(std::ostringstream& out) : m_out(out) {}
+    };
+}
+
+namespace michaelcc {
+    namespace linear {
+        std::string to_string(const program& prog) {
+            std::ostringstream out;
+            instruction_printer printer(out);
+
+            for (size_t fi = 0; fi < prog.string_constants.size(); fi++) {
+                out << "@__str_" << fi << " = \"" << prog.string_constants[fi] << "\"\n";
+            }
+            if (!prog.string_constants.empty()) out << "\n";
+
+            for (const auto& func : prog.functions) {
+                out << "function @" << func.name()
+                    << " (entry: bb" << func.entry_block_id()
+                    << ", vregs: " << func.vreg_count() << "):\n";
+
+                // Collect and sort block IDs so output is deterministic,
+                // with the entry block always first.
+                std::vector<size_t> block_ids;
+                block_ids.reserve(func.blocks().size());
+                for (const auto& [id, _] : func.blocks()) {
+                    block_ids.push_back(id);
+                }
+                std::sort(block_ids.begin(), block_ids.end(), [&](size_t a, size_t b) {
+                    if (a == func.entry_block_id()) return true;
+                    if (b == func.entry_block_id()) return false;
+                    return a < b;
+                });
+
+                for (size_t bid : block_ids) {
+                    const auto& block = func.blocks().at(bid);
+                    out << "  bb" << bid << ":\n";
+                    for (const auto& inst : block.instructions()) {
+                        out << "    ";
+                        printer(*inst);
+                        out << "\n";
+                    }
+                }
+                out << "\n";
+            }
+
+            return out.str();
+        }
+    }
 }

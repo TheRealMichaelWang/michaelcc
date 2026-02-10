@@ -10,6 +10,7 @@
 #include "logic/optimization/inline_functions.hpp"
 #include "logic/optimization/pointer_propagation.hpp"
 #include "logic/optimization/const_propagation.hpp"	
+#include "linear/flatten.hpp"
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -68,8 +69,13 @@ int main()
 		passes.emplace_back(std::make_unique<michaelcc::optimization::const_propagation_pass>(platform_info));
 		int passes_run = michaelcc::optimization::transform(program, passes);
 
+		auto logic_lowerer = michaelcc::logic_lowerer(platform_info);
+		auto linear_program = logic_lowerer.lower(program);
+
 		cout << michaelcc::logic::to_tree_string(program) << endl;
 		cout << "Passes run: " << passes_run << endl;
+
+		cout << michaelcc::linear::to_string(linear_program) << endl;
 	}
 	catch (const michaelcc::compilation_error& error) {
 		cerr << "Compilation error: " << error.what() << endl;

@@ -1,6 +1,7 @@
 #ifndef MICHAELCC_CFG_IR_HPP
 #define MICHAELCC_CFG_IR_HPP
 
+#include "utils.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -27,6 +28,49 @@ namespace michaelcc {
             virtual ~instruction() = default;
         };
 
+        class a_instruction;
+        class m_instruction;
+        class alloca_instruction;
+        class copy_instruction;
+        class function_param;
+        class global_address;
+        class branch;
+        class branch_condition;
+        class phi_instruction;
+        class function_call;
+        class function_return;
+
+        // Instruction dispatchers
+
+        template<typename ReturnType>
+        using instruction_dispatcher = generic_dispatcher<ReturnType, instruction,
+            a_instruction,
+            m_instruction,
+            alloca_instruction,
+            copy_instruction,
+            function_param,
+            global_address,
+            branch,
+            branch_condition,
+            phi_instruction,
+            function_call,
+            function_return
+        >;
+
+        template<typename ReturnType>
+        using const_instruction_dispatcher = generic_dispatcher<ReturnType, const instruction,
+            const a_instruction,
+            const m_instruction,
+            const alloca_instruction,
+            const copy_instruction,
+            const function_param,
+            const global_address,
+            const branch,
+            const branch_condition,
+            const phi_instruction,
+            const function_call,
+            const function_return
+        >;
 
         // Arithmetic "A" instructions (includes comparison)
 
@@ -259,6 +303,8 @@ namespace michaelcc {
         };
 
 
+        
+
         // Function definition (holds all blocks for one function)
 
         class function_definition {
@@ -292,6 +338,8 @@ namespace michaelcc {
             std::vector<function_definition> functions;
             std::vector<std::string> string_constants;
         };
+
+        std::string to_string(const program& program);
 	}
 }
 
