@@ -54,6 +54,24 @@ namespace michaelcc {
             operand operand_b() const noexcept { return m_operand_b; }
         };
 
+        enum i_instruction_type {
+            INCREMENT,
+            DECREMENT
+        };
+
+        class i_instruction : public instruction {
+        private:
+            i_instruction_type m_type;
+            virtual_register m_destination_address;
+            operand m_amount;
+        public:
+            i_instruction(i_instruction_type type, virtual_register destination_address, operand amount) : m_type(type), m_destination_address(destination_address), m_amount(amount) {}
+
+            i_instruction_type type() const noexcept { return m_type; }
+            virtual_register destination_address() const noexcept { return m_destination_address; }
+            operand amount() const noexcept { return m_amount; }
+        };
+
 
         // Memory "M" instructions
         enum m_instruction_type {

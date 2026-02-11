@@ -287,6 +287,7 @@ std::unique_ptr<logic::expression> semantic_lowerer::address_resolver::dispatch(
             ss << "Variable \"" << node.identifier() << "\" is a register variable and cannot be captured as an address.";
             throw panic(ss.str(), node.location());
         }
+        variable->mark_must_alloca();
         return std::make_unique<logic::address_of>(std::move(variable));
     }
 
@@ -560,7 +561,7 @@ std::unique_ptr<logic::expression> semantic_lowerer::expression_resolver::dispat
             ss << "Expression \"" << ast::to_c_string(node) << "\" is not a valid destination for increment or decrement.";
             throw panic(ss.str(), node.location());
         }
-        return std::make_unique<logic::increment_operator>(std::move(destination), m_lowerer.lower_expression(*node.right()));
+        return std::make_unique<logic::increment_operator>(node.operation(), std::move(destination), m_lowerer.lower_expression(*node.right()));
     }
 
     std::unique_ptr<logic::expression> left = m_lowerer.lower_expression(*node.left());

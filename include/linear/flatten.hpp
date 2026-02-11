@@ -97,6 +97,8 @@ namespace michaelcc {
 
         block_var_ctx reconcile_var_regs(const std::vector<size_t>& incoming_block_ids);
 
+        linear::virtual_register get_var_reg(const std::shared_ptr<logic::variable>& variable);
+
         size_t begin_block(std::vector<size_t>&& incoming_block_ids) {
             size_t id = m_next_block_id;
             m_next_block_id++;

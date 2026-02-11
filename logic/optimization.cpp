@@ -47,7 +47,7 @@ namespace michaelcc {
                 increment_amount = std::make_optional((*this)(*(node.increment_amount().value())));
             }
 
-            auto to_transform = std::make_unique<logic::increment_operator>(std::move(destination), std::move(increment_amount));
+            auto to_transform = std::make_unique<logic::increment_operator>(node.get_operator(), std::move(destination), std::move(increment_amount));
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 

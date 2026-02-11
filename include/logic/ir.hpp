@@ -233,13 +233,18 @@ namespace michaelcc {
             uint8_t m_qualifiers;
             typing::qual_type m_type;
 			bool m_is_global;
+
+			bool m_must_alloca;
 		public:
-			variable(std::string&& name, uint8_t qualifiers, typing::qual_type&& var_type, bool is_global)
-				: symbol(std::move(name)), m_qualifiers(qualifiers), m_type(std::move(var_type)), m_is_global(is_global) {}
+			variable(std::string&& name, uint8_t qualifiers, typing::qual_type&& var_type, bool is_global, bool must_alloca = false)
+				: symbol(std::move(name)), m_qualifiers(qualifiers), m_type(std::move(var_type)), m_is_global(is_global), m_must_alloca(must_alloca) {}
 
 			uint8_t qualifiers() const noexcept { return m_qualifiers; }
 			const typing::qual_type& get_type() const noexcept { return m_type; }
 			bool is_global() const noexcept { return m_is_global; }
+
+			bool must_alloca() const noexcept { return m_must_alloca; }
+			void mark_must_alloca() noexcept { m_must_alloca = true; }
 
             std::string to_string() const noexcept override {
                 return std::format("{} variable {}", m_is_global ? "global" : "local", name());
@@ -333,13 +338,15 @@ namespace michaelcc {
 		public:
 			using destination_type = std::variant<std::unique_ptr<expression>, std::shared_ptr<variable>>;
 		private:
+			token_type m_operator;
 			destination_type m_destination;
 			std::optional<std::unique_ptr<expression>> m_increment_amount;
 
 		public:
-			increment_operator(destination_type&& destination, std::optional<std::unique_ptr<expression>>&& increment_amount = std::nullopt)
-				: m_destination(std::move(destination)), m_increment_amount(std::move(increment_amount)) {}
+			increment_operator(token_type op, destination_type&& destination, std::optional<std::unique_ptr<expression>>&& increment_amount = std::nullopt)
+				: m_operator(op), m_destination(std::move(destination)), m_increment_amount(std::move(increment_amount)) {}
 
+			token_type get_operator() const noexcept { return m_operator; }
 			const destination_type& destination() const noexcept { return m_destination; }
 			const std::optional<std::unique_ptr<expression>>& increment_amount() const noexcept { return m_increment_amount; }
 
