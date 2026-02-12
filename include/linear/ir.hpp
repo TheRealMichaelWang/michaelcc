@@ -6,12 +6,23 @@
 
 namespace michaelcc {
 	namespace linear {
-        struct virtual_register { size_t id; size_t size_bits; };
-        struct literal { uint64_t value; size_t size_bits; };
+        struct virtual_register { 
+            size_t id; size_t size_bits; 
+
+            bool operator==(const virtual_register& reg) const { return reg.id == id; }
+        };
+
+        struct literal { 
+            uint64_t value; size_t size_bits; 
+
+            bool operator==(const literal& lit) const { return lit.value == value && lit.size_bits == size_bits; }
+        };
 
         struct var_info {
             linear::virtual_register vreg;
             size_t block_id;
+
+            bool operator==(const var_info& info) const { return info.vreg == vreg; }
         };
 
         using operand = std::variant<virtual_register, literal>;
@@ -256,6 +267,14 @@ namespace michaelcc {
 
             virtual_register destination() const noexcept { return m_destination; }
             const std::vector<var_info>& values() const noexcept { return m_values; }
+
+            void augment_values(const std::vector<var_info>& values) {
+                for (const auto& value : values) {
+                    if (std::find(m_values.begin(), m_values.end(), value) == m_values.end()) {
+                        m_values.push_back(value);
+                    }
+                }
+            }
         };
 
         

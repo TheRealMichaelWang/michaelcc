@@ -78,11 +78,17 @@ namespace michaelcc {
             block_var_ctx var_info;
         };
 
+        struct loop_info {
+            size_t id;
+            std::unordered_map<std::shared_ptr<logic::variable>, std::vector<linear::var_info>> original_var_info;
+        };
+
         const platform_info m_platform_info;
 
         std::optional<block_builder> m_current_block;
         std::unordered_map<size_t, linear::basic_block> m_finished_blocks;
         std::unordered_map<size_t, block_var_ctx> m_finished_block_var_ctx;
+        std::unordered_map<size_t, loop_info> m_loop_infos;
         size_t m_next_vreg_id = 0;
         size_t m_next_block_id = 0;
 

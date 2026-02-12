@@ -44,6 +44,10 @@ void logic_lowerer::emit_phi_all() {
         emit(std::make_unique<linear::phi_instruction>(dest_reg, std::vector<linear::var_info>(vregs)));
         m_current_block->var_info.m_variable_to_vreg[variable] = { linear::var_info{ .vreg = dest_reg, .block_id = current_block_id() } };
     }
+    m_loop_infos[current_block_id()] = loop_info{ 
+        .id = current_block_id(), 
+        .original_var_info = m_current_block->var_info.m_variable_to_vreg 
+    };
 }
 
 linear::virtual_register logic_lowerer::get_var_reg(const std::shared_ptr<logic::variable>& variable) {
