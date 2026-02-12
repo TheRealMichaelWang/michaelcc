@@ -38,16 +38,32 @@ logic_lowerer::block_var_ctx logic_lowerer::reconcile_var_regs(const std::vector
 }
 
 void logic_lowerer::emit_phi_all() {
+    std::unordered_map<std::shared_ptr<logic::variable>, linear::phi_instruction*> init_phi_nodes;
     for (const auto& [variable, vregs] : m_current_block->var_info.m_variable_to_vreg) {
         type_layout_calculator calculator(m_platform_info);
         auto dest_reg = new_vreg(calculator(*variable->get_type().type()).size * 8);
-        emit(std::make_unique<linear::phi_instruction>(dest_reg, std::vector<linear::var_info>(vregs)));
+        auto phi_node = std::make_unique<linear::phi_instruction>(dest_reg, std::vector<linear::var_info>(vregs));
+        init_phi_nodes[variable] = phi_node.get();
+        emit(std::move(phi_node));
         m_current_block->var_info.m_variable_to_vreg[variable] = { linear::var_info{ .vreg = dest_reg, .block_id = current_block_id() } };
     }
     m_loop_infos[current_block_id()] = loop_info{ 
         .id = current_block_id(), 
-        .original_var_info = m_current_block->var_info.m_variable_to_vreg 
+        .original_var_info = m_current_block->var_info.m_variable_to_vreg, 
+        .init_phi_nodes = std::move(init_phi_nodes)
     };
+}
+
+void logic_lowerer::recurse_block(size_t head_block_id, size_t tail_block_id) {
+    auto& tail_block_var_ctx = m_finished_block_var_ctx.at(tail_block_id);
+    auto& head_init_info = m_loop_infos.at(head_block_id);
+
+    for (const auto& [variable, vregs] : tail_block_var_ctx.m_variable_to_vreg) {
+        auto it = head_init_info.init_phi_nodes.find(variable);
+        if (it != head_init_info.init_phi_nodes.end()) {
+            it->second->augment_values(vregs);
+        }
+    }
 }
 
 linear::virtual_register logic_lowerer::get_var_reg(const std::shared_ptr<logic::variable>& variable) {

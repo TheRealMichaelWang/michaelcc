@@ -81,6 +81,7 @@ namespace michaelcc {
         struct loop_info {
             size_t id;
             std::unordered_map<std::shared_ptr<logic::variable>, std::vector<linear::var_info>> original_var_info;
+            std::unordered_map<std::shared_ptr<logic::variable>, linear::phi_instruction*> init_phi_nodes;
         };
 
         const platform_info m_platform_info;
@@ -104,6 +105,8 @@ namespace michaelcc {
         block_var_ctx reconcile_var_regs(const std::vector<size_t>& incoming_block_ids);
 
         void emit_phi_all();
+
+        void recurse_block(size_t head_block_id, size_t tail_block_id);
 
         linear::virtual_register get_var_reg(const std::shared_ptr<logic::variable>& variable);
 
