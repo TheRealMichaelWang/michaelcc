@@ -1103,12 +1103,15 @@ namespace michaelcc {
 		class allocate_array final : public expression {
 		private:
 			std::vector<std::unique_ptr<expression>> m_dimensions;
+			std::unique_ptr<expression> m_fill_value;
 			typing::qual_type m_element_type;	
 		public:
-			allocate_array(std::vector<std::unique_ptr<expression>>&& dimensions, typing::qual_type&& element_type)
-				: m_dimensions(std::move(dimensions)), m_element_type(std::move(element_type)) {}
+			allocate_array(std::vector<std::unique_ptr<expression>>&& dimensions, std::unique_ptr<expression>&& fill_value, typing::qual_type&& element_type)
+				: m_dimensions(std::move(dimensions)), m_fill_value(std::move(fill_value)), m_element_type(std::move(element_type)) {}
 				
 			const std::vector<std::unique_ptr<expression>>& dimensions() const noexcept { return m_dimensions; }
+
+			const std::unique_ptr<expression>& fill_value() const noexcept { return m_fill_value; }
 
 			const typing::qual_type get_type() const override {
 				return typing::qual_type::owning(std::make_shared<typing::array_type>(m_element_type));
@@ -1116,6 +1119,7 @@ namespace michaelcc {
 
 			void mutable_accept(visitor& v) override {
 				v.visit(*this);
+				m_fill_value->mutable_accept(v);
 				for (const auto& dimension : m_dimensions) {
 					dimension->mutable_accept(v);
 				}
@@ -1123,6 +1127,7 @@ namespace michaelcc {
 
 			void accept(const_visitor& v) const override {
 				v.visit(*this);
+				m_fill_value->accept(v);
 				for (const auto& dimension : m_dimensions) {
 					dimension->accept(v);
 				}

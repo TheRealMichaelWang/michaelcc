@@ -125,6 +125,8 @@ namespace michaelcc {
             m_current_block.reset();
         }
 
+        linear::operand lower_allocate_array(const logic::allocate_array& node, size_t current_dimension);
+
         linear::operand lower_expression(const logic::expression& expr);
 
         linear::virtual_register compute_lvalue_address(const logic::expression& expr);

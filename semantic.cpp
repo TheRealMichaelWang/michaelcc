@@ -1121,10 +1121,21 @@ logic::variable_declaration semantic_lowerer::lower_variable_declaration(const a
             ss << "Variable \"" << node.identifier() << "\" is not an array.";
             throw panic(ss.str(), node.location());
         }
+
+        auto default_value = resolve_default_value(array_type->element_type());
+        if (!default_value) {
+            std::ostringstream ss;
+            ss << "Default value for element type " << array_type->element_type().to_string() << " is not available. No mechanism provided to initialize fill value for array " << node.identifier() << ".";
+            throw panic(ss.str(), node.location());
+        }
         
         return logic::variable_declaration(
             std::move(variable), 
-            std::make_unique<logic::array_initializer>(std::move(var_type_resolver.release_vla_dimensions()), typing::qual_type(array_type->element_type()))
+            std::make_unique<logic::allocate_array>(
+                std::move(var_type_resolver.release_vla_dimensions()),
+                std::move(default_value),
+                typing::qual_type(array_type->element_type())
+            )
         );
     }
     else {

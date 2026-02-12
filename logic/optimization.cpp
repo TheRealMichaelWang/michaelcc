@@ -129,7 +129,8 @@ namespace michaelcc {
             for (const auto& dimension : node.dimensions()) {
                 dimensions.emplace_back((*this)(*dimension));
             }
-            auto to_transform = std::make_unique<logic::allocate_array>(std::move(dimensions), typing::qual_type(node.get_type()));
+            std::unique_ptr<logic::expression> fill_value = (*this)(*node.fill_value());
+            auto to_transform = std::make_unique<logic::allocate_array>(std::move(dimensions), std::move(fill_value), typing::qual_type(node.get_type()));
             return m_pass.m_expression_pass->dispatch(std::move(to_transform));
         }
 

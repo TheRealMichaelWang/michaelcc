@@ -2,6 +2,7 @@
 #include "linear/ir.hpp"
 #include "logic/ir.hpp"
 #include "logic/type_info.hpp"
+#include "logic/typing.hpp"
 #include <bit>
 #include <memory>
 #include <sstream>
@@ -85,8 +86,7 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::variabl
         type_layout_calculator calculator(m_lowerer.m_platform_info);
         auto dest_reg = m_lowerer.new_vreg(calculator(*variable->get_type().type()).size * 8);
 
-        m_lowerer.emit(std::make_unique<linear::m_instruction>(
-            linear::m_instruction_type::LOAD, 
+        m_lowerer.emit(std::make_unique<linear::load_memory>(
             dest_reg, 
             var_reg, 
             0
@@ -172,11 +172,285 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::increme
     );
 
     auto result_reg = m_lowerer.new_vreg(var_size);
-    m_lowerer.emit(std::make_unique<linear::m_instruction>(
-        linear::m_instruction_type::LOAD, 
+    m_lowerer.emit(std::make_unique<linear::load_memory>(
         result_reg, 
         dest_reg, 
-        0
+        0 // offset
     ));
     return result_reg;
+}
+
+static linear::a_instruction_type token_to_a_type(token_type op) {
+    switch (op) {
+        case MICHAELCC_TOKEN_PLUS:           return linear::ADD;
+        case MICHAELCC_TOKEN_MINUS:          return linear::SUBTRACT;
+        case MICHAELCC_TOKEN_ASTERISK:       return linear::MULTIPLY;
+        case MICHAELCC_TOKEN_SLASH:          return linear::DIVIDE;
+        case MICHAELCC_TOKEN_MODULO:         return linear::MODULO;
+        case MICHAELCC_TOKEN_BITSHIFT_LEFT:  return linear::SHIFT_LEFT;
+        case MICHAELCC_TOKEN_BITSHIFT_RIGHT: return linear::SHIFT_RIGHT;
+        case MICHAELCC_TOKEN_AND:            return linear::BITWISE_AND;
+        case MICHAELCC_TOKEN_OR:             return linear::BITWISE_OR;
+        case MICHAELCC_TOKEN_CARET:          return linear::BITWISE_XOR;
+        case MICHAELCC_TOKEN_DOUBLE_AND:     return linear::AND;
+        case MICHAELCC_TOKEN_DOUBLE_OR:      return linear::OR;
+        case MICHAELCC_TOKEN_EQUALS:         return linear::COMPARE_EQUAL;
+        case MICHAELCC_TOKEN_NOT_EQUALS:     return linear::COMPARE_NOT_EQUAL;
+        case MICHAELCC_TOKEN_LESS:           return linear::COMPARE_LESS_THAN;
+        case MICHAELCC_TOKEN_LESS_EQUAL:     return linear::COMPARE_LESS_THAN_OR_EQUAL;
+        case MICHAELCC_TOKEN_MORE:           return linear::COMPARE_GREATER_THAN;
+        case MICHAELCC_TOKEN_MORE_EQUAL:     return linear::COMPARE_GREATER_THAN_OR_EQUAL;
+        default: throw std::runtime_error("Unsupported binary operator for a_instruction");
+    }
+}
+
+linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::arithmetic_operator& node) {
+    type_layout_calculator calculator(m_lowerer.m_platform_info);
+    size_t result_size = calculator(*node.get_type().type()).size * 8;
+
+    linear::operand left = m_lowerer.lower_expression(*node.left());
+    linear::operand right = m_lowerer.lower_expression(*node.right());
+
+    linear::a_instruction_type type = token_to_a_type(node.get_operator());
+    auto result_reg = m_lowerer.new_vreg(result_size);
+    m_lowerer.emit(std::make_unique<linear::a_instruction>(type, result_reg, left, right));
+    return result_reg;
+}
+
+linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::unary_operation& node) {
+    auto operand = m_lowerer.lower_expression(*node.operand());
+    type_layout_calculator calculator(m_lowerer.m_platform_info);
+
+    size_t bits = calculator(*node.get_type().type()).size * 8;
+    auto dest = m_lowerer.new_vreg(bits);
+
+    switch (node.get_operator()) {
+        case MICHAELCC_TOKEN_MINUS:
+            m_lowerer.emit(std::make_unique<linear::a_instruction>(
+                linear::SUBTRACT, dest,
+                linear::operand(linear::literal{ 0, bits }),
+                operand
+            ));
+            break;
+        case MICHAELCC_TOKEN_NOT:
+            m_lowerer.emit(std::make_unique<linear::a_instruction>(
+                linear::NOT, dest, operand,
+                linear::operand(linear::literal{ 0, bits })
+            ));
+            break;
+        case MICHAELCC_TOKEN_TILDE:
+            m_lowerer.emit(std::make_unique<linear::a_instruction>(
+                linear::BITWISE_NOT, dest, operand,
+                linear::operand(linear::literal{ 0, bits })
+            ));
+            break;
+        default:
+            throw std::runtime_error("Unsupported unary operator");
+    }
+    return dest;
+}
+
+linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::type_cast& node) {
+    return m_lowerer.lower_expression(*node.operand());
+}
+
+linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::address_of& node) {
+    return std::visit(overloaded{
+        [this](const std::unique_ptr<logic::array_index>& operand) -> linear::operand {
+            return m_lowerer.compute_lvalue_address(*operand);
+        },
+        [this](const std::unique_ptr<logic::member_access>& operand) -> linear::operand {
+            return m_lowerer.compute_lvalue_address(*operand);
+        },
+        [this](const std::shared_ptr<logic::variable>& operand) -> linear::operand {
+            if (!operand->must_alloca()) {
+                throw std::runtime_error("Address of variable must be alloca'd on the stack.");
+            }
+            return m_lowerer.get_var_reg(operand);
+        }
+    }, node.operand());
+}
+
+linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::dereference& node) {
+    type_layout_calculator calculator(m_lowerer.m_platform_info);
+    size_t object_size = calculator(*node.operand()->get_type().type()).size * 8;
+
+    auto operand = m_lowerer.lower_expression(*node.operand());
+    auto dest_reg = m_lowerer.new_vreg(object_size);
+    m_lowerer.emit(std::make_unique<linear::load_memory>(
+        dest_reg, 
+        operand, 
+        0 // offset
+    ));
+    return dest_reg;
+}
+
+linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::member_access& node) {
+    if (node.member().member_type.is_same_type<typing::struct_type>()) { //return a pointer to start of the struct
+        auto dest_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
+        m_lowerer.emit(std::make_unique<linear::a2_instruction>(
+            linear::ADD, 
+            dest_reg, 
+            m_lowerer.lower_expression(*node.base()), 
+            node.member().offset
+        ));
+        return dest_reg;
+    }
+
+    type_layout_calculator calculator(m_lowerer.m_platform_info);
+    size_t object_size = calculator(*node.member().member_type.type()).size * 8;
+
+    auto object_reg = m_lowerer.lower_expression(*node.base());
+    auto dest_reg = m_lowerer.new_vreg(object_size);
+    m_lowerer.emit(std::make_unique<linear::load_memory>(
+        dest_reg, 
+        object_reg, 
+        node.member().offset
+    ));
+    return dest_reg;
+}
+
+linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::array_index& node) {
+    type_layout_calculator calculator(m_lowerer.m_platform_info);
+ 
+    std::shared_ptr<typing::array_type> array_type = std::dynamic_pointer_cast<typing::array_type>(node.base()->get_type().type());
+
+    size_t elem_size = calculator(*array_type->element_type().type()).size * 8;
+    auto offset_reg = m_lowerer.new_vreg(elem_size);
+    m_lowerer.emit(std::make_unique<linear::a2_instruction>(
+        linear::MULTIPLY, 
+        offset_reg, 
+        m_lowerer.lower_expression(*node.index()), 
+        elem_size
+    ));
+
+    if (auto integer_constant = dynamic_cast<logic::integer_constant*>(node.index().get())) {
+        if (array_type->element_type().is_same_type<typing::struct_type>()) {
+            auto address_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
+            m_lowerer.emit(std::make_unique<linear::a2_instruction>(
+                linear::ADD, 
+                address_reg, 
+                m_lowerer.lower_expression(*node.base()), 
+                integer_constant->value() * elem_size
+            ));
+            return address_reg;
+        }
+        
+        auto dest_reg = m_lowerer.new_vreg(elem_size);
+        m_lowerer.emit(std::make_unique<linear::load_memory>(
+            dest_reg, 
+            m_lowerer.lower_expression(*node.base()), 
+            integer_constant->value() * elem_size
+        ));
+        return dest_reg;
+    } else {
+        auto address_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
+        m_lowerer.emit(std::make_unique<linear::a_instruction>(
+            linear::ADD, 
+            address_reg, 
+            m_lowerer.lower_expression(*node.base()), 
+            offset_reg
+        ));
+        
+        if (array_type->element_type().is_same_type<typing::struct_type>()) {
+            return address_reg;
+        }
+
+        auto dest_reg = m_lowerer.new_vreg(elem_size);
+        m_lowerer.emit(std::make_unique<linear::load_memory>(
+            dest_reg, 
+            address_reg, 
+            0
+        ));
+        return dest_reg;
+    }
+}
+
+linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::array_initializer& node) {
+    auto address_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
+    
+    std::shared_ptr<typing::array_type> array_type = std::dynamic_pointer_cast<typing::array_type>(node.element_type().type());
+    type_layout_calculator calculator(m_lowerer.m_platform_info);
+    auto elem_layout = calculator(*array_type->element_type().type());
+    
+    m_lowerer.emit(std::make_unique<linear::alloca_instruction>(
+        address_reg, 
+        node.initializers().size() * elem_layout.size,
+        elem_layout.alignment
+    ));
+
+    for (size_t i = 0; i < node.initializers().size(); i++) {
+        m_lowerer.emit(std::make_unique<linear::store_memory>(
+            address_reg, 
+            m_lowerer.lower_expression(*node.initializers()[i]), 
+            i * elem_layout.size
+        ));
+    }
+    return address_reg;
+}
+
+linear::operand logic_lowerer::lower_allocate_array(const logic::allocate_array& node, size_t current_dimension) {
+    auto address_reg = new_vreg(m_platform_info.pointer_size * 8);
+   
+    std::shared_ptr<typing::array_type> array_type = std::dynamic_pointer_cast<typing::array_type>(node.get_type().type());
+    type_layout_calculator calculator(m_platform_info);
+    auto elem_layout = calculator(*array_type->element_type().type());
+
+    if (current_dimension == node.dimensions().size() - 1) { // base case for last dimension
+        if (auto integer_constant = dynamic_cast<logic::integer_constant*>(node.dimensions().at(current_dimension).get())) {
+            emit(std::make_unique<linear::alloca_instruction>(
+                address_reg, 
+                integer_constant->value() * elem_layout.size, 
+                elem_layout.alignment
+            ));
+
+            auto fill_value = lower_expression(*node.fill_value());
+            for (size_t i = 0; i < integer_constant->value(); i++) {
+                emit(std::make_unique<linear::store_memory>(
+                    address_reg, 
+                    fill_value, 
+                    i * elem_layout.size
+                ));
+            }
+        }
+        else {
+            emit(std::make_unique<linear::valloca_instruction>(
+                address_reg, 
+                lower_expression(*node.dimensions()[current_dimension]), 
+                elem_layout.alignment
+            ));
+
+            emit(std::make_unique<linear::memfill>(
+                address_reg, 
+                lower_expression(*node.fill_value()), 
+                lower_expression(*node.dimensions()[current_dimension])
+            ));
+        }
+        return address_reg;
+    }
+
+    if (auto integer_constant = dynamic_cast<logic::integer_constant*>(node.dimensions().at(current_dimension).get())) {
+        emit(std::make_unique<linear::alloca_instruction>(
+            address_reg, 
+            m_platform_info.pointer_size * 8, 
+            std::min<size_t>(m_platform_info.pointer_size, m_platform_info.max_alignment)
+        ));
+
+        for (size_t i = 0; i < integer_constant->value(); i++) {
+            emit(std::make_unique<linear::store_memory>(
+                address_reg, 
+                lower_allocate_array(node, current_dimension + 1), 
+                i * m_platform_info.pointer_size
+            ));
+        }
+        return address_reg;
+    }
+    else {
+        throw std::runtime_error("Invalid dimension type for allocate_array (first dimension must be an integer constant).");
+    }
+}
+
+
+linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::allocate_array& node) {
+    return m_lowerer.lower_allocate_array(node, 0);
 }

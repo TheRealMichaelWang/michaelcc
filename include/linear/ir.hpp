@@ -59,6 +59,23 @@ namespace michaelcc {
             DECREMENT
         };
 
+        class a2_instruction : public instruction {
+        private:
+            a_instruction_type m_type;
+            virtual_register m_destination;
+            operand m_operand_a;
+
+            size_t m_constant;  
+        public:
+            a2_instruction(a_instruction_type type, virtual_register destination, operand operand_a, size_t constant) 
+            : m_type(type), m_destination(destination), m_operand_a(operand_a), m_constant(constant) {}
+
+            a_instruction_type type() const noexcept { return m_type; }
+            virtual_register destination() const noexcept { return m_destination; }
+            operand operand_a() const noexcept { return m_operand_a; }
+            size_t constant() const noexcept { return m_constant; }
+        };
+
         class i_instruction : public instruction {
         private:
             i_instruction_type m_type;
@@ -73,29 +90,80 @@ namespace michaelcc {
         };
 
 
-        // Memory "M" instructions
-        enum m_instruction_type {
-            LOAD,
-            STORE,
-            ALLOCATE
+        // Load from memory
+        class load_memory : public instruction {
+        private:
+            virtual_register m_destination;
+            operand m_source_address;
+            size_t m_offset;
+        public:
+            load_memory(virtual_register destination, operand source_address, size_t offset) 
+                : m_destination(destination), m_source_address(source_address), m_offset(offset) {}
+        
+            virtual_register destination() const noexcept { return m_destination; }
+            operand source_address() const noexcept { return m_source_address; }
+            size_t offset() const noexcept { return m_offset; }
         };
 
-        class m_instruction : public instruction {
+
+        // Store to memory
+        class store_memory : public instruction {
         private:
-            m_instruction_type m_type;
-            virtual_register m_destination;
-            virtual_register m_source;
+            operand m_source_address;
+            operand m_value;
             size_t m_offset;
+        public:
+            store_memory(operand source_address, operand value, size_t offset) 
+                : m_source_address(source_address), m_value(value), m_offset(offset) {}
+        
+            operand source_address() const noexcept { return m_source_address; }
+            operand value() const noexcept { return m_value; }
+            size_t offset() const noexcept { return m_offset; }
+        };
+
+        class alloca_instruction : public instruction {
+        private:
+            virtual_register m_destination;
+            size_t m_size_bytes;
+            size_t m_alignment;
 
         public:
-            m_instruction(m_instruction_type type, virtual_register destination, virtual_register source, size_t offset) 
-                : m_type(type), m_destination(destination), m_source(source), m_offset(offset) {}
-
-            m_instruction_type type() const noexcept { return m_type; }
+            alloca_instruction(virtual_register destination, size_t size_bytes, size_t alignment)
+                : m_destination(destination), m_size_bytes(size_bytes), m_alignment(alignment) {}
 
             virtual_register destination() const noexcept { return m_destination; }
-            virtual_register source() const noexcept { return m_source; }
-            size_t offset() const noexcept { return m_offset; }
+            size_t size_bytes() const noexcept { return m_size_bytes; }
+            size_t alignment() const noexcept { return m_alignment; }
+        };
+
+        class valloca_instruction : public instruction {
+        private:
+            virtual_register m_destination;
+            operand m_size;
+            size_t m_alignment;
+
+        public:
+            valloca_instruction(virtual_register destination, operand size, size_t alignment)
+                : m_destination(destination), m_size(size), m_alignment(alignment) {}
+
+            virtual_register destination() const noexcept { return m_destination; }
+            operand size() const noexcept { return m_size; }
+            size_t alignment() const noexcept { return m_alignment; }
+        };
+
+        class memfill : public instruction {
+        private:
+            operand m_destination;
+            operand m_fill_value;
+            operand m_fill_count;
+
+        public:
+            memfill(operand destination, operand fill_value, operand fill_count)
+                : m_destination(destination), m_fill_value(fill_value), m_fill_count(fill_count) {}
+            
+            operand destination() const noexcept { return m_destination; }
+            operand fill_value() const noexcept { return m_fill_value; }
+            operand fill_count() const noexcept { return m_fill_count; }
         };
 
 
