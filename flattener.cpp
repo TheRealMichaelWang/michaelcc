@@ -32,8 +32,18 @@ logic_lowerer::block_var_ctx logic_lowerer::reconcile_var_regs(const std::vector
                 vregs.insert(vregs.end(), it->second.begin(), it->second.end());
             }
         }
+        result.m_variable_to_vreg[variable] = vregs;
     }    
     return result;
+}
+
+void logic_lowerer::emit_phi_all() {
+    for (const auto& [variable, vregs] : m_current_block->var_info.m_variable_to_vreg) {
+        type_layout_calculator calculator(m_platform_info);
+        auto dest_reg = new_vreg(calculator(*variable->get_type().type()).size * 8);
+        emit(std::make_unique<linear::phi_instruction>(dest_reg, std::vector<linear::var_info>(vregs)));
+        m_current_block->var_info.m_variable_to_vreg[variable] = { linear::var_info{ .vreg = dest_reg, .block_id = current_block_id() } };
+    }
 }
 
 linear::virtual_register logic_lowerer::get_var_reg(const std::shared_ptr<logic::variable>& variable) {

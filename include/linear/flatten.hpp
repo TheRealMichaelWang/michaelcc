@@ -97,9 +97,11 @@ namespace michaelcc {
 
         block_var_ctx reconcile_var_regs(const std::vector<size_t>& incoming_block_ids);
 
+        void emit_phi_all();
+
         linear::virtual_register get_var_reg(const std::shared_ptr<logic::variable>& variable);
 
-        size_t begin_block(std::vector<size_t>&& incoming_block_ids) {
+        size_t begin_block(std::vector<size_t>&& incoming_block_ids, bool phi_all=false) {
             size_t id = m_next_block_id;
             m_next_block_id++;
             m_current_block = block_builder{ 
@@ -107,6 +109,9 @@ namespace michaelcc {
                 .incoming_block_ids = std::move(incoming_block_ids), 
                 .var_info = reconcile_var_regs(incoming_block_ids) 
             };
+            if (phi_all) {
+                emit_phi_all();
+            }
             return id;
         }
 
