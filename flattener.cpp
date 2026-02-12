@@ -112,17 +112,26 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::string_
 linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::variable_reference& node) {
     auto variable = node.get_variable();
     auto var_reg = m_lowerer.get_var_reg(variable);
+    type_layout_calculator calculator(m_lowerer.m_platform_info);
+
     if (variable->must_alloca()) {
         type_layout_calculator calculator(m_lowerer.m_platform_info);
-        auto dest_reg = m_lowerer.new_vreg(calculator(*variable->get_type().type()).size * 8);
+        if (calculator(*variable->get_type().type()).size <= m_lowerer.m_platform_info.pointer_size) {
+            auto dest_reg = m_lowerer.new_vreg(calculator(*variable->get_type().type()).size * 8);
 
-        m_lowerer.emit(std::make_unique<linear::load_memory>(
-            dest_reg, 
-            var_reg, 
-            0
-        ));
+            m_lowerer.emit(std::make_unique<linear::load_memory>(
+                dest_reg, 
+                var_reg, 
+                0
+            ));
 
-        return dest_reg;
+            return dest_reg;
+        }
+        else {
+            if (!variable->get_type().is_same_type<typing::struct_type>()) {
+                throw std::runtime_error("Only structs can be this large and passed by value.");
+            }
+        }
     }
     return var_reg;
 }
@@ -134,44 +143,42 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::functio
 }
 
 linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::increment_operator& node) {
-    type_layout_calculator calculator(m_lowerer.m_platform_info);
-    size_t var_size = calculator(*node.get_type().type()).size * 8;
-
     bool use_one = node.get_operator() == MICHAELCC_TOKEN_INCREMENT || node.get_operator() == MICHAELCC_TOKEN_DECREMENT;
-    
+    linear::a_instruction_type type;
+    switch (node.get_operator()) {
+    case MICHAELCC_TOKEN_INCREMENT:
+    case MICHAELCC_TOKEN_INCREMENT_BY:
+        type = linear::a_instruction_type::ADD;
+        break;
+    case MICHAELCC_TOKEN_DECREMENT:
+    case MICHAELCC_TOKEN_DECREMENT_BY:
+        type = linear::a_instruction_type::SUBTRACT;
+        break;
+    default:
+        throw std::runtime_error("Invalid increment operator");
+    }
+
     if (std::holds_alternative<std::shared_ptr<logic::variable>>(node.destination())) {
         auto variable = std::get<std::shared_ptr<logic::variable>>(node.destination());
         if (!variable->must_alloca()) {
-            auto dest_reg = m_lowerer.get_var_reg(variable);
+            auto var_reg = m_lowerer.get_var_reg(variable);
 
-            linear::a_instruction_type type;
-            switch (node.get_operator()) {
-            case MICHAELCC_TOKEN_INCREMENT:
-            case MICHAELCC_TOKEN_INCREMENT_BY:
-                type = linear::a_instruction_type::ADD;
-                break;
-            case MICHAELCC_TOKEN_DECREMENT:
-            case MICHAELCC_TOKEN_DECREMENT_BY:
-                type = linear::a_instruction_type::SUBTRACT;
-                break;
-            default:
-                throw std::runtime_error("Invalid increment operator");
-            }
-
-            auto new_dest_reg = m_lowerer.new_vreg(var_size);
+            auto new_dest_reg = m_lowerer.new_vreg(var_reg.size_bits);
             m_lowerer.emit(std::make_unique<linear::a_instruction>(
                 type, 
                 new_dest_reg, 
-                dest_reg, 
-                use_one ? linear::literal{ .value = 1, .size_bits = var_size } 
+                var_reg, 
+                use_one ? linear::literal{ .value = 1, .size_bits = var_reg.size_bits } 
                     : m_lowerer.lower_expression(*node.increment_amount().value())
             ));
-
             
             m_lowerer.m_current_block->var_info.m_variable_to_vreg[variable] = { linear::var_info{ .vreg = new_dest_reg, .block_id = m_lowerer.current_block_id() } };
             return new_dest_reg;
         }
     }
+
+    type_layout_calculator calculator(m_lowerer.m_platform_info);
+    size_t var_size = calculator(*node.get_type().type()).size * 8;
 
     auto dest_reg = std::visit(overloaded{
         [this](const std::unique_ptr<logic::expression>& expr) -> linear::virtual_register {
@@ -182,29 +189,23 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::increme
         }
     }, node.destination());
 
-    linear::i_instruction_type type;
-    switch (node.get_operator()) {
-    case MICHAELCC_TOKEN_INCREMENT:
-    case MICHAELCC_TOKEN_INCREMENT_BY:
-        type = linear::i_instruction_type::INCREMENT;
-        break;
-    case MICHAELCC_TOKEN_DECREMENT:
-    case MICHAELCC_TOKEN_DECREMENT_BY:
-        type = linear::i_instruction_type::DECREMENT;
-        break;
-    default:
-        throw std::runtime_error("Invalid increment operator");
-    }
-
-    m_lowerer.emit(std::make_unique<linear::i_instruction>(
-        type, dest_reg, 
-        m_lowerer.lower_expression(*node.increment_amount().value()))
-    );
-
     auto result_reg = m_lowerer.new_vreg(var_size);
     m_lowerer.emit(std::make_unique<linear::load_memory>(
         result_reg, 
         dest_reg, 
+        0 // offset
+    ));
+    auto incremented_reg = m_lowerer.new_vreg(var_size);
+    m_lowerer.emit(std::make_unique<linear::a_instruction>(
+        type, 
+        incremented_reg, 
+        result_reg, 
+        use_one ? linear::literal{ .value = 1, .size_bits = var_size } 
+            : m_lowerer.lower_expression(*node.increment_amount().value())
+    ));
+    m_lowerer.emit(std::make_unique<linear::store_memory>(
+        dest_reg, 
+        incremented_reg, 
         0 // offset
     ));
     return result_reg;
@@ -479,7 +480,6 @@ linear::operand logic_lowerer::lower_allocate_array(const logic::allocate_array&
         throw std::runtime_error("Invalid dimension type for allocate_array (first dimension must be an integer constant).");
     }
 }
-
 
 linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::allocate_array& node) {
     return m_lowerer.lower_allocate_array(node, 0);

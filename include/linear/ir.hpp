@@ -65,11 +65,6 @@ namespace michaelcc {
             operand operand_b() const noexcept { return m_operand_b; }
         };
 
-        enum i_instruction_type {
-            INCREMENT,
-            DECREMENT
-        };
-
         class a2_instruction : public instruction {
         private:
             a_instruction_type m_type;
@@ -86,20 +81,6 @@ namespace michaelcc {
             operand operand_a() const noexcept { return m_operand_a; }
             size_t constant() const noexcept { return m_constant; }
         };
-
-        class i_instruction : public instruction {
-        private:
-            i_instruction_type m_type;
-            virtual_register m_destination_address;
-            operand m_amount;
-        public:
-            i_instruction(i_instruction_type type, virtual_register destination_address, operand amount) : m_type(type), m_destination_address(destination_address), m_amount(amount) {}
-
-            i_instruction_type type() const noexcept { return m_type; }
-            virtual_register destination_address() const noexcept { return m_destination_address; }
-            operand amount() const noexcept { return m_amount; }
-        };
-
 
         // Load from memory
         class load_memory : public instruction {
