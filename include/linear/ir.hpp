@@ -159,21 +159,6 @@ namespace michaelcc {
             size_t alignment() const noexcept { return m_alignment; }
         };
 
-        class memfill : public instruction {
-        private:
-            operand m_destination;
-            operand m_fill_value;
-            operand m_fill_count;
-
-        public:
-            memfill(operand destination, operand fill_value, operand fill_count)
-                : m_destination(destination), m_fill_value(fill_value), m_fill_count(fill_count) {}
-            
-            operand destination() const noexcept { return m_destination; }
-            operand fill_value() const noexcept { return m_fill_value; }
-            operand fill_count() const noexcept { return m_fill_count; }
-        };
-
 
         // Branch "B" instructions
         class basic_block {

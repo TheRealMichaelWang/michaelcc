@@ -146,7 +146,7 @@ namespace michaelcc {
         void emit_iloop(linear::operand count, std::function<void(linear::virtual_register)> body);
 
         void emit_memset(linear::virtual_register dest, linear::operand value, linear::operand count);
-        void emit_memcpy(linear::virtual_register dest, linear::operand src, size_t size_bytes);
+        void emit_memcpy(linear::virtual_register dest, linear::operand src, size_t size_bytes, size_t offset);
 
         linear::operand lower_allocate_array(const logic::allocate_array& node, size_t current_dimension);
 

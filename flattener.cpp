@@ -160,11 +160,11 @@ void logic_lowerer::emit_memset(linear::virtual_register dest, linear::operand v
     });
 }
 
-void logic_lowerer::emit_memcpy(linear::virtual_register dest, linear::operand src, size_t size_bytes) {
+void logic_lowerer::emit_memcpy(linear::virtual_register dest, linear::operand src, size_t size_bytes, size_t offset) {
     for (size_t i = 0; i < size_bytes; i += m_platform_info.pointer_size) {
         auto elem_reg = new_vreg(m_platform_info.char_size);    
-        emit(std::make_unique<linear::load_memory>(elem_reg, src, i));
-        emit(std::make_unique<linear::store_memory>(dest, elem_reg, i));
+        emit(std::make_unique<linear::load_memory>(elem_reg, src, i + offset));
+        emit(std::make_unique<linear::store_memory>(dest, elem_reg, i + offset));
     }
 }
 
@@ -493,11 +493,21 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::array_i
     ));
 
     for (size_t i = 0; i < node.initializers().size(); i++) {
-        m_lowerer.emit(std::make_unique<linear::store_memory>(
+        if (node.initializers().at(i)->get_type().is_same_type<typing::struct_type>()) {
+            m_lowerer.emit_memcpy(
+                address_reg, 
+                m_lowerer.lower_expression(*node.initializers()[i]), 
+                elem_layout.size,
+                elem_layout.size * i
+            );
+        }
+        else {
+            m_lowerer.emit(std::make_unique<linear::store_memory>(
             address_reg, 
-            m_lowerer.lower_expression(*node.initializers()[i]), 
-            i * elem_layout.size
-        ));
+                m_lowerer.lower_expression(*node.initializers()[i]), 
+                i * elem_layout.size
+            ));
+        }
     }
     return address_reg;
 }
@@ -533,11 +543,11 @@ linear::operand logic_lowerer::lower_allocate_array(const logic::allocate_array&
                 elem_layout.alignment
             ));
 
-            emit(std::make_unique<linear::memfill>(
+            emit_memset(
                 address_reg, 
                 lower_expression(*node.fill_value()), 
                 lower_expression(*node.dimensions()[current_dimension])
-            ));
+            );
         }
         return address_reg;
     }
