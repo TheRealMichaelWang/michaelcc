@@ -494,12 +494,17 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::array_i
 
     for (size_t i = 0; i < node.initializers().size(); i++) {
         if (node.initializers().at(i)->get_type().is_same_type<typing::struct_type>()) {
-            m_lowerer.emit_memcpy(
-                address_reg, 
-                m_lowerer.lower_expression(*node.initializers()[i]), 
-                elem_layout.size,
-                elem_layout.size * i
-            );
+            if (auto struct_initializer = dynamic_cast<logic::struct_initializer*>(node.initializers().at(i).get())) {
+                m_lowerer.lower_struct_initializer(*struct_initializer, address_reg, elem_layout.size * i);
+            }
+            else {
+                m_lowerer.emit_memcpy(
+                    address_reg, 
+                    m_lowerer.lower_expression(*node.initializers()[i]), 
+                    elem_layout.size,
+                    elem_layout.size * i
+                );
+            }
         }
         else {
             m_lowerer.emit(std::make_unique<linear::store_memory>(
@@ -575,4 +580,64 @@ linear::operand logic_lowerer::lower_allocate_array(const logic::allocate_array&
 
 linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::allocate_array& node) {
     return m_lowerer.lower_allocate_array(node, 0);
+}
+
+
+linear::operand logic_lowerer::lower_struct_initializer(const logic::struct_initializer& node, linear::virtual_register dest_address, size_t offset) {
+    auto& struct_type = node.struct_type();
+    
+    type_layout_calculator calculator(m_platform_info);
+    for (const auto& initializer : node.initializers()) {
+        auto field = std::find_if(struct_type->fields().begin(), struct_type->fields().end(), [&](const typing::member& member) {
+            return member.name == initializer.member_name;
+        });
+        if (field == struct_type->fields().end()) {
+            throw std::runtime_error("Member \"" + initializer.member_name + "\" not found in struct.");
+        }
+
+        if (initializer.initializer->get_type().is_same_type<typing::struct_type>()) {
+            if (auto struct_initializer = dynamic_cast<logic::struct_initializer*>(initializer.initializer.get())) {
+                lower_struct_initializer(*struct_initializer, dest_address, field->offset + offset);
+            }
+            else {
+                auto evaluated_src = lower_expression(*initializer.initializer);
+                if (std::holds_alternative<linear::virtual_register>(evaluated_src)) {
+                    auto src_address = std::get<linear::virtual_register>(evaluated_src);
+                    emit_memcpy(
+                        dest_address, 
+                        src_address, 
+                        calculator(*field->member_type.type()).size, 
+                        field->offset + offset
+                    );
+                }
+                else {
+                    throw std::runtime_error("Invalid source type for struct initializer.");
+                }
+            }
+        }
+        else {
+            emit(std::make_unique<linear::store_memory>(
+                dest_address, 
+                lower_expression(*initializer.initializer), 
+                field->offset + offset
+            ));
+        }
+    }
+    return dest_address;
+}
+
+linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::struct_initializer& node) {
+    auto& struct_type = node.struct_type();
+    type_layout_calculator calculator(m_lowerer.m_platform_info);
+    auto struct_layout = calculator(*struct_type);
+
+    auto dest_address = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
+    m_lowerer.emit(std::make_unique<linear::alloca_instruction>(
+        dest_address, 
+        struct_layout.size, 
+        struct_layout.alignment
+    ));
+
+    m_lowerer.lower_struct_initializer(node, dest_address, 0);
+    return dest_address;
 }
