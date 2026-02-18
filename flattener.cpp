@@ -12,11 +12,15 @@
 
 using namespace michaelcc;
 
-logic_lowerer::block_var_ctx logic_lowerer::reconcile_var_regs(const std::vector<size_t>& incoming_block_ids) {
+logic_lowerer::block_var_ctx logic_lowerer::reconcile_var_regs(const std::vector<size_t>& incoming_block_ids, size_t incoming_block_id) {
     block_var_ctx result;
 
     std::unordered_set<std::shared_ptr<logic::variable>> seen_variables;
     for (size_t block_id : incoming_block_ids) {
+        if (incoming_block_id == block_id) {
+            continue;
+        }
+        
         const auto& block_var_ctx = m_finished_block_var_ctx.at(block_id);
         for (const auto& [variable, vregs] : block_var_ctx.m_variable_to_vreg) {
             seen_variables.insert(variable);
@@ -26,6 +30,10 @@ logic_lowerer::block_var_ctx logic_lowerer::reconcile_var_regs(const std::vector
     for (const std::shared_ptr<logic::variable>& variable : seen_variables) {
         std::vector<linear::var_info> vregs;
         for (size_t block_id : incoming_block_ids) {
+            if (incoming_block_id == block_id) {
+                continue;
+            }
+
             const auto& block_var_ctx = m_finished_block_var_ctx.at(block_id);
             auto it = block_var_ctx.m_variable_to_vreg.find(variable);
             if (it != block_var_ctx.m_variable_to_vreg.end()) {
@@ -88,6 +96,76 @@ linear::virtual_register logic_lowerer::get_var_reg(const std::shared_ptr<logic:
     m_current_block->var_info.m_variable_to_vreg[variable] = { linear::var_info{ .vreg = dest_reg, .block_id = current_block_id() } };
 
     return dest_reg;
+}
+
+void logic_lowerer::emit_iloop(linear::operand count, std::function<void(linear::virtual_register)> body) {
+    auto initial_state = new_vreg(m_platform_info.int_size * 8);
+    emit(std::make_unique<linear::init_zero>(initial_state));
+
+    size_t old_block_id = current_block_id();
+    size_t loop1_block_id = allocate_block_id();
+    size_t loop2_block_id = allocate_block_id();
+    size_t finish_block_id = allocate_block_id();
+
+    emit(std::make_unique<linear::branch>(loop1_block_id));
+    seal_block(); //end current block
+
+    begin_block(loop1_block_id, { old_block_id, loop2_block_id });
+    auto iterator_state = new_vreg(m_platform_info.int_size * 8);
+    auto post_increment_state = new_vreg(m_platform_info.int_size * 8);
+
+    emit(std::make_unique<linear::phi_instruction>(
+        iterator_state, std::vector<linear::var_info>{ 
+            linear::var_info{ .vreg = initial_state, .block_id = old_block_id },
+            linear::var_info{ .vreg = post_increment_state, .block_id = loop2_block_id }
+        }
+    ));
+
+    auto cond_check_status = new_vreg(m_platform_info.int_size * 8);
+    emit(std::make_unique<linear::a_instruction>(
+        linear::COMPARE_EQUAL, cond_check_status, iterator_state, count
+    ));
+
+    emit(std::make_unique<linear::branch_condition>(
+        cond_check_status, finish_block_id, loop2_block_id, true
+    ));
+    seal_block();
+
+    begin_block(loop2_block_id, { loop1_block_id });
+
+    body(iterator_state);
+
+    //increment and branch back to the top
+    emit(std::make_unique<linear::a2_instruction>(
+        linear::ADD, post_increment_state, iterator_state, 1
+    ));
+    emit(std::make_unique<linear::branch>(loop1_block_id));
+    seal_block();
+
+    begin_block(finish_block_id, { loop1_block_id });
+}
+
+void logic_lowerer::emit_memset(linear::virtual_register dest, linear::operand value, linear::operand count) {
+    emit_iloop(count, [this, dest, value](linear::virtual_register iterator_state) {
+        auto offset_reg = new_vreg(m_platform_info.int_size * 8);
+        emit(std::make_unique<linear::a2_instruction>(
+            linear::MULTIPLY, offset_reg, iterator_state, 
+            linear::get_operand_size(value) / 8
+        ));
+        auto address_reg = new_vreg(m_platform_info.pointer_size * 8);
+        emit(std::make_unique<linear::a_instruction>(
+            linear::ADD, address_reg, dest, offset_reg
+        ));
+        emit(std::make_unique<linear::store_memory>(address_reg, value, 0));
+    });
+}
+
+void logic_lowerer::emit_memcpy(linear::virtual_register dest, linear::operand src, size_t size_bytes) {
+    for (size_t i = 0; i < size_bytes; i += m_platform_info.pointer_size) {
+        auto elem_reg = new_vreg(m_platform_info.char_size);    
+        emit(std::make_unique<linear::load_memory>(elem_reg, src, i));
+        emit(std::make_unique<linear::store_memory>(dest, elem_reg, i));
+    }
 }
 
 linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::integer_constant& node) {
@@ -303,6 +381,10 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::address
 }
 
 linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::dereference& node) {
+    if (node.operand()->get_type().is_same_type<typing::struct_type>()) { //we only pass around pointers to structs
+        return m_lowerer.lower_expression(*node.operand());
+    }
+
     type_layout_calculator calculator(m_lowerer.m_platform_info);
     size_t object_size = calculator(*node.operand()->get_type().type()).size * 8;
 

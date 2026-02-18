@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <functional>
 
 namespace michaelcc {
     class logic_lowerer {
@@ -102,7 +103,7 @@ namespace michaelcc {
             return { id, size_bits };
         }
 
-        block_var_ctx reconcile_var_regs(const std::vector<size_t>& incoming_block_ids);
+        block_var_ctx reconcile_var_regs(const std::vector<size_t>& incoming_block_ids, size_t incoming_block_id);
 
         void emit_phi_all();
 
@@ -110,18 +111,21 @@ namespace michaelcc {
 
         linear::virtual_register get_var_reg(const std::shared_ptr<logic::variable>& variable);
 
-        size_t begin_block(std::vector<size_t>&& incoming_block_ids, bool phi_all=false) {
+        size_t allocate_block_id() {
             size_t id = m_next_block_id;
             m_next_block_id++;
+            return id;
+        }
+
+        void begin_block(size_t head_block_id, std::vector<size_t>&& incoming_block_ids, bool phi_all=false) {
             m_current_block = block_builder{ 
-                .id = id, 
+                .id = head_block_id, 
                 .incoming_block_ids = std::move(incoming_block_ids), 
-                .var_info = reconcile_var_regs(incoming_block_ids) 
+                .var_info = reconcile_var_regs(incoming_block_ids, head_block_id) 
             };
             if (phi_all) {
                 emit_phi_all();
             }
-            return id;
         }
 
         void emit(std::unique_ptr<linear::instruction>&& inst) {
@@ -138,6 +142,11 @@ namespace michaelcc {
             m_finished_blocks.emplace(cb.id, linear::basic_block(cb.id, std::move(cb.instructions)));
             m_current_block.reset();
         }
+
+        void emit_iloop(linear::operand count, std::function<void(linear::virtual_register)> body);
+
+        void emit_memset(linear::virtual_register dest, linear::operand value, linear::operand count);
+        void emit_memcpy(linear::virtual_register dest, linear::operand src, size_t size_bytes);
 
         linear::operand lower_allocate_array(const logic::allocate_array& node, size_t current_dimension);
 

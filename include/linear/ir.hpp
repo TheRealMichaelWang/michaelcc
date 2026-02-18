@@ -27,6 +27,13 @@ namespace michaelcc {
 
         using operand = std::variant<virtual_register, literal>;
 
+        inline size_t get_operand_size(const operand& op) noexcept {
+            return std::visit(overloaded{
+                [](const virtual_register& vreg) noexcept -> size_t { return vreg.size_bits; },
+                [](const literal& lit) noexcept -> size_t { return lit.size_bits; }
+            }, op);
+        }
+
         class instruction {
         public:
             virtual ~instruction() = default;
@@ -80,6 +87,15 @@ namespace michaelcc {
             virtual_register destination() const noexcept { return m_destination; }
             operand operand_a() const noexcept { return m_operand_a; }
             size_t constant() const noexcept { return m_constant; }
+        };
+
+        class init_zero : public instruction {
+        private:
+            virtual_register m_destination;
+            
+        public:
+            init_zero(virtual_register destination) : m_destination(destination) {}
+            virtual_register destination() const noexcept { return m_destination; }
         };
 
         // Load from memory
@@ -188,12 +204,15 @@ namespace michaelcc {
             operand m_condition;
             size_t m_if_true_block_id;
             size_t m_if_false_block_id;
+            bool m_is_loop; 
         public:
-            branch_condition(operand condition, size_t if_true_block_id, size_t if_false_block_id) 
-                : m_condition(condition), m_if_true_block_id(if_true_block_id), m_if_false_block_id(if_false_block_id) {}
+            branch_condition(operand condition, size_t if_true_block_id, size_t if_false_block_id, bool is_loop) 
+                : m_condition(condition), m_if_true_block_id(if_true_block_id), m_if_false_block_id(if_false_block_id), m_is_loop(is_loop) {}
+
             operand condition() const noexcept { return m_condition; }
             size_t if_true_block_id() const noexcept { return m_if_true_block_id; }
             size_t if_false_block_id() const noexcept { return m_if_false_block_id; }
+            bool is_loop() const noexcept { return m_is_loop; }
         };
 
 
