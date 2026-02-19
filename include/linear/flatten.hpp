@@ -74,7 +74,7 @@ namespace michaelcc {
         struct block_builder {
             size_t id;
             std::vector<std::unique_ptr<linear::instruction>> instructions;
-            std::vector<linear::var_info> incoming_vregs;
+
             std::vector<size_t> incoming_block_ids;
             block_var_ctx var_info;
         };

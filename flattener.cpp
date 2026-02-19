@@ -79,9 +79,6 @@ linear::virtual_register logic_lowerer::get_var_reg(const std::shared_ptr<logic:
     
     // if only one definition we are gtg
     if (vregs.size() == 1) {
-        if (vregs.at(0).block_id != current_block_id()) {
-            m_current_block->incoming_vregs.push_back(vregs.at(0));
-        }
         return vregs.at(0).vreg;
     }
 
@@ -89,7 +86,6 @@ linear::virtual_register logic_lowerer::get_var_reg(const std::shared_ptr<logic:
     type_layout_calculator calculator(m_platform_info);
     auto dest_reg = new_vreg(calculator(*variable->get_type().type()).size * 8);
     
-    m_current_block->incoming_vregs.insert(m_current_block->incoming_vregs.end(), vregs.begin(), vregs.end());
     emit(std::make_unique<linear::phi_instruction>(dest_reg, std::move(vregs)));
 
     // update the current block's var info
