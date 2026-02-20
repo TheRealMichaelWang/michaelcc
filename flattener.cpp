@@ -51,17 +51,20 @@ void logic_lowerer::emit_phi_all() {
     for (const auto& [variable, vregs] : m_current_block->var_info.m_variable_to_vreg) {
         type_layout_calculator calculator(m_platform_info);
         auto dest_reg = new_vreg(
-            calculator(*variable->get_type().type()).size * 8,
-            variable->must_use_register(),
-            variable->name()
+            calculator(*variable->get_type().type()).size * 8
         );
+        m_vreg_alloc_information[dest_reg.id] = std::make_shared<linear::alloc_information>(linear::alloc_information{
+            .name = variable->name(),
+            .must_use_register = variable->must_use_register()
+        });
         auto phi_node = std::make_unique<linear::phi_instruction>(dest_reg, std::vector<linear::var_info>(vregs));
         init_phi_nodes[variable] = phi_node.get();
         emit(std::move(phi_node));
         m_current_block->var_info.m_variable_to_vreg[variable] = { linear::var_info{ .vreg = dest_reg, .block_id = current_block_id() } };
     }
     m_loop_infos[current_block_id()] = loop_info{ 
-        .id = current_block_id(), 
+        .block_id = current_block_id(), 
+        .finish_block_id = allocate_block_id(),
         .original_var_info = m_current_block->var_info.m_variable_to_vreg, 
         .init_phi_nodes = std::move(init_phi_nodes)
     };
@@ -89,11 +92,11 @@ linear::virtual_register logic_lowerer::get_var_reg(const std::shared_ptr<logic:
 
     // if multiple definitions we need to reconcile with phi node
     type_layout_calculator calculator(m_platform_info);
-    auto dest_reg = new_vreg(
-        calculator(*variable->get_type().type()).size * 8,
-        variable->must_use_register(),
-        variable->name()
-    );
+    auto dest_reg = new_vreg(calculator(*variable->get_type().type()).size * 8);
+    m_vreg_alloc_information[dest_reg.id] = std::make_shared<linear::alloc_information>(linear::alloc_information{
+        .name = variable->name(),
+        .must_use_register = variable->must_use_register()
+    });
     
     emit(std::make_unique<linear::phi_instruction>(dest_reg, std::move(vregs)));
 
@@ -197,7 +200,7 @@ void logic_lowerer::lower_union_initializer(const logic::union_initializer& node
     lower_at_address(dest_address, node.initializer(), 0);
 }
 
-void logic_lowerer::lower_at_address(linear::virtual_register dest_address, const std::unique_ptr<logic::expression>& initializer, size_t offset) {
+linear::virtual_register logic_lowerer::lower_at_address(linear::virtual_register dest_address, const std::unique_ptr<logic::expression>& initializer, size_t offset) {
     type_layout_calculator calculator(m_platform_info);
     if(calculator.must_alloca(initializer->get_type().type())) {
         if (auto struct_initializer = dynamic_cast<logic::struct_initializer*>(initializer.get())) {
@@ -216,6 +219,7 @@ void logic_lowerer::lower_at_address(linear::virtual_register dest_address, cons
                 offset
             );
         }
+        return dest_address;
     }
     else {
         auto evaled_src_reg = lower_expression(*initializer);
@@ -224,12 +228,13 @@ void logic_lowerer::lower_at_address(linear::virtual_register dest_address, cons
             evaled_src_reg, 
             offset
         ));
+        return evaled_src_reg;
     }
 }
 
 linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::integer_constant& node) {
     type_layout_calculator calculator(m_lowerer.m_platform_info);
-    auto dest_reg = make_dest_reg(calculator(*node.get_type().type()).size * 8);
+    auto dest_reg = m_lowerer.new_vreg(calculator(*node.get_type().type()).size * 8);
     
     m_lowerer.emit(std::make_unique<linear::init_register>(
         dest_reg, std::bit_cast<uint64_t>(node.value())
@@ -240,7 +245,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
 
 linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::floating_constant& node) {
     type_layout_calculator calculator(m_lowerer.m_platform_info);
-    auto dest_reg = make_dest_reg(calculator(*node.get_type().type()).size * 8);
+    auto dest_reg = m_lowerer.new_vreg(calculator(*node.get_type().type()).size * 8);
 
     m_lowerer.emit(std::make_unique<linear::init_register>(
         dest_reg, std::bit_cast<uint64_t>(node.value())
@@ -253,7 +258,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     std::ostringstream ss;
     ss << "@string_" << node.index();
     
-    auto dest_reg = make_dest_reg(m_lowerer.m_platform_info.pointer_size * 8);
+    auto dest_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
     m_lowerer.emit(std::make_unique<linear::load_effective_address>(
         dest_reg, ss.str()
     ));
@@ -268,7 +273,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     if (variable->must_alloca() || calculator.must_alloca(variable->get_type())) {
         type_layout_calculator calculator(m_lowerer.m_platform_info);
         if (calculator(*variable->get_type().type()).size * 8 <= m_lowerer.m_platform_info.register_size) {
-            auto dest_reg = make_dest_reg(calculator(*variable->get_type().type()).size * 8);
+            auto dest_reg = m_lowerer.new_vreg(calculator(*variable->get_type().type()).size * 8);
             m_lowerer.emit(std::make_unique<linear::load_memory>(
                 dest_reg, 
                 var_reg, 
@@ -286,28 +291,13 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     auto var_reg = m_lowerer.get_var_reg(node.variable());
     
     if (node.variable()->must_alloca() || calculator.must_alloca(node.variable()->get_type())) {
-        if (calculator.must_alloca(node.variable()->get_type())) {
-            m_lowerer.lower_at_address(var_reg, node.value(), 0);
-            return var_reg;
-        }
-        auto evaled_src_reg = m_lowerer.lower_expression(
-            *node.value(),
-            m_dest_reg_use_register,
-            m_dest_reg_name
-        );
-        m_lowerer.emit(std::make_unique<linear::store_memory>(
-            var_reg, 
-            evaled_src_reg, 
-            0
-        ));
-        return evaled_src_reg;
+        return m_lowerer.lower_at_address(var_reg, node.value(), 0);
     }
 
     auto new_reg = m_lowerer.lower_expression(
-        *node.value(),
-        node.variable()->must_use_register(),
-        node.variable()->name()
+        *node.value()
     );
+    m_lowerer.m_vreg_alloc_information[new_reg.id] = m_lowerer.m_vreg_alloc_information[var_reg.id];
     assert(new_reg != var_reg);
 
     m_lowerer.m_current_block->var_info.m_variable_to_vreg[node.variable()] = { linear::var_info{ 
@@ -318,36 +308,50 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     return new_reg;
 }
 
-linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::set_address& node) {
+void logic_lowerer::statement_lowerer::dispatch(const logic::variable_declaration& node) {
     type_layout_calculator calculator(m_lowerer.m_platform_info);
 
-    if (calculator.must_alloca(node.destination()->get_type())) {
-        auto dest_addr = m_lowerer.lower_expression(
-            *node.destination(),
-            m_dest_reg_use_register,
-            m_dest_reg_name
-        );
-        m_lowerer.lower_at_address(dest_addr, node.value(), 0);
-        return dest_addr;
+    if (node.variable()->must_alloca() || calculator.must_alloca(node.variable()->get_type())) {
+        auto var_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
+        auto layout = calculator(*node.variable()->get_type().type());
+        m_lowerer.emit(std::make_unique<linear::alloca_instruction>(
+            var_reg, 
+            layout.size, 
+            layout.alignment
+        ));
+
+        m_lowerer.lower_at_address(var_reg, node.initializer(), 0);
+        
+        m_lowerer.m_vreg_alloc_information[var_reg.id] = std::make_shared<linear::alloc_information>(linear::alloc_information{
+            .name = node.variable()->name(),
+            .must_use_register = node.variable()->must_use_register()
+        });
+        m_lowerer.m_current_block->var_info.m_variable_to_vreg[node.variable()] = { linear::var_info{ 
+            .vreg = var_reg, 
+            .block_id = m_lowerer.current_block_id() 
+        } };
     }
     else {
-        auto dest_addr = m_lowerer.lower_expression(*node.destination());
-        auto evaled_src_reg = m_lowerer.lower_expression(
-            *node.value(),
-            m_dest_reg_use_register,
-            m_dest_reg_name
-        );
-        m_lowerer.emit(std::make_unique<linear::store_memory>(
-            dest_addr, 
-            evaled_src_reg, 
-            0
-        ));
-        return evaled_src_reg;
+        auto var_reg = m_lowerer.lower_expression(*node.initializer());
+        
+        m_lowerer.m_vreg_alloc_information[var_reg.id] = std::make_shared<linear::alloc_information>(linear::alloc_information{
+            .name = node.variable()->name(),
+            .must_use_register = node.variable()->must_use_register()
+        });
+        m_lowerer.m_current_block->var_info.m_variable_to_vreg[node.variable()] = { linear::var_info{ 
+            .vreg = var_reg, 
+            .block_id = m_lowerer.current_block_id() 
+        } };
     }
 }
 
+linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::set_address& node) {
+    auto dest_addr = m_lowerer.lower_expression(*node.destination());
+    return m_lowerer.lower_at_address(dest_addr, node.value(), 0);
+}
+
 linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::function_reference& node) {
-    auto dest_reg = make_dest_reg(m_lowerer.m_platform_info.pointer_size * 8);
+    auto dest_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
     m_lowerer.emit(std::make_unique<linear::load_effective_address>(dest_reg, node.get_function()->name()));
     return dest_reg;
 }
@@ -372,7 +376,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         auto variable = std::get<std::shared_ptr<logic::variable>>(node.destination());
         if (!variable->must_alloca()) {
             auto var_reg = m_lowerer.get_var_reg(variable);
-            auto new_var_reg = make_dest_reg(var_reg.size_bits);
+            auto new_var_reg = m_lowerer.new_vreg(var_reg.size_bits);
 
             if (use_one) {
                 m_lowerer.emit(std::make_unique<linear::a2_instruction>(
@@ -408,7 +412,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         }
     }, node.destination());
 
-    auto current_value_reg = make_dest_reg(var_size);
+    auto current_value_reg = m_lowerer.new_vreg(var_size);
     m_lowerer.emit(std::make_unique<linear::load_memory>(
         current_value_reg, 
         value_addr, 
@@ -472,7 +476,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     linear::virtual_register right = m_lowerer.lower_expression(*node.right());
 
     linear::a_instruction_type type = token_to_a_type(node.get_operator());
-    auto result_reg = make_dest_reg(result_size);
+    auto result_reg = m_lowerer.new_vreg(result_size);
     m_lowerer.emit(std::make_unique<linear::a_instruction>(type, result_reg, left, right));
     return result_reg;
 }
@@ -491,7 +495,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     type_layout_calculator calculator(m_lowerer.m_platform_info);
 
     size_t bits = calculator(*node.get_type().type()).size * 8;
-    auto dest = make_dest_reg(bits);
+    auto dest = m_lowerer.new_vreg(bits);
 
     auto u_operator = token_to_u_type(node.get_operator());
     m_lowerer.emit(std::make_unique<linear::u_instruction>(u_operator, dest, operand));
@@ -500,16 +504,12 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
 
 linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::type_cast& node) {
     if (node.get_type().is_same_type<typing::float_type>() && node.operand()->get_type().is_same_type<typing::int_type>()) {
-        throw std::runtime_error("Currently unsupported type cast: float to integer.");
-    }
-    if (node.get_type().is_same_type<typing::int_type>() && node.operand()->get_type().is_same_type<typing::float_type>()) {
         throw std::runtime_error("Currently unsupported type cast: integer to float.");
     }
-    return m_lowerer.lower_expression(
-        *node.operand(),
-        m_dest_reg_use_register,
-        m_dest_reg_name
-    );
+    if (node.get_type().is_same_type<typing::int_type>() && node.operand()->get_type().is_same_type<typing::float_type>()) {
+        throw std::runtime_error("Currently unsupported type cast: float to integer.");
+    }
+    return m_lowerer.lower_expression(*node.operand());
 }
 
 linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::address_of& node) {
@@ -536,10 +536,11 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         return m_lowerer.lower_expression(*node.operand());
     }
 
-    size_t object_size = calculator(*node.operand()->get_type().type()).size * 8;
+    auto pointer_type = std::static_pointer_cast<typing::pointer_type>(node.operand()->get_type().type());
+    size_t object_size = calculator(*pointer_type->pointee_type().type()).size * 8;
 
     auto source_address_reg = m_lowerer.lower_expression(*node.operand());
-    auto dest_reg = make_dest_reg(object_size);
+    auto dest_reg = m_lowerer.new_vreg(object_size);
     m_lowerer.emit(std::make_unique<linear::load_memory>(
         dest_reg, 
         source_address_reg, 
@@ -561,7 +562,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         auto base_addr = m_lowerer.lower_expression(*node.base());
 
         if (calculator.must_alloca(node.member().member_type)) { //return a pointer to start of the struct
-            auto dest_reg = make_dest_reg(m_lowerer.m_platform_info.pointer_size * 8);
+            auto dest_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
             m_lowerer.emit(std::make_unique<linear::a2_instruction>(
                 linear::MICHAELCC_LINEAR_A_ADD, 
                 dest_reg, 
@@ -573,7 +574,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
 
         size_t object_size = calculator(*node.member().member_type.type()).size * 8;
 
-        auto dest_reg = make_dest_reg(object_size);
+        auto dest_reg = m_lowerer.new_vreg(object_size);
         m_lowerer.emit(std::make_unique<linear::load_memory>(
             dest_reg, 
             base_addr, 
@@ -588,17 +589,13 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         //first if path taken if member type is must alloca
         if ((node.base()->get_type().is_same_type<typing::union_type>() && calculator.must_alloca(node.base()->get_type())) 
             || (node.base()->get_type().is_pointer_of<typing::union_type>() && calculator.must_alloca(node.member().member_type))) {
-            auto base_addr = m_lowerer.lower_expression(
-                *node.base(),
-                m_dest_reg_use_register,
-                m_dest_reg_name
-            );
+            auto base_addr = m_lowerer.lower_expression(*node.base());
             if (calculator.must_alloca(node.member().member_type)) {
                 return base_addr;
             }
             
             size_t object_size = calculator(*node.member().member_type.type()).size * 8;
-            auto dest_reg = make_dest_reg(object_size);
+            auto dest_reg = m_lowerer.new_vreg(object_size);
             m_lowerer.emit(std::make_unique<linear::load_memory>(
                 dest_reg, 
                 base_addr, 
@@ -607,11 +604,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
             return dest_reg;
         }
         else if (node.base()->get_type().is_same_type<typing::union_type>()) {
-            return m_lowerer.lower_expression(
-                *node.base(),
-                m_dest_reg_use_register,
-                m_dest_reg_name
-            );
+            return m_lowerer.lower_expression(*node.base());
         }
         else if (node.base()->get_type().is_pointer_of<typing::union_type>()) {
             assert(!calculator.must_alloca(node.member().member_type));
@@ -619,7 +612,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
             auto base_addr = m_lowerer.lower_expression(*node.base());
             size_t object_size = calculator(*node.member().member_type.type()).size * 8;
 
-            auto dest_reg = make_dest_reg(object_size);
+            auto dest_reg = m_lowerer.new_vreg(object_size);
             m_lowerer.emit(std::make_unique<linear::load_memory>(
                 dest_reg, 
                 base_addr, 
@@ -637,8 +630,8 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
  
     std::shared_ptr<typing::array_type> array_type = std::dynamic_pointer_cast<typing::array_type>(node.base()->get_type().type());
 
-    size_t elem_size = calculator(*array_type->element_type().type()).size * 8;
-    auto offset_reg = m_lowerer.new_vreg(elem_size);
+    size_t elem_size = calculator(*array_type->element_type().type()).size;
+    auto offset_reg = m_lowerer.new_vreg(elem_size * 8);
     m_lowerer.emit(std::make_unique<linear::a2_instruction>(
         linear::MICHAELCC_LINEAR_A_MULTIPLY, 
         offset_reg, 
@@ -649,7 +642,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     auto base_addr_reg = m_lowerer.lower_expression(*node.base());
     if (auto integer_constant = dynamic_cast<logic::integer_constant*>(node.index().get())) {
         if (calculator.must_alloca(array_type->element_type())) {
-            auto address_reg = make_dest_reg(m_lowerer.m_platform_info.pointer_size * 8);
+            auto address_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
             m_lowerer.emit(std::make_unique<linear::a2_instruction>(
                 linear::MICHAELCC_LINEAR_A_ADD, 
                 address_reg, 
@@ -659,7 +652,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
             return address_reg;
         }
         
-        auto dest_reg = make_dest_reg(elem_size);
+        auto dest_reg = m_lowerer.new_vreg(elem_size * 8);
         m_lowerer.emit(std::make_unique<linear::load_memory>(
             dest_reg, 
             base_addr_reg, 
@@ -667,37 +660,30 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         ));
         return dest_reg;
     } else {
+        auto address_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
+        m_lowerer.emit(std::make_unique<linear::a_instruction>(
+            linear::MICHAELCC_LINEAR_A_ADD, 
+            address_reg, 
+            base_addr_reg, 
+            offset_reg
+        ));
+        
         if (calculator.must_alloca(array_type->element_type())) {
-            auto address_reg = make_dest_reg(m_lowerer.m_platform_info.pointer_size * 8);
-            m_lowerer.emit(std::make_unique<linear::a_instruction>(
-                linear::MICHAELCC_LINEAR_A_ADD, 
-                address_reg, 
-                base_addr_reg, 
-                offset_reg
-            ));
             return address_reg;
         }
-        else {
-            auto address_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
-            m_lowerer.emit(std::make_unique<linear::a_instruction>(
-                linear::MICHAELCC_LINEAR_A_ADD, 
-                address_reg, 
-                base_addr_reg, 
-                offset_reg
-            ));
-            auto dest_reg = make_dest_reg(elem_size);
-            m_lowerer.emit(std::make_unique<linear::load_memory>(
-                dest_reg, 
-                address_reg, 
-                0
-            ));
-            return dest_reg;
-        }
+
+        auto dest_reg = m_lowerer.new_vreg(elem_size * 8);
+        m_lowerer.emit(std::make_unique<linear::load_memory>(
+            dest_reg, 
+            address_reg, 
+            0
+        ));
+        return dest_reg;
     }
 }
 
 linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::array_initializer& node) {
-    auto address_reg = make_dest_reg(m_lowerer.m_platform_info.pointer_size * 8);
+    auto address_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
     
     std::shared_ptr<typing::array_type> array_type = std::dynamic_pointer_cast<typing::array_type>(node.element_type().type());
     type_layout_calculator calculator(m_lowerer.m_platform_info);
@@ -751,12 +737,11 @@ void logic_lowerer::lower_allocate_array(linear::virtual_register dest_reg, cons
             );
         }
     }
-
-    if (auto integer_constant = dynamic_cast<logic::integer_constant*>(node.dimensions().at(current_dimension).get())) {
+    else if (auto integer_constant = dynamic_cast<logic::integer_constant*>(node.dimensions().at(current_dimension).get())) {
         auto array_addr_reg = new_vreg(m_platform_info.pointer_size * 8);
         emit(std::make_unique<linear::alloca_instruction>(
             array_addr_reg, 
-            m_platform_info.pointer_size * 8, 
+            m_platform_info.pointer_size, 
             std::min<size_t>(m_platform_info.pointer_size, m_platform_info.max_alignment)
         ));
 
@@ -775,7 +760,7 @@ void logic_lowerer::lower_allocate_array(linear::virtual_register dest_reg, cons
 }
 
 linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::allocate_array& node) {
-    auto dest_reg = make_dest_reg(m_lowerer.m_platform_info.pointer_size * 8);
+    auto dest_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
     m_lowerer.lower_allocate_array(dest_reg, node, 0);
     return dest_reg;
 }
@@ -785,7 +770,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     type_layout_calculator calculator(m_lowerer.m_platform_info);
     auto struct_layout = calculator(*struct_type);
 
-    auto dest_address = make_dest_reg(m_lowerer.m_platform_info.pointer_size * 8);
+    auto dest_address = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
     m_lowerer.emit(std::make_unique<linear::alloca_instruction>(
         dest_address, 
         struct_layout.size, 
@@ -799,7 +784,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
 linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::union_initializer& node) {
     type_layout_calculator calculator(m_lowerer.m_platform_info);
     if (calculator.must_alloca(node.union_type())) {
-        auto dest_address = make_dest_reg(m_lowerer.m_platform_info.pointer_size * 8);
+        auto dest_address = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
         auto layout = calculator(*node.union_type());
         m_lowerer.emit(std::make_unique<linear::alloca_instruction>(
             dest_address, 
@@ -810,11 +795,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         m_lowerer.lower_union_initializer(node, dest_address, 0);
         return dest_address;
     }
-    return m_lowerer.lower_expression(
-        *node.initializer(), 
-        m_dest_reg_use_register, 
-        m_dest_reg_name
-    );
+    return m_lowerer.lower_expression(*node.initializer());
 }
 
 linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::function_call& node) {
@@ -830,7 +811,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     if (calculator.must_alloca(node.get_type())) {
         throw std::runtime_error("Function return value cannot be alloca'd on the stack.");
     }
-    auto dest_reg = make_dest_reg(calculator(*node.get_type().type()).size * 8);
+    auto dest_reg = m_lowerer.new_vreg(calculator(*node.get_type().type()).size * 8);
 
     linear::function_call::callable callee = std::visit(overloaded{
         [this, dest_reg, &arguments](const std::shared_ptr<logic::function_definition>& function_definition) -> linear::function_call::callable {
@@ -872,12 +853,20 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     
     auto final_block = m_lowerer.allocate_block_id();
     m_lowerer.begin_block(final_block, { true_block_id, false_block_id });
-    auto final_result = make_dest_reg(m_lowerer.m_platform_info.pointer_size * 8);
+
+    type_layout_calculator calculator(m_lowerer.m_platform_info);
+    auto final_result = m_lowerer.new_vreg(calculator(*node.get_type().type()).size * 8);
     m_lowerer.emit(std::make_unique<linear::phi_instruction>(
         final_result, std::vector<linear::var_info>{ 
             linear::var_info{ .vreg = true_result, .block_id = true_block_id },
             linear::var_info{ .vreg = false_result, .block_id = false_block_id }
         }
     ));
+
     return final_result;
 }
+
+void logic_lowerer::statement_lowerer::dispatch(const logic::expression_statement& node) {
+    m_lowerer.lower_expression(*node.expression());
+}
+

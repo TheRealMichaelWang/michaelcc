@@ -4,6 +4,7 @@
 #include "linear/ir.hpp"
 #include "logic/ir.hpp"
 #include "platform.hpp"
+#include "linear/registers.hpp"
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -14,24 +15,12 @@
 namespace michaelcc {
     class logic_lowerer {
     private:
-
         class expression_lowerer : public logic::const_expression_dispatcher<linear::virtual_register> {
         private:
             logic_lowerer& m_lowerer;
-            bool m_dest_reg_use_register;
-            std::optional<std::string> m_dest_reg_name;
-
-            linear::virtual_register make_dest_reg(size_t size_bits) {
-                return m_lowerer.new_vreg(
-                    size_bits,
-                    m_dest_reg_use_register,
-                    m_dest_reg_name
-                );
-            }
 
         public:
-            expression_lowerer(logic_lowerer& lowerer, bool dest_reg_use_register, std::optional<std::string> dest_reg_name) 
-            : m_lowerer(lowerer), m_dest_reg_use_register(dest_reg_use_register), m_dest_reg_name(dest_reg_name) {}
+            expression_lowerer(logic_lowerer& lowerer) : m_lowerer(lowerer) {}
 
         protected:
             linear::virtual_register dispatch(const logic::integer_constant& node) override;
@@ -90,7 +79,8 @@ namespace michaelcc {
         };
 
         struct loop_info {
-            size_t id;
+            size_t block_id;
+            size_t finish_block_id;
             std::unordered_map<std::shared_ptr<logic::variable>, std::vector<linear::var_info>> original_var_info;
             std::unordered_map<std::shared_ptr<logic::variable>, linear::phi_instruction*> init_phi_nodes;
         };
@@ -102,15 +92,16 @@ namespace michaelcc {
         std::unordered_map<size_t, block_var_ctx> m_finished_block_var_ctx;
         std::unordered_map<size_t, loop_info> m_loop_infos;
         std::unordered_map<std::shared_ptr<logic::function_definition>, std::shared_ptr<linear::function_definition>> m_function_definitions;
+        std::unordered_map<size_t, std::shared_ptr<linear::alloc_information>> m_vreg_alloc_information;
         size_t m_next_vreg_id = 0;
         size_t m_next_block_id = 0;
 
         expression_lowerer m_expression_lowerer;
         statement_lowerer m_statement_lowerer;
 
-        linear::virtual_register new_vreg(size_t size_bits, bool must_use_register = false, std::optional<std::string> name = std::nullopt) {
+        linear::virtual_register new_vreg(size_t size_bits) {
             size_t id = m_next_vreg_id++;
-            return { must_use_register, name, id, size_bits };
+            return { id, size_bits };
         }
 
         block_var_ctx reconcile_var_regs(const std::vector<size_t>& incoming_block_ids, size_t incoming_block_id);
@@ -127,10 +118,10 @@ namespace michaelcc {
             return id;
         }
 
-        void begin_block(size_t head_block_id, std::vector<size_t>&& incoming_block_ids, bool is_loop_start=false) {
+        void begin_block(size_t head_block_id, const std::vector<size_t> incoming_block_ids, bool is_loop_start=false) {
             m_current_block = block_builder{ 
                 .id = head_block_id, 
-                .incoming_block_ids = std::move(incoming_block_ids), 
+                .incoming_block_ids = std::vector<size_t>(incoming_block_ids), 
                 .var_info = reconcile_var_regs(incoming_block_ids, head_block_id) 
             };
             if (is_loop_start) {
@@ -150,6 +141,7 @@ namespace michaelcc {
             if (!m_current_block) return;
             auto& cb = *m_current_block;
             m_finished_blocks.emplace(cb.id, linear::basic_block(cb.id, std::move(cb.instructions)));
+            m_finished_block_var_ctx.emplace(cb.id, std::move(cb.var_info));
             m_current_block.reset();
         }
 
@@ -162,9 +154,9 @@ namespace michaelcc {
         void lower_struct_initializer(const logic::struct_initializer& node, linear::virtual_register dest_address, size_t offset);
         void lower_union_initializer(const logic::union_initializer& node, linear::virtual_register dest_address, size_t offset);
 
-        void lower_at_address(linear::virtual_register dest_address, const std::unique_ptr<logic::expression>& initializer, size_t offset);
+        linear::virtual_register lower_at_address(linear::virtual_register dest_address, const std::unique_ptr<logic::expression>& initializer, size_t offset);
 
-        linear::virtual_register lower_expression(const logic::expression& expr, bool dest_reg_use_register = false, std::optional<std::string> dest_reg_name = std::nullopt);
+        linear::virtual_register lower_expression(const logic::expression& expr);
 
         linear::virtual_register compute_lvalue_address(const logic::expression& expr);
 

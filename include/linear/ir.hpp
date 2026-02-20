@@ -8,8 +8,6 @@
 namespace michaelcc {
 	namespace linear {
         struct virtual_register { 
-            bool must_use_register = false;
-            std::optional<std::string> name = std::nullopt;
             size_t id; size_t size_bits; 
 
             bool operator==(const virtual_register& reg) const { return reg.id == id; }
