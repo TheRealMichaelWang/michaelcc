@@ -25,6 +25,7 @@ namespace michaelcc {
             linear::operand dispatch(const logic::integer_constant& node) override;
             linear::operand dispatch(const logic::floating_constant& node) override;
             linear::operand dispatch(const logic::string_constant& node) override;
+            linear::operand dispatch(const logic::enumerator_literal& node) override;  
             linear::operand dispatch(const logic::variable_reference& node) override;
             linear::operand dispatch(const logic::function_reference& node) override;
             linear::operand dispatch(const logic::increment_operator& node) override;
@@ -43,8 +44,7 @@ namespace michaelcc {
             linear::operand dispatch(const logic::conditional_expression& node) override;
             linear::operand dispatch(const logic::set_address& node) override;
             linear::operand dispatch(const logic::set_variable& node) override;
-            linear::operand dispatch(const logic::compound_expression& node) override;
-            linear::operand dispatch(const logic::enumerator_literal& node) override;            
+            linear::operand dispatch(const logic::compound_expression& node) override;          
         };
 
         class statement_lowerer : public logic::const_statement_dispatcher<void> {

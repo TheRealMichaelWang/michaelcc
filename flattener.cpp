@@ -773,3 +773,9 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::conditi
     ));
     return final_result;
 }
+
+linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::set_address& node) {
+    auto dest_addr_reg = m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.destination()));
+    m_lowerer.lower_initializer_at_address(dest_addr_reg, node.value(), 0);
+    return dest_addr_reg;
+}
