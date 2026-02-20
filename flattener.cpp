@@ -272,7 +272,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
 
     if (variable->must_alloca() || calculator.must_alloca(variable->get_type())) {
         type_layout_calculator calculator(m_lowerer.m_platform_info);
-        if (calculator(*variable->get_type().type()).size * 8 <= m_lowerer.m_platform_info.register_size) {
+        if (calculator.must_alloca(variable->get_type())) {
             auto dest_reg = m_lowerer.new_vreg(calculator(*variable->get_type().type()).size * 8);
             m_lowerer.emit(std::make_unique<linear::load_memory>(
                 dest_reg, 
@@ -870,3 +870,15 @@ void logic_lowerer::statement_lowerer::dispatch(const logic::expression_statemen
     m_lowerer.lower_expression(*node.expression());
 }
 
+void logic_lowerer::statement_lowerer::dispatch(const logic::return_statement& node) {
+    if (node.value()) {
+        auto return_value_reg = m_lowerer.m_platform_info.get_register_info(m_lowerer.m_platform_info.return_value_register_id);
+        auto virtual_reg = m_lowerer.lower_expression(*node.value());
+        m_lowerer.m_vreg_alloc_information[virtual_reg.id] = std::make_shared<linear::alloc_information>(linear::alloc_information{
+            .register_id = m_lowerer.m_platform_info.return_value_register_id
+        });
+    }
+
+    m_lowerer.emit(std::make_unique<linear::function_return>());
+    m_lowerer.seal_block();
+}
