@@ -97,7 +97,11 @@ linear::virtual_register logic_lowerer::get_var_reg(const std::shared_ptr<logic:
 
 void logic_lowerer::emit_iloop(linear::operand count, std::function<void(linear::virtual_register)> body) {
     auto initial_state = new_vreg(m_platform_info.int_size * 8);
-    emit(std::make_unique<linear::init_zero>(initial_state));
+    emit(std::make_unique<linear::init_register>(initial_state, linear::literal{ 
+        .value = 0, 
+        .size_bits = m_platform_info.int_size * 8 
+    }));
+    auto count_reg = marhsal_into_register(count);
 
     size_t old_block_id = current_block_id();
     size_t loop1_block_id = allocate_block_id();
@@ -120,7 +124,7 @@ void logic_lowerer::emit_iloop(linear::operand count, std::function<void(linear:
 
     auto cond_check_status = new_vreg(m_platform_info.int_size * 8);
     emit(std::make_unique<linear::a_instruction>(
-        linear::COMPARE_EQUAL, cond_check_status, iterator_state, count
+        linear::MICHAELCC_LINEAR_A_COMPARE_EQUAL, cond_check_status, iterator_state, count_reg
     ));
 
     emit(std::make_unique<linear::branch_condition>(
@@ -134,7 +138,7 @@ void logic_lowerer::emit_iloop(linear::operand count, std::function<void(linear:
 
     //increment and branch back to the top
     emit(std::make_unique<linear::a2_instruction>(
-        linear::ADD, post_increment_state, iterator_state, 1
+        linear::MICHAELCC_LINEAR_A_ADD, post_increment_state, iterator_state, 1
     ));
     emit(std::make_unique<linear::branch>(loop1_block_id));
     seal_block();
@@ -143,21 +147,22 @@ void logic_lowerer::emit_iloop(linear::operand count, std::function<void(linear:
 }
 
 void logic_lowerer::emit_memset(linear::virtual_register dest, linear::operand value, linear::operand count) {
-    emit_iloop(count, [this, dest, value](linear::virtual_register iterator_state) {
+    auto value_reg = marhsal_into_register(value);
+    emit_iloop(count, [this, dest, value_reg](linear::virtual_register iterator_state) {
         auto offset_reg = new_vreg(m_platform_info.int_size * 8);
         emit(std::make_unique<linear::a2_instruction>(
-            linear::MULTIPLY, offset_reg, iterator_state, 
-            linear::get_operand_size(value) / 8
+            linear::MICHAELCC_LINEAR_A_MULTIPLY, offset_reg, iterator_state, 
+            linear::get_operand_size(value_reg) / 8
         ));
         auto address_reg = new_vreg(m_platform_info.pointer_size * 8);
         emit(std::make_unique<linear::a_instruction>(
-            linear::ADD, address_reg, dest, offset_reg
+            linear::MICHAELCC_LINEAR_A_ADD, address_reg, dest, offset_reg
         ));
-        emit(std::make_unique<linear::store_memory>(address_reg, value, 0));
+        emit(std::make_unique<linear::store_memory>(address_reg, value_reg, 0));
     });
 }
 
-void logic_lowerer::emit_memcpy(linear::virtual_register dest, linear::operand src, size_t size_bytes, size_t offset) {
+void logic_lowerer::emit_memcpy(linear::virtual_register dest, linear::virtual_register src, size_t size_bytes, size_t offset) {
     for (size_t i = 0; i < size_bytes; i += m_platform_info.pointer_size) {
         auto elem_reg = new_vreg(m_platform_info.char_size);    
         emit(std::make_unique<linear::load_memory>(elem_reg, src, i + offset));
@@ -218,11 +223,11 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::increme
     switch (node.get_operator()) {
     case MICHAELCC_TOKEN_INCREMENT:
     case MICHAELCC_TOKEN_INCREMENT_BY:
-        type = linear::a_instruction_type::ADD;
+        type = linear::a_instruction_type::MICHAELCC_LINEAR_A_ADD;
         break;
     case MICHAELCC_TOKEN_DECREMENT:
     case MICHAELCC_TOKEN_DECREMENT_BY:
-        type = linear::a_instruction_type::SUBTRACT;
+        type = linear::a_instruction_type::MICHAELCC_LINEAR_A_SUBTRACT;
         break;
     default:
         throw std::runtime_error("Invalid increment operator");
@@ -234,13 +239,22 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::increme
             auto var_reg = m_lowerer.get_var_reg(variable);
 
             auto new_dest_reg = m_lowerer.new_vreg(var_reg.size_bits);
-            m_lowerer.emit(std::make_unique<linear::a_instruction>(
-                type, 
-                new_dest_reg, 
-                var_reg, 
-                use_one ? linear::literal{ .value = 1, .size_bits = var_reg.size_bits } 
-                    : m_lowerer.lower_expression(*node.increment_amount().value())
-            ));
+            if (use_one) {
+                m_lowerer.emit(std::make_unique<linear::a2_instruction>(
+                    type, 
+                    new_dest_reg, 
+                    var_reg, 
+                    1
+                ));
+            }
+            else {
+                m_lowerer.emit(std::make_unique<linear::a_instruction>(
+                    type, 
+                    new_dest_reg, 
+                    var_reg, 
+                    m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.increment_amount().value()))
+                ));
+            }
             
             m_lowerer.m_current_block->var_info.m_variable_to_vreg[variable] = { linear::var_info{ .vreg = new_dest_reg, .block_id = m_lowerer.current_block_id() } };
             return new_dest_reg;
@@ -266,13 +280,23 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::increme
         0 // offset
     ));
     auto incremented_reg = m_lowerer.new_vreg(var_size);
-    m_lowerer.emit(std::make_unique<linear::a_instruction>(
-        type, 
-        incremented_reg, 
-        result_reg, 
-        use_one ? linear::literal{ .value = 1, .size_bits = var_size } 
-            : m_lowerer.lower_expression(*node.increment_amount().value())
-    ));
+    if (use_one) {
+        m_lowerer.emit(std::make_unique<linear::a2_instruction>(
+            type, 
+            incremented_reg, 
+            result_reg, 
+            1
+        ));
+    }
+    else {
+        m_lowerer.emit(std::make_unique<linear::a_instruction>(
+            type, 
+            incremented_reg, 
+            result_reg, 
+            m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.increment_amount().value()))
+        ));
+    }
+
     m_lowerer.emit(std::make_unique<linear::store_memory>(
         dest_reg, 
         incremented_reg, 
@@ -283,24 +307,24 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::increme
 
 static linear::a_instruction_type token_to_a_type(token_type op) {
     switch (op) {
-        case MICHAELCC_TOKEN_PLUS:           return linear::ADD;
-        case MICHAELCC_TOKEN_MINUS:          return linear::SUBTRACT;
-        case MICHAELCC_TOKEN_ASTERISK:       return linear::MULTIPLY;
-        case MICHAELCC_TOKEN_SLASH:          return linear::DIVIDE;
-        case MICHAELCC_TOKEN_MODULO:         return linear::MODULO;
-        case MICHAELCC_TOKEN_BITSHIFT_LEFT:  return linear::SHIFT_LEFT;
-        case MICHAELCC_TOKEN_BITSHIFT_RIGHT: return linear::SHIFT_RIGHT;
-        case MICHAELCC_TOKEN_AND:            return linear::BITWISE_AND;
-        case MICHAELCC_TOKEN_OR:             return linear::BITWISE_OR;
-        case MICHAELCC_TOKEN_CARET:          return linear::BITWISE_XOR;
-        case MICHAELCC_TOKEN_DOUBLE_AND:     return linear::AND;
-        case MICHAELCC_TOKEN_DOUBLE_OR:      return linear::OR;
-        case MICHAELCC_TOKEN_EQUALS:         return linear::COMPARE_EQUAL;
-        case MICHAELCC_TOKEN_NOT_EQUALS:     return linear::COMPARE_NOT_EQUAL;
-        case MICHAELCC_TOKEN_LESS:           return linear::COMPARE_LESS_THAN;
-        case MICHAELCC_TOKEN_LESS_EQUAL:     return linear::COMPARE_LESS_THAN_OR_EQUAL;
-        case MICHAELCC_TOKEN_MORE:           return linear::COMPARE_GREATER_THAN;
-        case MICHAELCC_TOKEN_MORE_EQUAL:     return linear::COMPARE_GREATER_THAN_OR_EQUAL;
+        case MICHAELCC_TOKEN_PLUS:           return linear::MICHAELCC_LINEAR_A_ADD;
+        case MICHAELCC_TOKEN_MINUS:          return linear::MICHAELCC_LINEAR_A_SUBTRACT;
+        case MICHAELCC_TOKEN_ASTERISK:       return linear::MICHAELCC_LINEAR_A_MULTIPLY;
+        case MICHAELCC_TOKEN_SLASH:          return linear::MICHAELCC_LINEAR_A_DIVIDE;
+        case MICHAELCC_TOKEN_MODULO:         return linear::MICHAELCC_LINEAR_A_MODULO;
+        case MICHAELCC_TOKEN_BITSHIFT_LEFT:  return linear::MICHAELCC_LINEAR_A_SHIFT_LEFT;
+        case MICHAELCC_TOKEN_BITSHIFT_RIGHT: return linear::MICHAELCC_LINEAR_A_SHIFT_RIGHT;
+        case MICHAELCC_TOKEN_AND:            return linear::MICHAELCC_LINEAR_A_BITWISE_AND;
+        case MICHAELCC_TOKEN_OR:             return linear::MICHAELCC_LINEAR_A_BITWISE_OR;
+        case MICHAELCC_TOKEN_CARET:          return linear::MICHAELCC_LINEAR_A_BITWISE_XOR;
+        case MICHAELCC_TOKEN_DOUBLE_AND:     return linear::MICHAELCC_LINEAR_A_AND;
+        case MICHAELCC_TOKEN_DOUBLE_OR:      return linear::MICHAELCC_LINEAR_A_OR;
+        case MICHAELCC_TOKEN_EQUALS:         return linear::MICHAELCC_LINEAR_A_COMPARE_EQUAL;
+        case MICHAELCC_TOKEN_NOT_EQUALS:     return linear::MICHAELCC_LINEAR_A_COMPARE_NOT_EQUAL;
+        case MICHAELCC_TOKEN_LESS:           return linear::MICHAELCC_LINEAR_A_COMPARE_LESS_THAN;
+        case MICHAELCC_TOKEN_LESS_EQUAL:     return linear::MICHAELCC_LINEAR_A_COMPARE_LESS_THAN_OR_EQUAL;
+        case MICHAELCC_TOKEN_MORE:           return linear::MICHAELCC_LINEAR_A_COMPARE_GREATER_THAN;
+        case MICHAELCC_TOKEN_MORE_EQUAL:     return linear::MICHAELCC_LINEAR_A_COMPARE_GREATER_THAN_OR_EQUAL;
         default: throw std::runtime_error("Unsupported binary operator for a_instruction");
     }
 }
@@ -309,8 +333,8 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::arithme
     type_layout_calculator calculator(m_lowerer.m_platform_info);
     size_t result_size = calculator(*node.get_type().type()).size * 8;
 
-    linear::operand left = m_lowerer.lower_expression(*node.left());
-    linear::operand right = m_lowerer.lower_expression(*node.right());
+    linear::virtual_register left = m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.left()));
+    linear::virtual_register right = m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.right()));
 
     linear::a_instruction_type type = token_to_a_type(node.get_operator());
     auto result_reg = m_lowerer.new_vreg(result_size);
@@ -318,36 +342,24 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::arithme
     return result_reg;
 }
 
+static linear::u_instruction_type token_to_u_type(token_type op) {
+    switch (op) {
+        case MICHAELCC_TOKEN_MINUS: return linear::MICHAELCC_LINEAR_U_NEGATE;
+        case MICHAELCC_TOKEN_NOT: return linear::MICHAELCC_LINEAR_U_NOT;
+        case MICHAELCC_TOKEN_TILDE: return linear::MICHAELCC_LINEAR_U_BITWISE_NOT;
+        default: throw std::runtime_error("Unsupported unary operator");
+    }
+}
+
 linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::unary_operation& node) {
-    auto operand = m_lowerer.lower_expression(*node.operand());
+    auto operand = m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.operand()));
     type_layout_calculator calculator(m_lowerer.m_platform_info);
 
     size_t bits = calculator(*node.get_type().type()).size * 8;
     auto dest = m_lowerer.new_vreg(bits);
 
-    switch (node.get_operator()) {
-        case MICHAELCC_TOKEN_MINUS:
-            m_lowerer.emit(std::make_unique<linear::a_instruction>(
-                linear::SUBTRACT, dest,
-                linear::operand(linear::literal{ 0, bits }),
-                operand
-            ));
-            break;
-        case MICHAELCC_TOKEN_NOT:
-            m_lowerer.emit(std::make_unique<linear::a_instruction>(
-                linear::NOT, dest, operand,
-                linear::operand(linear::literal{ 0, bits })
-            ));
-            break;
-        case MICHAELCC_TOKEN_TILDE:
-            m_lowerer.emit(std::make_unique<linear::a_instruction>(
-                linear::BITWISE_NOT, dest, operand,
-                linear::operand(linear::literal{ 0, bits })
-            ));
-            break;
-        default:
-            throw std::runtime_error("Unsupported unary operator");
-    }
+    auto u_operator = token_to_u_type(node.get_operator());
+    m_lowerer.emit(std::make_unique<linear::u_instruction>(u_operator, dest, operand));
     return dest;
 }
 
@@ -381,11 +393,11 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::derefer
 
     size_t object_size = calculator(*node.operand()->get_type().type()).size * 8;
 
-    auto operand = m_lowerer.lower_expression(*node.operand());
+    auto source_address_reg = m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.operand()));
     auto dest_reg = m_lowerer.new_vreg(object_size);
     m_lowerer.emit(std::make_unique<linear::load_memory>(
         dest_reg, 
-        operand, 
+        source_address_reg, 
         0 // offset
     ));
     return dest_reg;
@@ -401,12 +413,12 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::member_
 
         assert(calculator.must_alloca(node.base()->get_type()));
 
-        auto base_addr = m_lowerer.lower_expression(*node.base());
+        auto base_addr = m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.base()));
 
         if (calculator.must_alloca(node.member().member_type)) { //return a pointer to start of the struct
             auto dest_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
             m_lowerer.emit(std::make_unique<linear::a2_instruction>(
-                linear::ADD, 
+                linear::MICHAELCC_LINEAR_A_ADD, 
                 dest_reg, 
                 base_addr,
                 node.member().offset
@@ -440,18 +452,18 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::member_
             auto dest_reg = m_lowerer.new_vreg(object_size);
             m_lowerer.emit(std::make_unique<linear::load_memory>(
                 dest_reg, 
-                union_addr, 
+                m_lowerer.marhsal_into_register(union_addr), 
                 node.member().offset
             ));
             return dest_reg;
         }
-        else if (node.get_type().is_same_type<typing::union_type>()) {
+        else if (node.base()->get_type().is_same_type<typing::union_type>()) {
             return m_lowerer.lower_expression(*node.base());
         }
         else if (node.base()->get_type().is_pointer_of<typing::union_type>()) {
             assert(!calculator.must_alloca(node.member().member_type));
             
-            auto union_addr = m_lowerer.lower_expression(*node.base());
+            auto union_addr = m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.base()));
             size_t object_size = calculator(*node.member().member_type.type()).size * 8;
 
             auto dest_reg = m_lowerer.new_vreg(object_size);
@@ -476,19 +488,20 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::array_i
     size_t elem_size = calculator(*array_type->element_type().type()).size * 8;
     auto offset_reg = m_lowerer.new_vreg(elem_size);
     m_lowerer.emit(std::make_unique<linear::a2_instruction>(
-        linear::MULTIPLY, 
+        linear::MICHAELCC_LINEAR_A_MULTIPLY, 
         offset_reg, 
-        m_lowerer.lower_expression(*node.index()), 
+        m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.index())), 
         elem_size
     ));
 
+    auto base_addr_reg = m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.base()));
     if (auto integer_constant = dynamic_cast<logic::integer_constant*>(node.index().get())) {
         if (calculator.must_alloca(array_type->element_type())) {
             auto address_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
             m_lowerer.emit(std::make_unique<linear::a2_instruction>(
-                linear::ADD, 
+                linear::MICHAELCC_LINEAR_A_ADD, 
                 address_reg, 
-                m_lowerer.lower_expression(*node.base()), 
+                base_addr_reg, 
                 integer_constant->value() * elem_size
             ));
             return address_reg;
@@ -497,16 +510,16 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::array_i
         auto dest_reg = m_lowerer.new_vreg(elem_size);
         m_lowerer.emit(std::make_unique<linear::load_memory>(
             dest_reg, 
-            m_lowerer.lower_expression(*node.base()), 
+            base_addr_reg, 
             integer_constant->value() * elem_size
         ));
         return dest_reg;
     } else {
         auto address_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
         m_lowerer.emit(std::make_unique<linear::a_instruction>(
-            linear::ADD, 
+            linear::MICHAELCC_LINEAR_A_ADD, 
             address_reg, 
-            m_lowerer.lower_expression(*node.base()), 
+            base_addr_reg, 
             offset_reg
         ));
         
@@ -545,7 +558,7 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::array_i
             else {
                 m_lowerer.emit_memcpy(
                     address_reg, 
-                    m_lowerer.lower_expression(*node.initializers()[i]), 
+                    m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.initializers()[i])), 
                     elem_layout.size,
                     elem_layout.size * i
                 );
@@ -554,7 +567,7 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::array_i
         else {
             m_lowerer.emit(std::make_unique<linear::store_memory>(
             address_reg, 
-                m_lowerer.lower_expression(*node.initializers()[i]), 
+                m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.initializers()[i])), 
                 i * elem_layout.size
             ));
         }
@@ -577,11 +590,11 @@ linear::operand logic_lowerer::lower_allocate_array(const logic::allocate_array&
                 elem_layout.alignment
             ));
 
-            auto fill_value = lower_expression(*node.fill_value());
+            auto fill_value_reg = marhsal_into_register(lower_expression(*node.fill_value()));
             for (size_t i = 0; i < integer_constant->value(); i++) {
                 emit(std::make_unique<linear::store_memory>(
                     address_reg, 
-                    fill_value, 
+                    fill_value_reg, 
                     i * elem_layout.size
                 ));
             }
@@ -589,7 +602,7 @@ linear::operand logic_lowerer::lower_allocate_array(const logic::allocate_array&
         else {
             emit(std::make_unique<linear::valloca_instruction>(
                 address_reg, 
-                lower_expression(*node.dimensions()[current_dimension]), 
+                marhsal_into_register(lower_expression(*node.dimensions()[current_dimension])), 
                 elem_layout.alignment
             ));
 
@@ -610,9 +623,10 @@ linear::operand logic_lowerer::lower_allocate_array(const logic::allocate_array&
         ));
 
         for (size_t i = 0; i < integer_constant->value(); i++) {
+            auto array_addr_reg = marhsal_into_register(lower_allocate_array(node, current_dimension + 1));
             emit(std::make_unique<linear::store_memory>(
                 address_reg, 
-                lower_allocate_array(node, current_dimension + 1), 
+                array_addr_reg, 
                 i * m_platform_info.pointer_size
             ));
         }
@@ -661,9 +675,10 @@ linear::operand logic_lowerer::lower_struct_initializer(const logic::struct_init
             }
         }
         else {
+            auto evaled_src_reg = marhsal_into_register(lower_expression(*initializer.initializer));
             emit(std::make_unique<linear::store_memory>(
                 dest_address, 
-                lower_expression(*initializer.initializer), 
+                evaled_src_reg, 
                 field->offset + offset
             ));
         }
@@ -686,3 +701,9 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::struct_
     m_lowerer.lower_struct_initializer(node, dest_address, 0);
     return dest_address;
 }
+
+/*linear::operand logic_lowerer::lower_union_initializer(const logic::union_initializer& node, linear::virtual_register dest_address, size_t offset) {
+    type_layout_calculator calculator(m_platform_info);
+    assert(calculator.must_alloca(node.union_type()));
+
+}*/

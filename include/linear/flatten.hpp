@@ -146,10 +146,22 @@ namespace michaelcc {
         void emit_iloop(linear::operand count, std::function<void(linear::virtual_register)> body);
 
         void emit_memset(linear::virtual_register dest, linear::operand value, linear::operand count);
-        void emit_memcpy(linear::virtual_register dest, linear::operand src, size_t size_bytes, size_t offset);
+        void emit_memcpy(linear::virtual_register dest, linear::virtual_register src, size_t size_bytes, size_t offset);
+
+        linear::virtual_register marhsal_into_register(linear::operand operand) {
+            if (std::holds_alternative<linear::virtual_register>(operand)) {
+                return std::get<linear::virtual_register>(operand);
+            }
+            else {
+                auto dest_reg = new_vreg(std::get<linear::literal>(operand).size_bits);
+                emit(std::make_unique<linear::init_register>(dest_reg, std::get<linear::literal>(operand)));
+                return dest_reg;
+            }
+        }
 
         linear::operand lower_allocate_array(const logic::allocate_array& node, size_t current_dimension);
         linear::operand lower_struct_initializer(const logic::struct_initializer& node, linear::virtual_register dest_address, size_t offset);
+        //linear::operand lower_union_initializer(const logic::union_initializer& node, linear::virtual_register dest_address, size_t offset);
 
         linear::operand lower_expression(const logic::expression& expr);
 

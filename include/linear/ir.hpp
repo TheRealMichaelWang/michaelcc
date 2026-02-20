@@ -42,7 +42,7 @@ namespace michaelcc {
 
         class a_instruction;
         class a2_instruction;
-        class init_zero;
+        class init_register;
         class load_memory;
         class store_memory;
         class alloca_instruction;
@@ -58,7 +58,7 @@ namespace michaelcc {
         using instruction_transformer = generic_dispatcher<std::unique_ptr<instruction>, const instruction,
             const a_instruction,
             const a2_instruction,
-            const init_zero,
+            const init_register,
             const load_memory,
             const store_memory,
             const alloca_instruction,
@@ -73,16 +73,16 @@ namespace michaelcc {
 
         // Arithmetic "A" instructions (includes comparison)
         enum a_instruction_type {
-            ADD, SUBTRACT, MULTIPLY, DIVIDE, MODULO,
+            MICHAELCC_LINEAR_A_ADD, MICHAELCC_LINEAR_A_SUBTRACT, MICHAELCC_LINEAR_A_MULTIPLY, MICHAELCC_LINEAR_A_DIVIDE, MICHAELCC_LINEAR_A_MODULO,
 
-            SHIFT_LEFT, SHIFT_RIGHT, 
-            BITWISE_AND, BITWISE_OR, BITWISE_XOR, BITWISE_NOT,
+            MICHAELCC_LINEAR_A_SHIFT_LEFT, MICHAELCC_LINEAR_A_SHIFT_RIGHT, 
+            MICHAELCC_LINEAR_A_BITWISE_AND, MICHAELCC_LINEAR_A_BITWISE_OR, MICHAELCC_LINEAR_A_BITWISE_XOR, MICHAELCC_LINEAR_A_BITWISE_NOT,
             
-            AND, OR, XOR, NOT,
+            MICHAELCC_LINEAR_A_AND, MICHAELCC_LINEAR_A_OR, MICHAELCC_LINEAR_A_XOR, MICHAELCC_LINEAR_A_NOT,
 
-            COMPARE_EQUAL, COMPARE_NOT_EQUAL, 
-            COMPARE_LESS_THAN, COMPARE_LESS_THAN_OR_EQUAL, 
-            COMPARE_GREATER_THAN, COMPARE_GREATER_THAN_OR_EQUAL,
+            MICHAELCC_LINEAR_A_COMPARE_EQUAL, MICHAELCC_LINEAR_A_COMPARE_NOT_EQUAL, 
+            MICHAELCC_LINEAR_A_COMPARE_LESS_THAN, MICHAELCC_LINEAR_A_COMPARE_LESS_THAN_OR_EQUAL, 
+            MICHAELCC_LINEAR_A_COMPARE_GREATER_THAN, MICHAELCC_LINEAR_A_COMPARE_GREATER_THAN_OR_EQUAL,
         };
 
         class a_instruction : public instruction {
@@ -90,57 +90,85 @@ namespace michaelcc {
             a_instruction_type m_type;
             virtual_register m_destination;
             
-            operand m_operand_a;
-            operand m_operand_b;
+            virtual_register m_operand_a;
+            virtual_register m_operand_b;
 
         public:
-            a_instruction(a_instruction_type type, virtual_register destination, operand operand_a, operand operand_b) 
+            a_instruction(a_instruction_type type, virtual_register destination, virtual_register operand_a, virtual_register operand_b) 
                 : m_type(type), m_destination(destination), m_operand_a(operand_a), m_operand_b(operand_b) {}
 
             a_instruction_type type() const noexcept { return m_type; }
             virtual_register destination() const noexcept { return m_destination; }
-            operand operand_a() const noexcept { return m_operand_a; }
-            operand operand_b() const noexcept { return m_operand_b; }
+            virtual_register operand_a() const noexcept { return m_operand_a; }
+            virtual_register operand_b() const noexcept { return m_operand_b; }
         };
 
+
+        // Arithmetic "A2" instructions (includes multiplication by a constant)
         class a2_instruction : public instruction {
         private:
             a_instruction_type m_type;
             virtual_register m_destination;
-            operand m_operand_a;
+            virtual_register m_operand_a;
 
             size_t m_constant;  
         public:
-            a2_instruction(a_instruction_type type, virtual_register destination, operand operand_a, size_t constant) 
+            a2_instruction(a_instruction_type type, virtual_register destination, virtual_register operand_a, size_t constant) 
             : m_type(type), m_destination(destination), m_operand_a(operand_a), m_constant(constant) {}
 
             a_instruction_type type() const noexcept { return m_type; }
             virtual_register destination() const noexcept { return m_destination; }
-            operand operand_a() const noexcept { return m_operand_a; }
+            virtual_register operand_a() const noexcept { return m_operand_a; }
             size_t constant() const noexcept { return m_constant; }
         };
 
-        class init_zero : public instruction {
+
+        // Unary "U" instructions
+        enum u_instruction_type {
+            MICHAELCC_LINEAR_U_NEGATE,
+            MICHAELCC_LINEAR_U_NOT,
+            MICHAELCC_LINEAR_U_BITWISE_NOT,
+        };
+
+        class u_instruction : public instruction {
+        private:
+            u_instruction_type m_type;
+            virtual_register m_destination;
+            virtual_register m_operand;
+        public:
+            u_instruction(u_instruction_type type, virtual_register destination, virtual_register operand) 
+                : m_type(type), m_destination(destination), m_operand(operand) {}
+            
+            u_instruction_type type() const noexcept { return m_type; }
+            virtual_register destination() const noexcept { return m_destination; }
+            virtual_register operand() const noexcept { return m_operand; }
+        };
+
+        
+        // Initialize a register with a literal value
+        class init_register : public instruction {
         private:
             virtual_register m_destination;
-            
+            literal m_value;
         public:
-            init_zero(virtual_register destination) : m_destination(destination) {}
+            init_register(virtual_register destination, literal value) : m_destination(destination), m_value(value) {}
             virtual_register destination() const noexcept { return m_destination; }
+            literal value() const noexcept { return m_value; }
         };
+
 
         // Load from memory
         class load_memory : public instruction {
         private:
             virtual_register m_destination;
-            operand m_source_address;
+            virtual_register m_source_address;
             size_t m_offset;
         public:
-            load_memory(virtual_register destination, operand source_address, size_t offset) 
+            load_memory(virtual_register destination, virtual_register source_address, size_t offset) 
                 : m_destination(destination), m_source_address(source_address), m_offset(offset) {}
         
             virtual_register destination() const noexcept { return m_destination; }
-            operand source_address() const noexcept { return m_source_address; }
+            virtual_register source_address() const noexcept { return m_source_address; }
             size_t offset() const noexcept { return m_offset; }
         };
 
@@ -148,18 +176,20 @@ namespace michaelcc {
         // Store to memory
         class store_memory : public instruction {
         private:
-            operand m_source_address;
-            operand m_value;
+            virtual_register m_source_address;
+            virtual_register m_value;
             size_t m_offset;
         public:
-            store_memory(operand source_address, operand value, size_t offset) 
+            store_memory(virtual_register source_address, virtual_register value, size_t offset) 
                 : m_source_address(source_address), m_value(value), m_offset(offset) {}
         
-            operand source_address() const noexcept { return m_source_address; }
-            operand value() const noexcept { return m_value; }
+            virtual_register source_address() const noexcept { return m_source_address; }
+            virtual_register value() const noexcept { return m_value; }
             size_t offset() const noexcept { return m_offset; }
         };
 
+
+        // Allocate memory on the stack
         class alloca_instruction : public instruction {
         private:
             virtual_register m_destination;
@@ -178,15 +208,15 @@ namespace michaelcc {
         class valloca_instruction : public instruction {
         private:
             virtual_register m_destination;
-            operand m_size;
+            virtual_register m_size;
             size_t m_alignment;
 
         public:
-            valloca_instruction(virtual_register destination, operand size, size_t alignment)
+            valloca_instruction(virtual_register destination, virtual_register size, size_t alignment)
                 : m_destination(destination), m_size(size), m_alignment(alignment) {}
 
             virtual_register destination() const noexcept { return m_destination; }
-            operand size() const noexcept { return m_size; }
+            virtual_register size() const noexcept { return m_size; }
             size_t alignment() const noexcept { return m_alignment; }
         };
 
@@ -234,7 +264,6 @@ namespace michaelcc {
 
 
         // Function Stuff
-
         class function_definition {
         private:
             size_t m_entry_block_id;
@@ -247,19 +276,20 @@ namespace michaelcc {
             const std::string& name() const noexcept { return m_name; }
         };
 
+
         class function_call : public instruction {
         private:
             std::optional<virtual_register> m_destination;
             std::shared_ptr<function_definition> m_function_definition;
-            std::vector<operand> m_arguments;
+            std::vector<virtual_register> m_arguments;
 
         public:
-            function_call(std::optional<virtual_register> destination, std::shared_ptr<function_definition> function_definition, std::vector<operand>&& arguments) 
+            function_call(std::optional<virtual_register> destination, std::shared_ptr<function_definition> function_definition, std::vector<virtual_register>&& arguments) 
                 : m_destination(destination), m_function_definition(function_definition), m_arguments(std::move(arguments)) {}
 
             std::optional<virtual_register> destination() const noexcept { return m_destination; }
             std::shared_ptr<function_definition> function_definition() const noexcept { return m_function_definition; }
-            const std::vector<operand>& arguments() const noexcept { return m_arguments; }
+            const std::vector<virtual_register>& arguments() const noexcept { return m_arguments; }
         };
 
         class function_return : public instruction {
