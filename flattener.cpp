@@ -170,6 +170,60 @@ void logic_lowerer::emit_memcpy(linear::virtual_register dest, linear::virtual_r
     }
 }
 
+void logic_lowerer::lower_struct_initializer(const logic::struct_initializer& node, linear::virtual_register dest_address, size_t offset) {
+    auto& struct_type = node.struct_type();
+    
+    type_layout_calculator calculator(m_platform_info);
+    for (const auto& initializer : node.initializers()) {
+        auto field = std::find_if(struct_type->fields().begin(), struct_type->fields().end(), [&](const typing::member& member) {
+            return member.name == initializer.member_name;
+        });
+        if (field == struct_type->fields().end()) {
+            throw std::runtime_error("Member \"" + initializer.member_name + "\" not found in struct.");
+        }
+
+        lower_initializer_at_address(dest_address, initializer.initializer, field->offset + offset);
+    }
+}
+
+void logic_lowerer::lower_union_initializer(const logic::union_initializer& node, linear::virtual_register dest_address, size_t offset) {
+    type_layout_calculator calculator(m_platform_info);
+    assert(node.target_member().offset == 0);
+    assert(calculator.must_alloca(node.union_type()));
+
+    lower_initializer_at_address(dest_address, node.initializer(), 0);
+}
+
+void logic_lowerer::lower_initializer_at_address(linear::virtual_register dest_address, const std::unique_ptr<logic::expression>& initializer, size_t offset) {
+    type_layout_calculator calculator(m_platform_info);
+    if(calculator.must_alloca(initializer->get_type().type())) {
+        if (auto struct_initializer = dynamic_cast<logic::struct_initializer*>(initializer.get())) {
+            lower_struct_initializer(*struct_initializer, dest_address, offset);
+        }
+        else if (auto union_initializer = dynamic_cast<logic::union_initializer*>(initializer.get())) {
+            lower_union_initializer(*union_initializer, dest_address, offset);
+        }
+        else {
+            auto layout = calculator(*initializer->get_type().type());
+            auto src_addr = marhsal_into_register(lower_expression(*initializer));
+            emit_memcpy(
+                dest_address, 
+                src_addr, 
+                layout.size, 
+                offset
+            );
+        }
+    }
+    else {
+        auto evaled_src_reg = marhsal_into_register(lower_expression(*initializer));
+        emit(std::make_unique<linear::store_memory>(
+            dest_address, 
+            evaled_src_reg, 
+            offset
+        ));
+    }
+}
+
 linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::integer_constant& node) {
     type_layout_calculator calculator(m_lowerer.m_platform_info);
     return linear::literal(std::bit_cast<uint64_t>(node.value()), calculator(*node.get_type().type()).size);
@@ -550,34 +604,12 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::array_i
     ));
 
     for (size_t i = 0; i < node.initializers().size(); i++) {
-        if (calculator.must_alloca(node.initializers().at(i)->get_type())) {
-            if (auto struct_initializer = dynamic_cast<logic::struct_initializer*>(node.initializers().at(i).get())) {
-                m_lowerer.lower_struct_initializer(*struct_initializer, address_reg, elem_layout.size * i);
-            }
-            else if (auto union_initializer = dynamic_cast<logic::union_initializer*>(node.initializers().at(i).get())) {
-                m_lowerer.lower_union_initializer(*union_initializer, address_reg, elem_layout.size * i);
-            }
-            else {            
-                m_lowerer.emit_memcpy(
-                    address_reg, 
-                    m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.initializers()[i])), 
-                    elem_layout.size,
-                    elem_layout.size * i
-                );
-            }
-        }
-        else {
-            m_lowerer.emit(std::make_unique<linear::store_memory>(
-            address_reg, 
-                m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.initializers()[i])), 
-                i * elem_layout.size
-            ));
-        }
+        m_lowerer.lower_initializer_at_address(address_reg, node.initializers()[i], i * elem_layout.size);
     }
     return address_reg;
 }
 
-linear::operand logic_lowerer::lower_allocate_array(const logic::allocate_array& node, size_t current_dimension) {
+linear::virtual_register logic_lowerer::lower_allocate_array(const logic::allocate_array& node, size_t current_dimension) {
     auto address_reg = new_vreg(m_platform_info.pointer_size * 8);
    
     std::shared_ptr<typing::array_type> array_type = std::dynamic_pointer_cast<typing::array_type>(node.get_type().type());
@@ -625,7 +657,7 @@ linear::operand logic_lowerer::lower_allocate_array(const logic::allocate_array&
         ));
 
         for (size_t i = 0; i < integer_constant->value(); i++) {
-            auto array_addr_reg = marhsal_into_register(lower_allocate_array(node, current_dimension + 1));
+            auto array_addr_reg = lower_allocate_array(node, current_dimension + 1);
             emit(std::make_unique<linear::store_memory>(
                 address_reg, 
                 array_addr_reg, 
@@ -643,48 +675,6 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::allocat
     return m_lowerer.lower_allocate_array(node, 0);
 }
 
-
-linear::operand logic_lowerer::lower_struct_initializer(const logic::struct_initializer& node, linear::virtual_register dest_address, size_t offset) {
-    auto& struct_type = node.struct_type();
-    
-    type_layout_calculator calculator(m_platform_info);
-    for (const auto& initializer : node.initializers()) {
-        auto field = std::find_if(struct_type->fields().begin(), struct_type->fields().end(), [&](const typing::member& member) {
-            return member.name == initializer.member_name;
-        });
-        if (field == struct_type->fields().end()) {
-            throw std::runtime_error("Member \"" + initializer.member_name + "\" not found in struct.");
-        }
-
-        if (calculator.must_alloca(initializer.initializer->get_type())) {
-            if (auto struct_initializer = dynamic_cast<logic::struct_initializer*>(initializer.initializer.get())) {
-                lower_struct_initializer(*struct_initializer, dest_address, field->offset + offset);
-            }
-            else if (auto union_initializer = dynamic_cast<logic::union_initializer*>(initializer.initializer.get())) {
-                lower_union_initializer(*union_initializer, dest_address, field->offset + offset);
-            }
-            else {
-                auto src_address = marhsal_into_register(lower_expression(*initializer.initializer));
-                emit_memcpy(
-                    dest_address, 
-                    src_address, 
-                    calculator(*field->member_type.type()).size, 
-                    field->offset + offset
-                );
-            }
-        }
-        else {
-            auto evaled_src_reg = marhsal_into_register(lower_expression(*initializer.initializer));
-            emit(std::make_unique<linear::store_memory>(
-                dest_address, 
-                evaled_src_reg, 
-                field->offset + offset
-            ));
-        }
-    }
-    return dest_address;
-}
-
 linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::struct_initializer& node) {
     auto& struct_type = node.struct_type();
     type_layout_calculator calculator(m_lowerer.m_platform_info);
@@ -698,40 +688,6 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::struct_
     ));
 
     m_lowerer.lower_struct_initializer(node, dest_address, 0);
-    return dest_address;
-}
-
-linear::operand logic_lowerer::lower_union_initializer(const logic::union_initializer& node, linear::virtual_register dest_address, size_t offset) {
-    type_layout_calculator calculator(m_platform_info);
-    assert(node.target_member().offset == 0);
-    assert(calculator.must_alloca(node.union_type()));
-
-    if (calculator.must_alloca(node.target_member().member_type)) {
-        if (auto struct_initializer = dynamic_cast<logic::struct_initializer*>(node.initializer().get())) {
-            lower_struct_initializer(*struct_initializer, dest_address, offset);
-        }
-        else if (auto union_initializer = dynamic_cast<logic::union_initializer*>(node.initializer().get())) {
-            lower_union_initializer(*union_initializer, dest_address, offset);
-        }
-        else {
-            auto src_addr = marhsal_into_register(lower_expression(*node.initializer()));
-            emit_memcpy(
-                dest_address, 
-                src_addr, 
-                calculator(*node.target_member().member_type.type()).size, 
-                offset
-            );
-        }
-    }
-    else {
-        auto evaled_src_reg = marhsal_into_register(lower_expression(*node.initializer()));
-        emit(std::make_unique<linear::store_memory>(
-            dest_address, 
-            evaled_src_reg, 
-            offset
-        ));
-    }
-
     return dest_address;
 }
 

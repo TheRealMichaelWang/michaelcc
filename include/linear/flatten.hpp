@@ -159,9 +159,11 @@ namespace michaelcc {
             }
         }
 
-        linear::operand lower_allocate_array(const logic::allocate_array& node, size_t current_dimension);
-        linear::operand lower_struct_initializer(const logic::struct_initializer& node, linear::virtual_register dest_address, size_t offset);
-        linear::operand lower_union_initializer(const logic::union_initializer& node, linear::virtual_register dest_address, size_t offset);
+        linear::virtual_register lower_allocate_array(const logic::allocate_array& node, size_t current_dimension);
+        void lower_struct_initializer(const logic::struct_initializer& node, linear::virtual_register dest_address, size_t offset);
+        void lower_union_initializer(const logic::union_initializer& node, linear::virtual_register dest_address, size_t offset);
+
+        void lower_initializer_at_address(linear::virtual_register dest_address, const std::unique_ptr<logic::expression>& initializer, size_t offset);
 
         linear::operand lower_expression(const logic::expression& expr);
 
