@@ -2,6 +2,7 @@
 #define MICHAELCC_CFG_IR_HPP
 
 #include "logic/ir.hpp"
+#include "utils.hpp"
 #include <cstddef>
 
 namespace michaelcc {
@@ -39,6 +40,36 @@ namespace michaelcc {
             virtual ~instruction() = default;
         };
 
+        class a_instruction;
+        class a2_instruction;
+        class init_zero;
+        class load_memory;
+        class store_memory;
+        class alloca_instruction;
+        class valloca_instruction;
+        class basic_block;
+        class branch;
+        class branch_condition;
+        class function_call;
+        class function_return;
+        class phi_instruction;
+        class load_effective_address;
+
+        using instruction_transformer = generic_dispatcher<std::unique_ptr<instruction>, const instruction,
+            const a_instruction,
+            const a2_instruction,
+            const init_zero,
+            const load_memory,
+            const store_memory,
+            const alloca_instruction,
+            const valloca_instruction,
+            const branch,
+            const branch_condition,
+            const function_call,
+            const function_return,
+            const phi_instruction,
+            const load_effective_address
+        >;
 
         // Arithmetic "A" instructions (includes comparison)
         enum a_instruction_type {
@@ -171,6 +202,7 @@ namespace michaelcc {
                 : m_id(id), m_instructions(std::move(instructions)) {}
 
             size_t id() const noexcept { return m_id; }
+
             const std::vector<std::unique_ptr<instruction>>& instructions() const noexcept { return m_instructions; }   
         };
 
