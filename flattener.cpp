@@ -741,3 +741,35 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::functio
     ));
     return dest_reg;
 }
+
+linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::conditional_expression& node) {
+    auto condition_reg = m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.condition()));
+    
+    auto current_block_id = m_lowerer.current_block_id();
+    auto true_block_id = m_lowerer.allocate_block_id();
+    auto false_block_id = m_lowerer.allocate_block_id();
+
+    m_lowerer.emit(std::make_unique<linear::branch_condition>(
+        condition_reg, true_block_id, false_block_id, false
+    ));
+    m_lowerer.seal_block();
+
+    m_lowerer.begin_block(true_block_id, { current_block_id });
+    auto true_result = m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.then_expression()));
+    m_lowerer.seal_block();
+    
+    m_lowerer.begin_block(false_block_id, { current_block_id });
+    auto false_result = m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.else_expression()));
+    m_lowerer.seal_block();
+    
+    auto final_block = m_lowerer.allocate_block_id();
+    m_lowerer.begin_block(final_block, { true_block_id, false_block_id });
+    auto final_result = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
+    m_lowerer.emit(std::make_unique<linear::phi_instruction>(
+        final_result, std::vector<linear::var_info>{ 
+            linear::var_info{ .vreg = true_result, .block_id = true_block_id },
+            linear::var_info{ .vreg = false_result, .block_id = false_block_id }
+        }
+    ));
+    return final_result;
+}
