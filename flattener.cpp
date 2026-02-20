@@ -408,7 +408,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         }
     }, node.destination());
 
-    auto current_value_reg = m_lowerer.new_vreg(var_size);
+    auto current_value_reg = make_dest_reg(var_size);
     m_lowerer.emit(std::make_unique<linear::load_memory>(
         current_value_reg, 
         value_addr, 
@@ -499,7 +499,17 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
 }
 
 linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::type_cast& node) {
-    return m_lowerer.lower_expression(*node.operand());
+    if (node.get_type().is_same_type<typing::float_type>() && node.operand()->get_type().is_same_type<typing::int_type>()) {
+        throw std::runtime_error("Currently unsupported type cast: float to integer.");
+    }
+    if (node.get_type().is_same_type<typing::int_type>() && node.operand()->get_type().is_same_type<typing::float_type>()) {
+        throw std::runtime_error("Currently unsupported type cast: integer to float.");
+    }
+    return m_lowerer.lower_expression(
+        *node.operand(),
+        m_dest_reg_use_register,
+        m_dest_reg_name
+    );
 }
 
 linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::address_of& node) {
@@ -597,7 +607,11 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
             return dest_reg;
         }
         else if (node.base()->get_type().is_same_type<typing::union_type>()) {
-            return m_lowerer.lower_expression(*node.base());
+            return m_lowerer.lower_expression(
+                *node.base(),
+                m_dest_reg_use_register,
+                m_dest_reg_name
+            );
         }
         else if (node.base()->get_type().is_pointer_of<typing::union_type>()) {
             assert(!calculator.must_alloca(node.member().member_type));

@@ -39,6 +39,8 @@ namespace michaelcc {
             linear::virtual_register dispatch(const logic::string_constant& node) override;
             linear::virtual_register dispatch(const logic::enumerator_literal& node) override;  
             linear::virtual_register dispatch(const logic::variable_reference& node) override;
+            linear::virtual_register dispatch(const logic::set_address& node) override;
+            linear::virtual_register dispatch(const logic::set_variable& node) override;
             linear::virtual_register dispatch(const logic::function_reference& node) override;
             linear::virtual_register dispatch(const logic::increment_operator& node) override;
             linear::virtual_register dispatch(const logic::arithmetic_operator& node) override;
@@ -54,8 +56,6 @@ namespace michaelcc {
             linear::virtual_register dispatch(const logic::union_initializer& node) override;
             linear::virtual_register dispatch(const logic::function_call& node) override;
             linear::virtual_register dispatch(const logic::conditional_expression& node) override;
-            linear::virtual_register dispatch(const logic::set_address& node) override;
-            linear::virtual_register dispatch(const logic::set_variable& node) override;
             linear::virtual_register dispatch(const logic::compound_expression& node) override;          
         };
 
