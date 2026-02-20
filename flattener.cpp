@@ -707,3 +707,37 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::union_i
     }
     return m_lowerer.lower_expression(*node.initializer());
 }
+
+linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::function_call& node) {
+    std::vector<linear::virtual_register> arguments;
+    arguments.reserve(node.arguments().size());
+
+    for (const auto& argument : node.arguments()) {
+        auto argument_reg = m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*argument));
+        arguments.push_back(argument_reg);
+    }
+
+    type_layout_calculator calculator(m_lowerer.m_platform_info);
+    if (calculator.must_alloca(node.get_type())) {
+        throw std::runtime_error("Function return value cannot be alloca'd on the stack.");
+    }
+    auto dest_reg = m_lowerer.new_vreg(calculator(*node.get_type().type()).size * 8);
+
+    linear::function_call::callable callee = std::visit(overloaded{
+        [this, dest_reg, &arguments](const std::shared_ptr<logic::function_definition>& function_definition) -> linear::function_call::callable {
+            auto linear_function_definition = m_lowerer.m_function_definitions.at(function_definition);
+            return linear_function_definition;
+        },
+        [this, dest_reg, &arguments](const std::unique_ptr<logic::expression>& expression) -> linear::function_call::callable {
+            auto src_reg = m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*expression));
+            return src_reg;
+        }
+    }, node.callee());
+
+    m_lowerer.emit(std::make_unique<linear::function_call>(
+        dest_reg, 
+        std::move(callee), 
+        std::move(arguments)
+    ));
+    return dest_reg;
+}

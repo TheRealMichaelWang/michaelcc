@@ -266,29 +266,41 @@ namespace michaelcc {
         // Function Stuff
         class function_definition {
         private:
-            size_t m_entry_block_id;
+            std::optional<size_t> m_entry_block_id;
             std::string m_name;
 
         public:
-            function_definition(size_t entry_block_id, std::string name) : m_entry_block_id(entry_block_id), m_name(name) {}
+            function_definition(std::optional<size_t> entry_block_id, std::string name) : m_entry_block_id(entry_block_id), m_name(name) {}
 
-            size_t entry_block_id() const noexcept { return m_entry_block_id; }
+            bool implemented() const noexcept { return m_entry_block_id.has_value(); }
+
+            void implement(size_t entry_block_id) {
+                if (implemented()) {
+                    throw std::runtime_error("Function definition is already implemented");
+                }
+                m_entry_block_id = entry_block_id;
+            }
+            
+            std::optional<size_t> entry_block_id() const noexcept { return m_entry_block_id; }
             const std::string& name() const noexcept { return m_name; }
         };
 
 
         class function_call : public instruction {
+        public:
+            using callable = std::variant<std::shared_ptr<function_definition>, virtual_register>;
+        
         private:
-            std::optional<virtual_register> m_destination;
-            std::shared_ptr<function_definition> m_function_definition;
+            virtual_register m_destination;
+            callable m_callee;
             std::vector<virtual_register> m_arguments;
 
         public:
-            function_call(std::optional<virtual_register> destination, std::shared_ptr<function_definition> function_definition, std::vector<virtual_register>&& arguments) 
-                : m_destination(destination), m_function_definition(function_definition), m_arguments(std::move(arguments)) {}
+            function_call(virtual_register destination, callable&& callee, std::vector<virtual_register>&& arguments) 
+                : m_destination(destination), m_callee(std::move(callee)), m_arguments(std::move(arguments)) {}
 
-            std::optional<virtual_register> destination() const noexcept { return m_destination; }
-            std::shared_ptr<function_definition> function_definition() const noexcept { return m_function_definition; }
+            virtual_register destination() const noexcept { return m_destination; }
+            const callable& callee() const noexcept { return m_callee; }
             const std::vector<virtual_register>& arguments() const noexcept { return m_arguments; }
         };
 
