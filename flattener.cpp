@@ -554,7 +554,10 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::array_i
             if (auto struct_initializer = dynamic_cast<logic::struct_initializer*>(node.initializers().at(i).get())) {
                 m_lowerer.lower_struct_initializer(*struct_initializer, address_reg, elem_layout.size * i);
             }
-            else {
+            else if (auto union_initializer = dynamic_cast<logic::union_initializer*>(node.initializers().at(i).get())) {
+                m_lowerer.lower_union_initializer(*union_initializer, address_reg, elem_layout.size * i);
+            }
+            else {            
                 m_lowerer.emit_memcpy(
                     address_reg, 
                     m_lowerer.marhsal_into_register(m_lowerer.lower_expression(*node.initializers()[i])), 
@@ -657,20 +660,17 @@ linear::operand logic_lowerer::lower_struct_initializer(const logic::struct_init
             if (auto struct_initializer = dynamic_cast<logic::struct_initializer*>(initializer.initializer.get())) {
                 lower_struct_initializer(*struct_initializer, dest_address, field->offset + offset);
             }
+            else if (auto union_initializer = dynamic_cast<logic::union_initializer*>(initializer.initializer.get())) {
+                lower_union_initializer(*union_initializer, dest_address, field->offset + offset);
+            }
             else {
-                auto evaluated_src = lower_expression(*initializer.initializer);
-                if (std::holds_alternative<linear::virtual_register>(evaluated_src)) {
-                    auto src_address = std::get<linear::virtual_register>(evaluated_src);
-                    emit_memcpy(
-                        dest_address, 
-                        src_address, 
-                        calculator(*field->member_type.type()).size, 
-                        field->offset + offset
-                    );
-                }
-                else {
-                    throw std::runtime_error("Invalid source type for struct initializer.");
-                }
+                auto src_address = marhsal_into_register(lower_expression(*initializer.initializer));
+                emit_memcpy(
+                    dest_address, 
+                    src_address, 
+                    calculator(*field->member_type.type()).size, 
+                    field->offset + offset
+                );
             }
         }
         else {
@@ -701,8 +701,53 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::struct_
     return dest_address;
 }
 
-/*linear::operand logic_lowerer::lower_union_initializer(const logic::union_initializer& node, linear::virtual_register dest_address, size_t offset) {
+linear::operand logic_lowerer::lower_union_initializer(const logic::union_initializer& node, linear::virtual_register dest_address, size_t offset) {
     type_layout_calculator calculator(m_platform_info);
+    assert(node.target_member().offset == 0);
     assert(calculator.must_alloca(node.union_type()));
 
-}*/
+    if (calculator.must_alloca(node.target_member().member_type)) {
+        if (auto struct_initializer = dynamic_cast<logic::struct_initializer*>(node.initializer().get())) {
+            lower_struct_initializer(*struct_initializer, dest_address, offset);
+        }
+        else if (auto union_initializer = dynamic_cast<logic::union_initializer*>(node.initializer().get())) {
+            lower_union_initializer(*union_initializer, dest_address, offset);
+        }
+        else {
+            auto src_addr = marhsal_into_register(lower_expression(*node.initializer()));
+            emit_memcpy(
+                dest_address, 
+                src_addr, 
+                calculator(*node.target_member().member_type.type()).size, 
+                offset
+            );
+        }
+    }
+    else {
+        auto evaled_src_reg = marhsal_into_register(lower_expression(*node.initializer()));
+        emit(std::make_unique<linear::store_memory>(
+            dest_address, 
+            evaled_src_reg, 
+            offset
+        ));
+    }
+
+    return dest_address;
+}
+
+linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::union_initializer& node) {
+    type_layout_calculator calculator(m_lowerer.m_platform_info);
+    if (calculator.must_alloca(node.union_type())) {
+        auto dest_address = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
+        auto layout = calculator(*node.union_type());
+        m_lowerer.emit(std::make_unique<linear::alloca_instruction>(
+            dest_address, 
+            layout.size, 
+            layout.alignment
+        ));
+
+        m_lowerer.lower_union_initializer(node, dest_address, 0);
+        return dest_address;
+    }
+    return m_lowerer.lower_expression(*node.initializer());
+}
