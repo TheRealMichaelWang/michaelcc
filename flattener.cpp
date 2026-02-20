@@ -9,6 +9,7 @@
 #include <unordered_set>
 #include <variant>
 #include <stdexcept>
+#include <cassert>
 
 using namespace michaelcc;
 
@@ -188,7 +189,7 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::variabl
     auto var_reg = m_lowerer.get_var_reg(variable);
     type_layout_calculator calculator(m_lowerer.m_platform_info);
 
-    if (variable->must_alloca()) {
+    if (variable->must_alloca() || calculator.must_alloca(variable->get_type())) {
         type_layout_calculator calculator(m_lowerer.m_platform_info);
         if (calculator(*variable->get_type().type()).size <= m_lowerer.m_platform_info.pointer_size) {
             auto dest_reg = m_lowerer.new_vreg(calculator(*variable->get_type().type()).size * 8);
@@ -200,11 +201,6 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::variabl
             ));
 
             return dest_reg;
-        }
-        else {
-            if (!variable->get_type().is_same_type<typing::struct_type>()) {
-                throw std::runtime_error("Only structs can be this large and passed by value.");
-            }
         }
     }
     return var_reg;
@@ -368,7 +364,8 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::address
             return m_lowerer.compute_lvalue_address(*operand);
         },
         [this](const std::shared_ptr<logic::variable>& operand) -> linear::operand {
-            if (!operand->must_alloca()) {
+            type_layout_calculator calculator(m_lowerer.m_platform_info);
+            if (!operand->must_alloca() || !calculator.must_alloca(operand->get_type())) {
                 throw std::runtime_error("Address of variable must be alloca'd on the stack.");
             }
             return m_lowerer.get_var_reg(operand);
@@ -377,11 +374,11 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::address
 }
 
 linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::dereference& node) {
-    if (node.operand()->get_type().is_same_type<typing::struct_type>()) { //we only pass around pointers to structs
+    type_layout_calculator calculator(m_lowerer.m_platform_info);
+    if (calculator.must_alloca(node.operand()->get_type())) { //we only pass around pointers to structs
         return m_lowerer.lower_expression(*node.operand());
     }
 
-    type_layout_calculator calculator(m_lowerer.m_platform_info);
     size_t object_size = calculator(*node.operand()->get_type().type()).size * 8;
 
     auto operand = m_lowerer.lower_expression(*node.operand());
@@ -395,28 +392,80 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::derefer
 }
 
 linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::member_access& node) {
-    if (node.member().member_type.is_same_type<typing::struct_type>()) { //return a pointer to start of the struct
-        auto dest_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
-        m_lowerer.emit(std::make_unique<linear::a2_instruction>(
-            linear::ADD, 
+    type_layout_calculator calculator(m_lowerer.m_platform_info);
+    if (node.base()->get_type().is_same_type<typing::struct_type>() || 
+        (node.base()->get_type().is_pointer_of<typing::struct_type>() && node.is_dereference())) {
+        // we can safely ignore the dereference case because structs are always passed by their address
+        // despite being a pass-by-value type. We always copy them via emit_memcpy when we need to
+        // pass them by value, like in a set variable
+
+        assert(calculator.must_alloca(node.base()->get_type()));
+
+        auto base_addr = m_lowerer.lower_expression(*node.base());
+
+        if (calculator.must_alloca(node.member().member_type)) { //return a pointer to start of the struct
+            auto dest_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
+            m_lowerer.emit(std::make_unique<linear::a2_instruction>(
+                linear::ADD, 
+                dest_reg, 
+                base_addr,
+                node.member().offset
+            ));
+            return dest_reg;
+        }
+
+        size_t object_size = calculator(*node.member().member_type.type()).size * 8;
+
+        auto dest_reg = m_lowerer.new_vreg(object_size);
+        m_lowerer.emit(std::make_unique<linear::load_memory>(
             dest_reg, 
-            m_lowerer.lower_expression(*node.base()), 
+            base_addr, 
             node.member().offset
         ));
         return dest_reg;
     }
+    else if (node.base()->get_type().is_same_type<typing::union_type>()
+        || (node.base()->get_type().is_pointer_of<typing::union_type>() && node.is_dereference())) {
+        assert(node.member().offset == 0);
 
-    type_layout_calculator calculator(m_lowerer.m_platform_info);
-    size_t object_size = calculator(*node.member().member_type.type()).size * 8;
+        //first if path taken if member type is must alloca
+        if ((node.base()->get_type().is_same_type<typing::union_type>() && calculator.must_alloca(node.base()->get_type())) || 
+            node.base()->get_type().is_pointer_of<typing::union_type>()) {
+            auto union_addr = m_lowerer.lower_expression(*node.base());
+            if (calculator.must_alloca(node.member().member_type)) {
+                return union_addr;
+            }
+            
+            size_t object_size = calculator(*node.member().member_type.type()).size * 8;
+            auto dest_reg = m_lowerer.new_vreg(object_size);
+            m_lowerer.emit(std::make_unique<linear::load_memory>(
+                dest_reg, 
+                union_addr, 
+                node.member().offset
+            ));
+            return dest_reg;
+        }
+        else if (node.get_type().is_same_type<typing::union_type>()) {
+            return m_lowerer.lower_expression(*node.base());
+        }
+        else if (node.base()->get_type().is_pointer_of<typing::union_type>()) {
+            assert(!calculator.must_alloca(node.member().member_type));
+            
+            auto union_addr = m_lowerer.lower_expression(*node.base());
+            size_t object_size = calculator(*node.member().member_type.type()).size * 8;
 
-    auto object_reg = m_lowerer.lower_expression(*node.base());
-    auto dest_reg = m_lowerer.new_vreg(object_size);
-    m_lowerer.emit(std::make_unique<linear::load_memory>(
-        dest_reg, 
-        object_reg, 
-        node.member().offset
-    ));
-    return dest_reg;
+            auto dest_reg = m_lowerer.new_vreg(object_size);
+            m_lowerer.emit(std::make_unique<linear::load_memory>(
+                dest_reg, 
+                union_addr, 
+                node.member().offset
+            ));
+            return dest_reg;
+        }
+    }
+    else {
+        throw std::runtime_error("Member access on non-struct or union.");
+    }
 }
 
 linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::array_index& node) {
@@ -434,7 +483,7 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::array_i
     ));
 
     if (auto integer_constant = dynamic_cast<logic::integer_constant*>(node.index().get())) {
-        if (array_type->element_type().is_same_type<typing::struct_type>()) {
+        if (calculator.must_alloca(array_type->element_type())) {
             auto address_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
             m_lowerer.emit(std::make_unique<linear::a2_instruction>(
                 linear::ADD, 
@@ -461,7 +510,7 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::array_i
             offset_reg
         ));
         
-        if (array_type->element_type().is_same_type<typing::struct_type>()) {
+        if (calculator.must_alloca(array_type->element_type())) {
             return address_reg;
         }
 
@@ -489,7 +538,7 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::array_i
     ));
 
     for (size_t i = 0; i < node.initializers().size(); i++) {
-        if (node.initializers().at(i)->get_type().is_same_type<typing::struct_type>()) {
+        if (calculator.must_alloca(node.initializers().at(i)->get_type())) {
             if (auto struct_initializer = dynamic_cast<logic::struct_initializer*>(node.initializers().at(i).get())) {
                 m_lowerer.lower_struct_initializer(*struct_initializer, address_reg, elem_layout.size * i);
             }
@@ -591,7 +640,7 @@ linear::operand logic_lowerer::lower_struct_initializer(const logic::struct_init
             throw std::runtime_error("Member \"" + initializer.member_name + "\" not found in struct.");
         }
 
-        if (initializer.initializer->get_type().is_same_type<typing::struct_type>()) {
+        if (calculator.must_alloca(initializer.initializer->get_type())) {
             if (auto struct_initializer = dynamic_cast<logic::struct_initializer*>(initializer.initializer.get())) {
                 lower_struct_initializer(*struct_initializer, dest_address, field->offset + offset);
             }

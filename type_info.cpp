@@ -20,6 +20,19 @@ namespace michaelcc {
         }
     }
 
+    bool type_layout_calculator::must_alloca(const typing::qual_type type) noexcept {
+        std::shared_ptr<typing::union_type> union_type = std::dynamic_pointer_cast<typing::union_type>(type.type());
+        if (union_type) {
+            for (auto& member : union_type->members()) {
+                if (must_alloca(member.member_type)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return type.is_same_type<typing::struct_type>() || (*this)(*type.type()).size > m_platform_info.pointer_size;
+    }
+
     bool typing::int_type::is_assignable_from(const typing::base_type& other, const platform_info& platform) const {
         if (typeid(other) != typeid(*this)) {
             if (dynamic_cast<const typing::enum_type*>(&other)) {

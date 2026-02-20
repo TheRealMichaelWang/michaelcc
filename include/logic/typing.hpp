@@ -205,6 +205,9 @@ namespace michaelcc {
                 return t && dynamic_cast<const ChildType*>(t.get()) != nullptr;
             }
 
+            template<typename ChildType, std::enable_if_t<std::is_base_of_v<base_type, ChildType>, int> = 0>
+            bool is_pointer_of() const;
+
             bool is_assignable_from(const qual_type& other, const platform_info& platform) const {
                 if (!is_const() && other.is_const() && !other.type()->is_copy_type()) {
                     return false;
@@ -463,6 +466,13 @@ namespace michaelcc {
             
             bool is_copy_type() const override { return false; }
         };
+
+        template<typename ChildType, std::enable_if_t<std::is_base_of_v<base_type, ChildType>, int>>
+        bool qual_type::is_pointer_of() const {
+            auto t = type();
+            auto ptr_t = std::dynamic_pointer_cast<pointer_type>(t);
+            return ptr_t && ptr_t->pointee_type().is_same_type<ChildType>();
+        }
 
         struct member {
             std::string name;

@@ -34,6 +34,8 @@ namespace michaelcc {
         // Static method to get int type size
         static size_t get_int_type_size(const typing::int_type& type, const platform_info& platform);
 
+        bool must_alloca(const typing::qual_type type) noexcept;
+
     protected:
         const type_layout_info dispatch(typing::void_type& type) override {
             throw std::runtime_error("Void type is not a valid type for layout calculation");

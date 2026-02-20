@@ -117,13 +117,13 @@ namespace michaelcc {
             return id;
         }
 
-        void begin_block(size_t head_block_id, std::vector<size_t>&& incoming_block_ids, bool phi_all=false) {
+        void begin_block(size_t head_block_id, std::vector<size_t>&& incoming_block_ids, bool is_loop_start=false) {
             m_current_block = block_builder{ 
                 .id = head_block_id, 
                 .incoming_block_ids = std::move(incoming_block_ids), 
                 .var_info = reconcile_var_regs(incoming_block_ids, head_block_id) 
             };
-            if (phi_all) {
+            if (is_loop_start) {
                 emit_phi_all();
             }
         }
