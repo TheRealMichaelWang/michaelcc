@@ -154,9 +154,19 @@ namespace michaelcc {
         void lower_struct_initializer(const logic::struct_initializer& node, linear::virtual_register dest_address, size_t offset);
         void lower_union_initializer(const logic::union_initializer& node, linear::virtual_register dest_address, size_t offset);
 
+        void lower_statements(const std::vector<std::unique_ptr<logic::statement>>& statements);
+
         linear::virtual_register lower_at_address(linear::virtual_register dest_address, const std::unique_ptr<logic::expression>& initializer, size_t offset);
 
-        linear::virtual_register lower_expression(const logic::expression& expr);
+        linear::virtual_register lower_expression(const logic::expression& expr) {
+            auto lowerer = std::make_unique<expression_lowerer>(*this);
+            return (*lowerer)(expr);
+        }
+
+        void lower_statement(const logic::statement& statement) {
+            auto lowerer = std::make_unique<statement_lowerer>(*this);
+            (*lowerer)(statement);
+        }
 
         linear::virtual_register compute_lvalue_address(const logic::expression& expr);
 

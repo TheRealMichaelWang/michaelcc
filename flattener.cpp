@@ -200,6 +200,13 @@ void logic_lowerer::lower_union_initializer(const logic::union_initializer& node
     lower_at_address(dest_address, node.initializer(), 0);
 }
 
+void logic_lowerer::lower_statements(const std::vector<std::unique_ptr<logic::statement>>& statements) {
+    for (const auto& statement : statements) {
+        assert(m_current_block.has_value());
+        lower_statement(*statement);
+    }
+}
+
 linear::virtual_register logic_lowerer::lower_at_address(linear::virtual_register dest_address, const std::unique_ptr<logic::expression>& initializer, size_t offset) {
     type_layout_calculator calculator(m_platform_info);
     if(calculator.must_alloca(initializer->get_type().type())) {
@@ -881,4 +888,57 @@ void logic_lowerer::statement_lowerer::dispatch(const logic::return_statement& n
 
     m_lowerer.emit(std::make_unique<linear::function_return>());
     m_lowerer.seal_block();
+}
+
+void logic_lowerer::statement_lowerer::dispatch(const logic::if_statement& node) {
+    auto condition_reg = m_lowerer.lower_expression(*node.condition());
+    
+    auto finish_block_id = m_lowerer.allocate_block_id();
+    auto current_block_id = m_lowerer.current_block_id();
+    auto true_block_id = m_lowerer.allocate_block_id();
+
+    if (node.else_body()) {
+        auto false_block_id = m_lowerer.allocate_block_id();
+        m_lowerer.emit(std::make_unique<linear::branch_condition>(
+            condition_reg, true_block_id, false_block_id, false
+        ));
+        m_lowerer.seal_block();
+
+        // compile true block body
+        m_lowerer.begin_block(true_block_id, { current_block_id });
+        m_lowerer.lower_statements(node.then_body()->statements());
+
+        if (m_lowerer.m_current_block.has_value()) {
+            m_lowerer.emit(std::make_unique<linear::branch>(finish_block_id));
+            m_lowerer.seal_block();
+        }
+
+        // compile false block body
+        m_lowerer.begin_block(false_block_id, { current_block_id });
+        m_lowerer.lower_statements(node.else_body()->statements());
+
+        if (m_lowerer.m_current_block.has_value()) {
+            m_lowerer.emit(std::make_unique<linear::branch>(finish_block_id));
+            m_lowerer.seal_block();
+        }
+
+        m_lowerer.begin_block(finish_block_id, { true_block_id, false_block_id });
+    }
+    else {
+        m_lowerer.emit(std::make_unique<linear::branch_condition>(
+            condition_reg, true_block_id, finish_block_id, false
+        ));
+        m_lowerer.seal_block();
+
+        // compile true block body
+        m_lowerer.begin_block(true_block_id, { current_block_id });
+        m_lowerer.lower_statements(node.then_body()->statements());
+        
+        if (m_lowerer.m_current_block.has_value()) {
+            m_lowerer.emit(std::make_unique<linear::branch>(finish_block_id));
+            m_lowerer.seal_block();
+        }
+
+        m_lowerer.begin_block(finish_block_id, { current_block_id, true_block_id });
+    }
 }
