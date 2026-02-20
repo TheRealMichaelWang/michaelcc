@@ -441,8 +441,8 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::member_
         assert(node.member().offset == 0);
 
         //first if path taken if member type is must alloca
-        if ((node.base()->get_type().is_same_type<typing::union_type>() && calculator.must_alloca(node.base()->get_type())) || 
-            node.base()->get_type().is_pointer_of<typing::union_type>()) {
+        if ((node.base()->get_type().is_same_type<typing::union_type>() && calculator.must_alloca(node.base()->get_type())) 
+            || (node.base()->get_type().is_pointer_of<typing::union_type>() && calculator.must_alloca(node.member().member_type))) {
             auto union_addr = m_lowerer.lower_expression(*node.base());
             if (calculator.must_alloca(node.member().member_type)) {
                 return union_addr;
@@ -475,9 +475,8 @@ linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::member_
             return dest_reg;
         }
     }
-    else {
-        throw std::runtime_error("Member access on non-struct or union.");
-    }
+    
+    throw std::runtime_error("Member access on non-struct or union.");
 }
 
 linear::operand logic_lowerer::expression_lowerer::dispatch(const logic::array_index& node) {
