@@ -8,15 +8,11 @@
 namespace michaelcc {
 	namespace linear {
         struct virtual_register { 
+            bool must_use_register = false;
+            std::optional<std::string> name = std::nullopt;
             size_t id; size_t size_bits; 
 
             bool operator==(const virtual_register& reg) const { return reg.id == id; }
-        };
-
-        struct literal { 
-            uint64_t value; size_t size_bits; 
-
-            bool operator==(const literal& lit) const { return lit.value == value && lit.size_bits == size_bits; }
         };
 
         struct var_info {
@@ -25,15 +21,6 @@ namespace michaelcc {
 
             bool operator==(const var_info& info) const { return info.vreg == vreg; }
         };
-
-        using operand = std::variant<virtual_register, literal>;
-
-        inline size_t get_operand_size(const operand& op) noexcept {
-            return std::visit(overloaded{
-                [](const virtual_register& vreg) noexcept -> size_t { return vreg.size_bits; },
-                [](const literal& lit) noexcept -> size_t { return lit.size_bits; }
-            }, op);
-        }
 
         class instruction {
         public:
@@ -149,11 +136,11 @@ namespace michaelcc {
         class init_register : public instruction {
         private:
             virtual_register m_destination;
-            literal m_value;
+            uint64_t m_value;
         public:
-            init_register(virtual_register destination, literal value) : m_destination(destination), m_value(value) {}
+            init_register(virtual_register destination, uint64_t value) : m_destination(destination), m_value(value) {}
             virtual_register destination() const noexcept { return m_destination; }
-            literal value() const noexcept { return m_value; }
+            uint64_t value() const noexcept { return m_value; }
         };
 
 
@@ -248,15 +235,15 @@ namespace michaelcc {
 
         class branch_condition : public instruction {
         private:
-            operand m_condition;
+            virtual_register m_condition;
             size_t m_if_true_block_id;
             size_t m_if_false_block_id;
             bool m_is_loop; 
         public:
-            branch_condition(operand condition, size_t if_true_block_id, size_t if_false_block_id, bool is_loop) 
+            branch_condition(virtual_register condition, size_t if_true_block_id, size_t if_false_block_id, bool is_loop) 
                 : m_condition(condition), m_if_true_block_id(if_true_block_id), m_if_false_block_id(if_false_block_id), m_is_loop(is_loop) {}
 
-            operand condition() const noexcept { return m_condition; }
+            virtual_register condition() const noexcept { return m_condition; }
             size_t if_true_block_id() const noexcept { return m_if_true_block_id; }
             size_t if_false_block_id() const noexcept { return m_if_false_block_id; }
             bool is_loop() const noexcept { return m_is_loop; }
@@ -305,12 +292,8 @@ namespace michaelcc {
         };
 
         class function_return : public instruction {
-        private:
-            std::optional<operand> m_value;
-
         public:
-            function_return(std::optional<operand>&& value) 
-                : m_value(std::move(value)) {}
+            function_return() { } 
         };
 
 
@@ -350,8 +333,6 @@ namespace michaelcc {
             virtual_register destination() const noexcept { return m_destination; }
             const std::string& label() const noexcept { return m_label; }
         };
-
-        
 	}
 }
 

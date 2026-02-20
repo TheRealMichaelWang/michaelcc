@@ -14,37 +14,49 @@
 namespace michaelcc {
     class logic_lowerer {
     private:
-        class expression_lowerer : public logic::const_expression_dispatcher<linear::operand> {
+
+        class expression_lowerer : public logic::const_expression_dispatcher<linear::virtual_register> {
         private:
             logic_lowerer& m_lowerer;
+            bool m_dest_reg_use_register;
+            std::optional<std::string> m_dest_reg_name;
+
+            linear::virtual_register make_dest_reg(size_t size_bits) {
+                return m_lowerer.new_vreg(
+                    size_bits,
+                    m_dest_reg_use_register,
+                    m_dest_reg_name
+                );
+            }
 
         public:
-            expression_lowerer(logic_lowerer& lowerer) : m_lowerer(lowerer) {}
+            expression_lowerer(logic_lowerer& lowerer, bool dest_reg_use_register, std::optional<std::string> dest_reg_name) 
+            : m_lowerer(lowerer), m_dest_reg_use_register(dest_reg_use_register), m_dest_reg_name(dest_reg_name) {}
 
         protected:
-            linear::operand dispatch(const logic::integer_constant& node) override;
-            linear::operand dispatch(const logic::floating_constant& node) override;
-            linear::operand dispatch(const logic::string_constant& node) override;
-            linear::operand dispatch(const logic::enumerator_literal& node) override;  
-            linear::operand dispatch(const logic::variable_reference& node) override;
-            linear::operand dispatch(const logic::function_reference& node) override;
-            linear::operand dispatch(const logic::increment_operator& node) override;
-            linear::operand dispatch(const logic::arithmetic_operator& node) override;
-            linear::operand dispatch(const logic::unary_operation& node) override;
-            linear::operand dispatch(const logic::type_cast& node) override;
-            linear::operand dispatch(const logic::address_of& node) override;
-            linear::operand dispatch(const logic::dereference& node) override;
-            linear::operand dispatch(const logic::member_access& node) override;
-            linear::operand dispatch(const logic::array_index& node) override;
-            linear::operand dispatch(const logic::array_initializer& node) override;
-            linear::operand dispatch(const logic::allocate_array& node) override;
-            linear::operand dispatch(const logic::struct_initializer& node) override;
-            linear::operand dispatch(const logic::union_initializer& node) override;
-            linear::operand dispatch(const logic::function_call& node) override;
-            linear::operand dispatch(const logic::conditional_expression& node) override;
-            linear::operand dispatch(const logic::set_address& node) override;
-            linear::operand dispatch(const logic::set_variable& node) override;
-            linear::operand dispatch(const logic::compound_expression& node) override;          
+            linear::virtual_register dispatch(const logic::integer_constant& node) override;
+            linear::virtual_register dispatch(const logic::floating_constant& node) override;
+            linear::virtual_register dispatch(const logic::string_constant& node) override;
+            linear::virtual_register dispatch(const logic::enumerator_literal& node) override;  
+            linear::virtual_register dispatch(const logic::variable_reference& node) override;
+            linear::virtual_register dispatch(const logic::function_reference& node) override;
+            linear::virtual_register dispatch(const logic::increment_operator& node) override;
+            linear::virtual_register dispatch(const logic::arithmetic_operator& node) override;
+            linear::virtual_register dispatch(const logic::unary_operation& node) override;
+            linear::virtual_register dispatch(const logic::type_cast& node) override;
+            linear::virtual_register dispatch(const logic::address_of& node) override;
+            linear::virtual_register dispatch(const logic::dereference& node) override;
+            linear::virtual_register dispatch(const logic::member_access& node) override;
+            linear::virtual_register dispatch(const logic::array_index& node) override;
+            linear::virtual_register dispatch(const logic::array_initializer& node) override;
+            linear::virtual_register dispatch(const logic::allocate_array& node) override;
+            linear::virtual_register dispatch(const logic::struct_initializer& node) override;
+            linear::virtual_register dispatch(const logic::union_initializer& node) override;
+            linear::virtual_register dispatch(const logic::function_call& node) override;
+            linear::virtual_register dispatch(const logic::conditional_expression& node) override;
+            linear::virtual_register dispatch(const logic::set_address& node) override;
+            linear::virtual_register dispatch(const logic::set_variable& node) override;
+            linear::virtual_register dispatch(const logic::compound_expression& node) override;          
         };
 
         class statement_lowerer : public logic::const_statement_dispatcher<void> {
@@ -96,10 +108,9 @@ namespace michaelcc {
         expression_lowerer m_expression_lowerer;
         statement_lowerer m_statement_lowerer;
 
-        linear::virtual_register new_vreg(size_t size_bits) {
-            size_t id = m_next_vreg_id;
-            m_next_vreg_id++;
-            return { id, size_bits };
+        linear::virtual_register new_vreg(size_t size_bits, bool must_use_register = false, std::optional<std::string> name = std::nullopt) {
+            size_t id = m_next_vreg_id++;
+            return { must_use_register, name, id, size_bits };
         }
 
         block_var_ctx reconcile_var_regs(const std::vector<size_t>& incoming_block_ids, size_t incoming_block_id);
@@ -142,29 +153,18 @@ namespace michaelcc {
             m_current_block.reset();
         }
 
-        void emit_iloop(linear::operand count, std::function<void(linear::virtual_register)> body);
+        void emit_iloop(linear::virtual_register count, std::function<void(linear::virtual_register)> body);
 
-        void emit_memset(linear::virtual_register dest, linear::operand value, linear::operand count);
+        void emit_memset(linear::virtual_register dest, linear::virtual_register value, linear::virtual_register count);
         void emit_memcpy(linear::virtual_register dest, linear::virtual_register src, size_t size_bytes, size_t offset);
 
-        linear::virtual_register marhsal_into_register(linear::operand operand) {
-            if (std::holds_alternative<linear::virtual_register>(operand)) {
-                return std::get<linear::virtual_register>(operand);
-            }
-            else {
-                auto dest_reg = new_vreg(std::get<linear::literal>(operand).size_bits);
-                emit(std::make_unique<linear::init_register>(dest_reg, std::get<linear::literal>(operand)));
-                return dest_reg;
-            }
-        }
-
-        linear::virtual_register lower_allocate_array(const logic::allocate_array& node, size_t current_dimension);
+        void lower_allocate_array(linear::virtual_register dest_reg,const logic::allocate_array& node, size_t current_dimension);
         void lower_struct_initializer(const logic::struct_initializer& node, linear::virtual_register dest_address, size_t offset);
         void lower_union_initializer(const logic::union_initializer& node, linear::virtual_register dest_address, size_t offset);
 
-        void lower_initializer_at_address(linear::virtual_register dest_address, const std::unique_ptr<logic::expression>& initializer, size_t offset);
+        void lower_at_address(linear::virtual_register dest_address, const std::unique_ptr<logic::expression>& initializer, size_t offset);
 
-        linear::operand lower_expression(const logic::expression& expr);
+        linear::virtual_register lower_expression(const logic::expression& expr, bool dest_reg_use_register = false, std::optional<std::string> dest_reg_name = std::nullopt);
 
         linear::virtual_register compute_lvalue_address(const logic::expression& expr);
 

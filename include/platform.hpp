@@ -17,6 +17,7 @@ namespace michaelcc {
         size_t float_size;
         size_t double_size;
 
+        size_t register_size;
         size_t max_alignment;
         bool optimize_struct_layout = true;
     };

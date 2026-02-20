@@ -244,6 +244,7 @@ namespace michaelcc {
 			bool is_global() const noexcept { return m_is_global; }
 
 			bool must_alloca() const noexcept { return m_must_alloca; }
+			bool must_use_register() const noexcept { return m_qualifiers & typing::REGISTER_STORAGE_CLASS; }
 			void mark_must_alloca() noexcept { m_must_alloca = true; }
 
             std::string to_string() const noexcept override {
