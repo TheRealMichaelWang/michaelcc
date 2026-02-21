@@ -111,7 +111,7 @@ void logic_lowerer::emit_iloop(linear::virtual_register count, std::function<voi
     emit(std::make_unique<linear::branch>(loop1_block_id));
     seal_block(); //end current block
 
-    begin_block(loop1_block_id, { old_block_id, loop2_block_id });
+    begin_block(loop1_block_id, { old_block_id });
     auto iterator_state = new_vreg(m_platform_info.int_size * 8);
     auto post_increment_state = new_vreg(m_platform_info.int_size * 8);
 
@@ -162,8 +162,8 @@ void logic_lowerer::emit_memset(linear::virtual_register dest, linear::virtual_r
 }
 
 void logic_lowerer::emit_memcpy(linear::virtual_register dest, linear::virtual_register src, size_t size_bytes, size_t offset) {
-    for (size_t i = 0; i < size_bytes; i += m_platform_info.pointer_size) {
-        auto elem_reg = new_vreg(m_platform_info.char_size);    
+    for (size_t i = 0; i < size_bytes; i += m_platform_info.char_size) {
+        auto elem_reg = new_vreg(m_platform_info.char_size * 8);    
         emit(std::make_unique<linear::load_memory>(elem_reg, src, i + offset));
         emit(std::make_unique<linear::store_memory>(dest, elem_reg, i + offset));
     }
@@ -640,7 +640,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     std::shared_ptr<typing::array_type> array_type = std::dynamic_pointer_cast<typing::array_type>(node.base()->get_type().type());
 
     size_t elem_size = calculator(*array_type->element_type().type()).size;
-    auto offset_reg = m_lowerer.new_vreg(elem_size * 8);
+    auto offset_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
     m_lowerer.emit(std::make_unique<linear::a2_instruction>(
         linear::MICHAELCC_LINEAR_A_MULTIPLY, 
         offset_reg, 
@@ -750,15 +750,16 @@ void logic_lowerer::lower_allocate_array(linear::virtual_register dest_reg, cons
         auto array_addr_reg = new_vreg(m_platform_info.pointer_size * 8);
         emit(std::make_unique<linear::alloca_instruction>(
             array_addr_reg, 
-            m_platform_info.pointer_size, 
+            m_platform_info.pointer_size * integer_constant->value(), 
             std::min<size_t>(m_platform_info.pointer_size, m_platform_info.max_alignment)
         ));
 
         for (size_t i = 0; i < integer_constant->value(); i++) {
-            lower_allocate_array(array_addr_reg, node, current_dimension + 1);
+            auto elem_reg = new_vreg(m_platform_info.pointer_size * 8);
+            lower_allocate_array(elem_reg, node, current_dimension + 1);
             emit(std::make_unique<linear::store_memory>(
                 array_addr_reg, 
-                array_addr_reg, 
+                elem_reg, 
                 i * m_platform_info.pointer_size
             ));
         }
