@@ -74,13 +74,16 @@ namespace michaelcc {
             size_t id;
             std::vector<std::unique_ptr<linear::instruction>> instructions;
 
-            std::vector<size_t> incoming_block_ids;
             block_var_ctx var_info;
         };
 
         struct loop_info {
             size_t block_id;
             size_t finish_block_id;
+            std::optional<size_t> alternate_continue_target_block_id = std::nullopt;
+
+            std::vector<size_t> incoming_break_block_ids;
+            std::vector<size_t> incoming_continue_block_ids;
             std::unordered_map<std::shared_ptr<logic::variable>, std::vector<linear::var_info>> original_var_info;
             std::unordered_map<std::shared_ptr<logic::variable>, linear::phi_instruction*> init_phi_nodes;
         };
@@ -93,22 +96,20 @@ namespace michaelcc {
         std::unordered_map<size_t, loop_info> m_loop_infos;
         std::unordered_map<std::shared_ptr<logic::function_definition>, std::shared_ptr<linear::function_definition>> m_function_definitions;
         std::unordered_map<size_t, std::shared_ptr<linear::alloc_information>> m_vreg_alloc_information;
+        std::vector<size_t> m_loop_stack;
         size_t m_next_vreg_id = 0;
         size_t m_next_block_id = 0;
-
-        expression_lowerer m_expression_lowerer;
-        statement_lowerer m_statement_lowerer;
 
         linear::virtual_register new_vreg(size_t size_bits) {
             size_t id = m_next_vreg_id++;
             return { id, size_bits };
         }
 
-        block_var_ctx reconcile_var_regs(const std::vector<size_t>& incoming_block_ids, size_t incoming_block_id);
+        block_var_ctx reconcile_var_regs(const std::vector<size_t>& incoming_block_ids);
 
         void emit_phi_all();
 
-        void recurse_block(size_t head_block_id, size_t tail_block_id);
+        void recurse_block(size_t source_block_id, size_t target_block_id);
 
         linear::virtual_register get_var_reg(const std::shared_ptr<logic::variable>& variable);
 
@@ -121,8 +122,7 @@ namespace michaelcc {
         void begin_block(size_t head_block_id, const std::vector<size_t> incoming_block_ids, bool is_loop_start=false) {
             m_current_block = block_builder{ 
                 .id = head_block_id, 
-                .incoming_block_ids = std::vector<size_t>(incoming_block_ids), 
-                .var_info = reconcile_var_regs(incoming_block_ids, head_block_id) 
+                .var_info = reconcile_var_regs(incoming_block_ids) 
             };
             if (is_loop_start) {
                 emit_phi_all();
@@ -135,6 +135,14 @@ namespace michaelcc {
 
         size_t current_block_id() const {
             return m_current_block->id;
+        }
+
+        size_t current_loop_depth() const {
+            return m_loop_stack.size();
+        }
+
+        void pop_loop_stack() {
+            m_loop_stack.pop_back();
         }
 
         size_t seal_block() {
@@ -156,7 +164,7 @@ namespace michaelcc {
         void lower_struct_initializer(const logic::struct_initializer& node, linear::virtual_register dest_address, size_t offset);
         void lower_union_initializer(const logic::union_initializer& node, linear::virtual_register dest_address, size_t offset);
 
-        size_t lower_statements(const std::vector<std::unique_ptr<logic::statement>>& statements);
+        std::optional<size_t> lower_statements(const std::vector<std::unique_ptr<logic::statement>>& statements);
 
         linear::virtual_register lower_at_address(linear::virtual_register dest_address, const std::unique_ptr<logic::expression>& initializer, size_t offset);
 

@@ -13,15 +13,11 @@
 
 using namespace michaelcc;
 
-logic_lowerer::block_var_ctx logic_lowerer::reconcile_var_regs(const std::vector<size_t>& incoming_block_ids, size_t incoming_block_id) {
+logic_lowerer::block_var_ctx logic_lowerer::reconcile_var_regs(const std::vector<size_t>& incoming_block_ids) {
     block_var_ctx result;
 
     std::unordered_set<std::shared_ptr<logic::variable>> seen_variables;
     for (size_t block_id : incoming_block_ids) {
-        if (incoming_block_id == block_id) {
-            continue;
-        }
-        
         const auto& block_var_ctx = m_finished_block_var_ctx.at(block_id);
         for (const auto& [variable, vregs] : block_var_ctx.m_variable_to_vreg) {
             seen_variables.insert(variable);
@@ -31,10 +27,6 @@ logic_lowerer::block_var_ctx logic_lowerer::reconcile_var_regs(const std::vector
     for (const std::shared_ptr<logic::variable>& variable : seen_variables) {
         std::vector<linear::var_info> vregs;
         for (size_t block_id : incoming_block_ids) {
-            if (incoming_block_id == block_id) {
-                continue;
-            }
-
             const auto& block_var_ctx = m_finished_block_var_ctx.at(block_id);
             auto it = block_var_ctx.m_variable_to_vreg.find(variable);
             if (it != block_var_ctx.m_variable_to_vreg.end()) {
@@ -68,15 +60,16 @@ void logic_lowerer::emit_phi_all() {
         .original_var_info = m_current_block->var_info.m_variable_to_vreg, 
         .init_phi_nodes = std::move(init_phi_nodes)
     };
+    m_loop_stack.push_back(current_block_id());
 }
 
-void logic_lowerer::recurse_block(size_t head_block_id, size_t tail_block_id) {
-    auto& tail_block_var_ctx = m_finished_block_var_ctx.at(tail_block_id);
-    auto& head_init_info = m_loop_infos.at(head_block_id);
+void logic_lowerer::recurse_block(size_t source_block_id, size_t target_block_id) {
+    auto& source_block_var_ctx = m_finished_block_var_ctx.at(source_block_id);
+    auto& target_loop_info = m_loop_infos.at(target_block_id);
 
-    for (const auto& [variable, vregs] : tail_block_var_ctx.m_variable_to_vreg) {
-        auto it = head_init_info.init_phi_nodes.find(variable);
-        if (it != head_init_info.init_phi_nodes.end()) {
+    for (const auto& [variable, vregs] : source_block_var_ctx.m_variable_to_vreg) {
+        auto it = target_loop_info.init_phi_nodes.find(variable);
+        if (it != target_loop_info.init_phi_nodes.end()) {
             it->second->augment_values(vregs);
         }
     }
@@ -200,8 +193,8 @@ void logic_lowerer::lower_union_initializer(const logic::union_initializer& node
     lower_at_address(dest_address, node.initializer(), 0);
 }
 
-size_t logic_lowerer::lower_statements(const std::vector<std::unique_ptr<logic::statement>>& statements) {
-    size_t last_block_id = current_block_id();
+std::optional<size_t> logic_lowerer::lower_statements(const std::vector<std::unique_ptr<logic::statement>>& statements) {
+    std::optional<size_t> last_block_id = current_block_id();
     for (const auto& statement : statements) {
         assert(m_current_block.has_value());
         lower_statement(*statement);
@@ -209,8 +202,8 @@ size_t logic_lowerer::lower_statements(const std::vector<std::unique_ptr<logic::
         if (m_current_block.has_value()) {
             last_block_id = current_block_id();
         }
-        else { //this is a special value designed to crash improper handling
-            last_block_id = std::numeric_limits<size_t>::max();
+        else {
+            last_block_id = std::nullopt;
         }
     }
     return last_block_id;
@@ -910,42 +903,180 @@ void logic_lowerer::statement_lowerer::dispatch(const logic::if_statement& node)
         m_lowerer.emit(std::make_unique<linear::branch_condition>(
             condition_reg, true_block_id, false_block_id, false
         ));
-        m_lowerer.seal_block();
+        current_block_id = m_lowerer.seal_block();
 
         // compile true block body
         m_lowerer.begin_block(true_block_id, { current_block_id });
-        auto incoming_true_block_id = m_lowerer.lower_statements(node.then_body()->statements());
+        auto final_true_block_id = m_lowerer.lower_statements(node.then_body()->statements());
 
-        if (m_lowerer.m_current_block.has_value()) {
+        if (final_true_block_id.has_value()) {
             m_lowerer.emit(std::make_unique<linear::branch>(finish_block_id));
             m_lowerer.seal_block();
         }
 
         // compile false block body
         m_lowerer.begin_block(false_block_id, { current_block_id });
-        auto incoming_false_block_id = m_lowerer.lower_statements(node.else_body()->statements());
+        auto final_false_block_id = m_lowerer.lower_statements(node.else_body()->statements());
 
-        if (m_lowerer.m_current_block.has_value()) {
+        if (final_false_block_id.has_value()) {
             m_lowerer.emit(std::make_unique<linear::branch>(finish_block_id));
             m_lowerer.seal_block();
         }
 
-        m_lowerer.begin_block(finish_block_id, { incoming_true_block_id, incoming_false_block_id });
+        std::vector<size_t> incoming_block_ids;
+        incoming_block_ids.reserve(2);
+        if (final_true_block_id.has_value()) { incoming_block_ids.push_back(*final_true_block_id); }
+        if (final_false_block_id.has_value()) { incoming_block_ids.push_back(*final_false_block_id); }
+
+        if (!incoming_block_ids.empty()) {
+            m_lowerer.begin_block(finish_block_id, incoming_block_ids);
+        }
     }
     else {
         m_lowerer.emit(std::make_unique<linear::branch_condition>(
             condition_reg, true_block_id, finish_block_id, false
         ));
-        m_lowerer.seal_block();
+        current_block_id = m_lowerer.seal_block();
 
         // compile true block body
         m_lowerer.begin_block(true_block_id, { current_block_id });
-        auto incoming_true_block_id = m_lowerer.lower_statements(node.then_body()->statements());
+        auto final_true_block_id = m_lowerer.lower_statements(node.then_body()->statements());
         
-        if (m_lowerer.m_current_block.has_value()) {
+        if (final_true_block_id.has_value()) {
             m_lowerer.emit(std::make_unique<linear::branch>(finish_block_id));
             m_lowerer.seal_block();
         }
-        m_lowerer.begin_block(finish_block_id, { current_block_id, incoming_true_block_id });
+        std::vector<size_t> incoming_block_ids;
+        incoming_block_ids.reserve(2);
+        if (final_true_block_id.has_value()) { incoming_block_ids.push_back(*final_true_block_id); }
+        incoming_block_ids.push_back(current_block_id);
+        m_lowerer.begin_block(finish_block_id, incoming_block_ids);
+    }
+}
+
+void logic_lowerer::statement_lowerer::dispatch(const logic::loop_statement& node) {
+    if (node.check_condition_first()) {
+        auto loop_condition_begin_block_id = m_lowerer.allocate_block_id();
+        auto loop_body_begin_block_id = m_lowerer.allocate_block_id();
+
+        m_lowerer.emit(std::make_unique<linear::branch>(loop_condition_begin_block_id));
+        auto current_block_id = m_lowerer.seal_block();
+
+        // compile condition block
+        m_lowerer.begin_block(loop_condition_begin_block_id, { current_block_id }, true);
+        auto loop_finish_block_id = m_lowerer.m_loop_infos[loop_condition_begin_block_id].finish_block_id;
+        
+        auto loop_condition_reg = m_lowerer.lower_expression(*node.condition());
+        m_lowerer.emit(std::make_unique<linear::branch_condition>(
+            loop_condition_reg, loop_body_begin_block_id, loop_finish_block_id, true
+        ));
+        auto loop_condition_end_block_id = m_lowerer.seal_block();
+
+        // compile body block
+        m_lowerer.begin_block(loop_body_begin_block_id, { loop_condition_end_block_id });
+        auto loop_body_end_block_id = m_lowerer.lower_statements(node.body()->statements());
+
+        if (loop_body_end_block_id.has_value()) {
+            m_lowerer.emit(std::make_unique<linear::branch>(loop_condition_begin_block_id));
+            m_lowerer.seal_block();
+    
+            m_lowerer.recurse_block(loop_body_end_block_id.value(), loop_condition_begin_block_id);
+        }
+        m_lowerer.pop_loop_stack();
+
+        //compile finish block
+        std::vector<size_t> incoming_block_ids;
+        incoming_block_ids.reserve(1 + m_lowerer.m_loop_infos[loop_condition_begin_block_id].incoming_break_block_ids.size());
+        incoming_block_ids.push_back(loop_condition_end_block_id);
+        incoming_block_ids.insert(
+            incoming_block_ids.end(), 
+            m_lowerer.m_loop_infos[loop_condition_begin_block_id].incoming_break_block_ids.begin(), 
+            m_lowerer.m_loop_infos[loop_condition_begin_block_id].incoming_break_block_ids.end()
+        );
+        m_lowerer.begin_block(loop_finish_block_id, incoming_block_ids);
+    }
+    else {
+        size_t loop_block_begin_id = m_lowerer.allocate_block_id();
+        size_t loop_condition_begin_id = m_lowerer.allocate_block_id();
+
+        m_lowerer.emit(std::make_unique<linear::branch>(loop_block_begin_id));
+        size_t current_block_id = m_lowerer.seal_block();
+
+        // compile loop block
+        m_lowerer.begin_block(loop_block_begin_id, { current_block_id }, true);
+        auto loop_block_finish_id = m_lowerer.m_loop_infos[loop_block_begin_id].finish_block_id;
+        m_lowerer.m_loop_infos[loop_block_begin_id].alternate_continue_target_block_id = loop_condition_begin_id;
+        auto loop_block_end_block_id = m_lowerer.lower_statements(node.body()->statements());
+
+        std::vector<size_t> condition_incoming_block_ids;
+        condition_incoming_block_ids.reserve(1 + m_lowerer.m_loop_infos[loop_block_begin_id].incoming_continue_block_ids.size());
+        std::vector<size_t> finish_incoming_block_ids;
+        finish_incoming_block_ids.reserve(1 + m_lowerer.m_loop_infos[loop_block_begin_id].incoming_break_block_ids.size());
+
+        if (loop_block_end_block_id.has_value()) {
+            m_lowerer.emit(std::make_unique<linear::branch>(loop_condition_begin_id));
+            m_lowerer.seal_block();
+            condition_incoming_block_ids.push_back(loop_block_end_block_id.value());
+        }
+        m_lowerer.pop_loop_stack();
+
+        // compile condition block
+        condition_incoming_block_ids.insert(
+            condition_incoming_block_ids.end(), 
+            m_lowerer.m_loop_infos[loop_block_begin_id].incoming_continue_block_ids.begin(), 
+            m_lowerer.m_loop_infos[loop_block_begin_id].incoming_continue_block_ids.end()
+        );
+        if (!condition_incoming_block_ids.empty()) {
+            m_lowerer.begin_block(loop_condition_begin_id, condition_incoming_block_ids);
+            auto loop_condition_reg = m_lowerer.lower_expression(*node.condition());
+            m_lowerer.emit(std::make_unique<linear::branch_condition>(
+                loop_condition_reg, loop_block_begin_id, loop_block_finish_id, true
+            ));
+            auto loop_condition_end_block_id = m_lowerer.seal_block();
+            m_lowerer.recurse_block(loop_condition_end_block_id, loop_block_begin_id);
+            finish_incoming_block_ids.push_back(loop_condition_end_block_id);
+        }
+
+        //compile finish block
+        finish_incoming_block_ids.insert(
+            finish_incoming_block_ids.end(), 
+            m_lowerer.m_loop_infos[loop_block_begin_id].incoming_break_block_ids.begin(), 
+            m_lowerer.m_loop_infos[loop_block_begin_id].incoming_break_block_ids.end()
+        );
+        if (!finish_incoming_block_ids.empty()) {
+            m_lowerer.begin_block(loop_block_finish_id, finish_incoming_block_ids);
+        }
+    }
+}
+
+void logic_lowerer::statement_lowerer::dispatch(const logic::break_statement& node) {
+    if (node.loop_depth() > m_lowerer.current_loop_depth()) {
+        throw std::runtime_error("Cannot break out of the outer loop");
+    }
+
+    auto& loop_info = m_lowerer.m_loop_infos.at(m_lowerer.m_loop_stack[m_lowerer.current_loop_depth() - node.loop_depth()]);
+    m_lowerer.emit(std::make_unique<linear::branch>(loop_info.finish_block_id));
+    loop_info.incoming_break_block_ids.push_back(m_lowerer.current_block_id());
+    m_lowerer.seal_block();
+}
+
+void logic_lowerer::statement_lowerer::dispatch(const logic::continue_statement& node) {
+    if (node.loop_depth() > m_lowerer.current_loop_depth()) {
+        throw std::runtime_error("Cannot break out of the outer loop");
+    }
+
+    auto& loop_info = m_lowerer.m_loop_infos.at(m_lowerer.m_loop_stack[m_lowerer.current_loop_depth() - node.loop_depth()]);
+    if (loop_info.alternate_continue_target_block_id.has_value()) { //do-while loop continue
+        auto target_block_id = loop_info.alternate_continue_target_block_id.value();
+        m_lowerer.emit(std::make_unique<linear::branch>(target_block_id));
+        loop_info.incoming_continue_block_ids.push_back(m_lowerer.current_block_id());
+        m_lowerer.seal_block();
+    }
+    else { //regular while loop continue
+        auto target_block_id = loop_info.block_id; //condition at start of loop
+        m_lowerer.emit(std::make_unique<linear::branch>(target_block_id));
+        auto current_block_id = m_lowerer.seal_block();
+
+        m_lowerer.recurse_block(current_block_id, target_block_id);
     }
 }
