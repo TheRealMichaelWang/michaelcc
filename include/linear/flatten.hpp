@@ -48,6 +48,23 @@ namespace michaelcc {
             linear::virtual_register dispatch(const logic::compound_expression& node) override;          
         };
 
+        class lvalue_lowerer : public logic::const_expression_dispatcher<linear::virtual_register> {
+        private:
+            logic_lowerer& m_lowerer;
+
+        public:
+            lvalue_lowerer(logic_lowerer& lowerer) : m_lowerer(lowerer) {}
+
+        protected:
+            linear::virtual_register dispatch(const logic::variable_reference& node) override;
+            linear::virtual_register dispatch(const logic::array_index& node) override;
+            linear::virtual_register dispatch(const logic::member_access& node) override;
+
+            linear::virtual_register handle_default(const logic::expression& expr) override {
+                throw std::runtime_error("Cannot lower lvalue expression.");
+            }
+        };
+
         class statement_lowerer : public logic::const_statement_dispatcher<void> {
         private:
             logic_lowerer& m_lowerer;
