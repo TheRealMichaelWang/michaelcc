@@ -531,7 +531,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         },
         [this](const std::shared_ptr<logic::variable>& operand) -> linear::virtual_register {
             type_layout_calculator calculator(m_lowerer.m_platform_info);
-            if (!operand->must_alloca() || !calculator.must_alloca(operand->get_type())) {
+            if (!operand->must_alloca() && !calculator.must_alloca(operand->get_type())) {
                 throw std::runtime_error("Address of variable must be alloca'd on the stack.");
             }
             return m_lowerer.get_var_reg(operand);
@@ -846,6 +846,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     
     auto true_block_id = m_lowerer.allocate_block_id();
     auto false_block_id = m_lowerer.allocate_block_id();
+    auto final_block_id = m_lowerer.allocate_block_id();
 
     m_lowerer.emit(std::make_unique<linear::branch_condition>(
         condition_reg, true_block_id, false_block_id, false
@@ -854,14 +855,15 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
 
     m_lowerer.begin_block(true_block_id, { current_block_id });
     auto true_result = m_lowerer.lower_expression(*node.then_expression());
+    m_lowerer.emit(std::make_unique<linear::branch>(final_block_id));
     true_block_id = m_lowerer.seal_block();
     
     m_lowerer.begin_block(false_block_id, { current_block_id });
     auto false_result = m_lowerer.lower_expression(*node.else_expression());
+    m_lowerer.emit(std::make_unique<linear::branch>(final_block_id));
     false_block_id = m_lowerer.seal_block();
     
-    auto final_block = m_lowerer.allocate_block_id();
-    m_lowerer.begin_block(final_block, { true_block_id, false_block_id });
+    m_lowerer.begin_block(final_block_id, { true_block_id, false_block_id });
 
     type_layout_calculator calculator(m_lowerer.m_platform_info);
     auto final_result = m_lowerer.new_vreg(calculator(*node.get_type().type()).size * 8);
