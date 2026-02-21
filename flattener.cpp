@@ -194,7 +194,7 @@ void logic_lowerer::lower_union_initializer(const logic::union_initializer& node
 }
 
 std::optional<size_t> logic_lowerer::lower_statements(const std::vector<std::unique_ptr<logic::statement>>& statements) {
-    std::optional<size_t> last_block_id = current_block_id();
+    size_t last_block_id = current_block_id();
     for (const auto& statement : statements) {
         assert(m_current_block.has_value());
         lower_statement(*statement);
@@ -203,7 +203,7 @@ std::optional<size_t> logic_lowerer::lower_statements(const std::vector<std::uni
             last_block_id = current_block_id();
         }
         else {
-            last_block_id = std::nullopt;
+            return std::nullopt;
         }
     }
     return last_block_id;
