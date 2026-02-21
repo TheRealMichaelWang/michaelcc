@@ -137,12 +137,14 @@ namespace michaelcc {
             return m_current_block->id;
         }
 
-        void seal_block() {
-            if (!m_current_block) return;
+        size_t seal_block() {
+            if (!m_current_block) throw std::runtime_error("Cannot seal a block that does not exist");
             auto& cb = *m_current_block;
             m_finished_blocks.emplace(cb.id, linear::basic_block(cb.id, std::move(cb.instructions)));
             m_finished_block_var_ctx.emplace(cb.id, std::move(cb.var_info));
+            size_t return_id = cb.id;
             m_current_block.reset();
+            return return_id;
         }
 
         void emit_iloop(linear::virtual_register count, std::function<void(linear::virtual_register)> body);
@@ -154,7 +156,7 @@ namespace michaelcc {
         void lower_struct_initializer(const logic::struct_initializer& node, linear::virtual_register dest_address, size_t offset);
         void lower_union_initializer(const logic::union_initializer& node, linear::virtual_register dest_address, size_t offset);
 
-        void lower_statements(const std::vector<std::unique_ptr<logic::statement>>& statements);
+        size_t lower_statements(const std::vector<std::unique_ptr<logic::statement>>& statements);
 
         linear::virtual_register lower_at_address(linear::virtual_register dest_address, const std::unique_ptr<logic::expression>& initializer, size_t offset);
 
