@@ -877,6 +877,34 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     return final_result;
 }
 
+linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::compound_expression& node) {
+    assert(!node.get_type().is_same_type<typing::void_type>());
+    
+    size_t return_block_id = m_lowerer.allocate_block_id();
+    m_lowerer.m_compound_expression_stack.push_back(compound_expression_info{ 
+        return_block_id 
+    });
+
+    // make sure all code path's compound_return/branch to return block id
+    auto final_block_id = m_lowerer.lower_statements(node.control_block()->statements());
+    assert(!final_block_id.has_value());
+    assert(!m_lowerer.m_current_block.has_value());
+
+    // emit return block id
+    auto& compound_info = m_lowerer.m_compound_expression_stack.back();
+    assert(compound_info.return_var_info.size() == compound_info.incoming_block_ids.size());
+    m_lowerer.begin_block(return_block_id, compound_info.incoming_block_ids);
+
+    type_layout_calculator calculator(m_lowerer.m_platform_info);
+    size_t dest_Reg_size = calculator.must_alloca(node.get_type()) ? m_lowerer.m_platform_info.pointer_size : calculator(*node.get_type().type()).size;
+    auto dest_reg = m_lowerer.new_vreg(dest_Reg_size * 8);
+    m_lowerer.emit(std::make_unique<linear::phi_instruction>(
+        dest_reg, std::move(compound_info.return_var_info)
+    ));
+    m_lowerer.m_compound_expression_stack.pop_back();
+    return dest_reg;
+}
+
 linear::virtual_register logic_lowerer::lvalue_lowerer::dispatch(const logic::variable_reference& node) {
     type_layout_calculator calculator(m_lowerer.m_platform_info);
     if (!node.get_variable()->must_alloca() && !calculator.must_alloca(node.get_variable()->get_type())) {
@@ -934,19 +962,58 @@ linear::virtual_register logic_lowerer::lvalue_lowerer::dispatch(const logic::me
 }
 
 void logic_lowerer::statement_lowerer::dispatch(const logic::expression_statement& node) {
+    if (auto compound_expression = dynamic_cast<logic::compound_expression*>(node.expression().get())) {
+        if (compound_expression->get_type().is_same_type<typing::void_type>()) {
+            size_t return_block_id = m_lowerer.allocate_block_id();
+            m_lowerer.m_compound_expression_stack.push_back(compound_expression_info{ 
+                return_block_id 
+            });
+        
+            // make sure all code path's compound_return/branch to return block id
+            auto final_block_id = m_lowerer.lower_statements(compound_expression->control_block()->statements());
+            assert(!final_block_id.has_value());
+            assert(!m_lowerer.m_current_block.has_value());
+        
+            // emit return block id
+            auto& compound_info = m_lowerer.m_compound_expression_stack.back();
+            assert(compound_info.return_var_info.empty());
+            m_lowerer.begin_block(return_block_id, compound_info.incoming_block_ids);
+            m_lowerer.m_compound_expression_stack.pop_back();
+            return;
+        }
+    }
     m_lowerer.lower_expression(*node.expression());
 }
 
 void logic_lowerer::statement_lowerer::dispatch(const logic::return_statement& node) {
-    if (node.value()) {
-        auto return_value_reg = m_lowerer.m_platform_info.get_register_info(m_lowerer.m_platform_info.return_value_register_id);
-        auto virtual_reg = m_lowerer.lower_expression(*node.value());
-        m_lowerer.m_vreg_alloc_information[virtual_reg.id] = std::make_shared<linear::alloc_information>(linear::alloc_information{
-            .register_id = m_lowerer.m_platform_info.return_value_register_id
-        });
+    if (node.is_compound_return()) {
+        if (node.value()) {
+            auto return_reg = m_lowerer.lower_expression(*node.value());
+            auto& compound_info = m_lowerer.m_compound_expression_stack.back();
+            compound_info.return_var_info.push_back(linear::var_info{
+                .vreg = return_reg,
+                .block_id = m_lowerer.current_block_id()
+            });
+            compound_info.incoming_block_ids.push_back(m_lowerer.current_block_id());
+            m_lowerer.emit(std::make_unique<linear::branch>(compound_info.return_block_id));
+        } 
+        else {
+            auto& compound_info = m_lowerer.m_compound_expression_stack.back();
+            compound_info.incoming_block_ids.push_back(m_lowerer.current_block_id());
+            m_lowerer.emit(std::make_unique<linear::branch>(compound_info.return_block_id));
+        }
     }
+    else {
+        if (node.value()) {
+            auto return_value_reg = m_lowerer.m_platform_info.get_register_info(m_lowerer.m_platform_info.return_value_register_id);
+            auto virtual_reg = m_lowerer.lower_expression(*node.value());
+            m_lowerer.m_vreg_alloc_information[virtual_reg.id] = std::make_shared<linear::alloc_information>(linear::alloc_information{
+                .register_id = m_lowerer.m_platform_info.return_value_register_id
+            });
+        }
 
-    m_lowerer.emit(std::make_unique<linear::function_return>());
+        m_lowerer.emit(std::make_unique<linear::function_return>());
+    }
     m_lowerer.seal_block();
 }
 

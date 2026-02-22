@@ -124,16 +124,5 @@ namespace michaelcc {
 
             return node;
         }
-
-        std::unique_ptr<logic::statement> ir_simplify_pass::statement_pass::dispatch(std::unique_ptr<logic::expression_statement>&& node)  {
-            if (auto compound_expression = dynamic_cast<logic::compound_expression*>(node->expression().get())) {
-                if (compound_expression->get_type().is_same_type<typing::void_type>()) {
-                    mark_ir_mutated();
-                    auto control_block = compound_expression->release_control_block();
-                    return std::make_unique<logic::statement_block>(std::move(control_block));
-                }
-            }
-            return node;
-        }
     }
 }

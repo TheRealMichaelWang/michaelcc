@@ -105,6 +105,12 @@ namespace michaelcc {
             std::unordered_map<std::shared_ptr<logic::variable>, linear::phi_instruction*> init_phi_nodes;
         };
 
+        struct compound_expression_info {
+            size_t return_block_id;
+            std::vector<size_t> incoming_block_ids;
+            std::vector<linear::var_info> return_var_info;
+        };
+
         const platform_info m_platform_info;
 
         std::optional<block_builder> m_current_block;
@@ -114,6 +120,7 @@ namespace michaelcc {
         std::unordered_map<std::shared_ptr<logic::function_definition>, std::shared_ptr<linear::function_definition>> m_function_definitions;
         std::unordered_map<size_t, std::shared_ptr<linear::alloc_information>> m_vreg_alloc_information;
         std::vector<size_t> m_loop_stack;
+        std::vector<compound_expression_info> m_compound_expression_stack;
         size_t m_next_vreg_id = 0;
         size_t m_next_block_id = 0;
 
