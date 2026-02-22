@@ -202,10 +202,10 @@ namespace michaelcc {
             (*lowerer)(statement);
         }
 
-        linear::virtual_register compute_lvalue_address(const logic::expression& expr);
-
-        void lower_control_block(const logic::control_block& block);
-
+        linear::virtual_register compute_lvalue_address(const logic::expression& expr) {
+            auto lowerer = std::make_unique<lvalue_lowerer>(*this);
+            return (*lowerer)(expr);
+        }
     public:
         explicit logic_lowerer(const platform_info& platform_info);
 
