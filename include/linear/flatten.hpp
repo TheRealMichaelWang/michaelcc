@@ -117,7 +117,7 @@ namespace michaelcc {
         std::unordered_map<size_t, linear::basic_block> m_finished_blocks;
         std::unordered_map<size_t, block_var_ctx> m_finished_block_var_ctx;
         std::unordered_map<size_t, loop_info> m_loop_infos;
-        std::unordered_map<std::shared_ptr<logic::function_definition>, std::shared_ptr<linear::function_definition>> m_function_definitions;
+        std::vector<linear::function_definition> m_function_definitions;
         std::unordered_map<size_t, std::shared_ptr<linear::alloc_information>> m_vreg_alloc_information;
         std::vector<size_t> m_loop_stack;
         std::vector<compound_expression_info> m_compound_expression_stack;
@@ -206,10 +206,10 @@ namespace michaelcc {
             auto lowerer = std::make_unique<lvalue_lowerer>(*this);
             return (*lowerer)(expr);
         }
+
+        void lower_function(const logic::function_definition& function);
     public:
         explicit logic_lowerer(const platform_info& platform_info);
-
-        linear::function_definition lower_function(const logic::function_definition& func);
     };
 }
 

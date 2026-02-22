@@ -4,6 +4,8 @@
 #include "logic/ir.hpp"
 #include "utils.hpp"
 #include <cstddef>
+#include <cstdint>
+#include <string>
 
 namespace michaelcc {
 	namespace linear {
@@ -147,14 +149,17 @@ namespace michaelcc {
         private:
             virtual_register m_destination;
             virtual_register m_source_address;
-            size_t m_offset;
+
+            int64_t m_offset;
+            size_t m_size_bytes;
         public:
-            load_memory(virtual_register destination, virtual_register source_address, size_t offset) 
-                : m_destination(destination), m_source_address(source_address), m_offset(offset) {}
+            load_memory(virtual_register destination, virtual_register source_address, int64_t offset, size_t size_bytes) 
+                : m_destination(destination), m_source_address(source_address), m_offset(offset), m_size_bytes(size_bytes) {}
         
             virtual_register destination() const noexcept { return m_destination; }
             virtual_register source_address() const noexcept { return m_source_address; }
-            size_t offset() const noexcept { return m_offset; }
+            int64_t offset() const noexcept { return m_offset; }
+            size_t size_bytes() const noexcept { return m_size_bytes; }
         };
 
 
@@ -163,14 +168,17 @@ namespace michaelcc {
         private:
             virtual_register m_source_address;
             virtual_register m_value;
-            size_t m_offset;
+
+            int64_t m_offset;
+            size_t m_size_bytes;
         public:
-            store_memory(virtual_register source_address, virtual_register value, size_t offset) 
-                : m_source_address(source_address), m_value(value), m_offset(offset) {}
+            store_memory(virtual_register source_address, virtual_register value, int64_t offset, size_t size_bytes) 
+                : m_source_address(source_address), m_value(value), m_offset(offset), m_size_bytes(size_bytes) {}
         
             virtual_register source_address() const noexcept { return m_source_address; }
             virtual_register value() const noexcept { return m_value; }
-            size_t offset() const noexcept { return m_offset; }
+            int64_t offset() const noexcept { return m_offset; }
+            size_t size_bytes() const noexcept { return m_size_bytes; }
         };
 
 
@@ -251,29 +259,24 @@ namespace michaelcc {
         // Function Stuff
         class function_definition {
         private:
-            std::optional<size_t> m_entry_block_id;
             std::string m_name;
 
+            size_t m_entry_block_id;
+            std::vector<virtual_register> m_parameters;
+
         public:
-            function_definition(std::optional<size_t> entry_block_id, std::string name) : m_entry_block_id(entry_block_id), m_name(name) {}
-
-            bool implemented() const noexcept { return m_entry_block_id.has_value(); }
-
-            void implement(size_t entry_block_id) {
-                if (implemented()) {
-                    throw std::runtime_error("Function definition is already implemented");
-                }
-                m_entry_block_id = entry_block_id;
-            }
+            function_definition(std::string name, size_t entry_block_id, std::vector<virtual_register>&& parameters) 
+                : m_name(name), m_entry_block_id(entry_block_id), m_parameters(std::move(parameters)) {}
             
-            std::optional<size_t> entry_block_id() const noexcept { return m_entry_block_id; }
+            size_t entry_block_id() const noexcept { return m_entry_block_id; }
+            const std::vector<virtual_register>& parameters() const noexcept { return m_parameters; }
             const std::string& name() const noexcept { return m_name; }
         };
 
 
         class function_call : public instruction {
         public:
-            using callable = std::variant<std::shared_ptr<function_definition>, virtual_register>;
+            using callable = std::variant<std::string, virtual_register>;
         
         private:
             virtual_register m_destination;
