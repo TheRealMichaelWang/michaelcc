@@ -76,6 +76,13 @@ void logic_lowerer::recurse_block(size_t source_block_id, size_t target_block_id
 }
 
 linear::virtual_register logic_lowerer::get_var_reg(const std::shared_ptr<logic::variable>& variable) {
+    if (variable->use_static_storage()) {
+        auto addr_reg = new_vreg(m_platform_info.pointer_size * 8);
+        std::string label = m_current_function.has_value() ? m_current_function->static_var_labels.at(variable) : variable->name();
+        emit(std::make_unique<linear::load_effective_address>(addr_reg, label));
+        return addr_reg;
+    }
+
     std::vector<linear::var_info> vregs = m_current_block->var_info.m_variable_to_vreg.at(variable);
     
     // if only one definition we are gtg
@@ -281,8 +288,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     type_layout_calculator calculator(m_lowerer.m_platform_info);
 
     if (variable->must_alloca() || calculator.must_alloca(variable->get_type())) {
-        type_layout_calculator calculator(m_lowerer.m_platform_info);
-        if (calculator.must_alloca(variable->get_type())) {
+        if (!calculator.must_alloca(variable->get_type())) {
             auto layout = calculator(*variable->get_type().type());
             auto dest_reg = m_lowerer.new_vreg(layout.size * 8);
             m_lowerer.emit(std::make_unique<linear::load_memory>(
@@ -323,7 +329,10 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
 void logic_lowerer::statement_lowerer::dispatch(const logic::variable_declaration& node) {
     type_layout_calculator calculator(m_lowerer.m_platform_info);
 
-    if (node.variable()->must_alloca() || calculator.must_alloca(node.variable()->get_type())) {
+    if (node.variable()->use_static_storage()) {
+        m_lowerer.lower_static_variable_declaration(node);
+    }
+    else if (node.variable()->must_alloca() || calculator.must_alloca(node.variable()->get_type())) {
         auto var_reg = m_lowerer.new_vreg(m_lowerer.m_platform_info.pointer_size * 8);
         auto layout = calculator(*node.variable()->get_type().type());
         m_lowerer.emit(std::make_unique<linear::alloca_instruction>(
@@ -1221,6 +1230,10 @@ void logic_lowerer::statement_lowerer::dispatch(const logic::statement_block& no
 }
 
 void logic_lowerer::lower_function(const logic::function_definition& node) {
+    m_current_function = function_builder{
+        .name = node.name()
+    };
+
     auto entry_block_id = allocate_block_id();
     begin_block(entry_block_id, {});
 
@@ -1247,4 +1260,5 @@ void logic_lowerer::lower_function(const logic::function_definition& node) {
     assert(!m_current_block.has_value());
 
     m_function_definitions.push_back(linear::function_definition(node.name(), entry_block_id, std::move(parameters)));
+    m_current_function = std::nullopt;
 }

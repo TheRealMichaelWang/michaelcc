@@ -94,6 +94,20 @@ namespace michaelcc {
             block_var_ctx var_info;
         };
 
+        struct function_builder {
+            std::string name;
+
+            size_t static_var_counter = 0;
+            std::unordered_map<std::shared_ptr<logic::variable>, std::string> static_var_labels;
+
+            std::string next_static_label(const std::shared_ptr<logic::variable>& variable) {
+                size_t id = static_var_counter++;
+                std::string label = name + "_" + std::to_string(id);
+                static_var_labels[variable] = label;
+                return label;
+            }
+        };
+
         struct loop_info {
             size_t block_id;
             size_t finish_block_id;
@@ -114,6 +128,8 @@ namespace michaelcc {
         const platform_info m_platform_info;
 
         std::optional<block_builder> m_current_block;
+        std::optional<function_builder> m_current_function;
+
         std::unordered_map<size_t, linear::basic_block> m_finished_blocks;
         std::unordered_map<size_t, block_var_ctx> m_finished_block_var_ctx;
         std::unordered_map<size_t, loop_info> m_loop_infos;
@@ -208,6 +224,7 @@ namespace michaelcc {
         }
 
         void lower_function(const logic::function_definition& function);
+        void lower_static_variable_declaration(const logic::variable_declaration& declaration);
     public:
         explicit logic_lowerer(const platform_info& platform_info);
     };

@@ -243,8 +243,9 @@ namespace michaelcc {
 			const typing::qual_type& get_type() const noexcept { return m_type; }
 			bool is_global() const noexcept { return m_is_global; }
 
-			bool must_alloca() const noexcept { return m_must_alloca; }
+			bool must_alloca() const noexcept { return m_must_alloca || use_static_storage(); }
 			bool must_use_register() const noexcept { return m_qualifiers & typing::REGISTER_STORAGE_CLASS; }
+			bool use_static_storage() const noexcept { return m_qualifiers & typing::STATIC_STORAGE_CLASS; }
 			void mark_must_alloca() noexcept { m_must_alloca = true; }
 
             std::string to_string() const noexcept override {
