@@ -3,18 +3,13 @@
 
 #include "logic/ir.hpp"
 #include "utils.hpp"
+#include "registers.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <string>
 
 namespace michaelcc {
 	namespace linear {
-        struct virtual_register { 
-            size_t id; size_t size_bits; 
-
-            bool operator==(const virtual_register& reg) const { return reg.id == id; }
-        };
-
         struct var_info {
             linear::virtual_register vreg;
             size_t block_id;

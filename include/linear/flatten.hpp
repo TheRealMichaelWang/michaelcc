@@ -130,20 +130,16 @@ namespace michaelcc {
         std::optional<block_builder> m_current_block;
         std::optional<function_builder> m_current_function;
 
+        //these values are returned as part of the CFG
         std::unordered_map<size_t, linear::basic_block> m_finished_blocks;
+        std::vector<linear::function_definition> m_function_definitions;
+        linear::register_allocator m_register_allocator; 
+
         std::unordered_map<size_t, block_var_ctx> m_finished_block_var_ctx;
         std::unordered_map<size_t, loop_info> m_loop_infos;
-        std::vector<linear::function_definition> m_function_definitions;
-        std::unordered_map<size_t, std::shared_ptr<linear::alloc_information>> m_vreg_alloc_information;
         std::vector<size_t> m_loop_stack;
         std::vector<compound_expression_info> m_compound_expression_stack;
-        size_t m_next_vreg_id = 0;
         size_t m_next_block_id = 0;
-
-        linear::virtual_register new_vreg(size_t size_bits) {
-            size_t id = m_next_vreg_id++;
-            return { id, size_bits };
-        }
 
         block_var_ctx reconcile_var_regs(const std::vector<size_t>& incoming_block_ids);
 
