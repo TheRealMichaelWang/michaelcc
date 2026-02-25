@@ -7,6 +7,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
+#include <memory>
 
 namespace michaelcc {
 	namespace linear {
@@ -328,6 +330,12 @@ namespace michaelcc {
 
             virtual_register destination() const noexcept { return m_destination; }
             const std::string& label() const noexcept { return m_label; }
+        };
+
+        struct translation_unit {
+            std::vector<std::unique_ptr<function_definition>> function_definitions;
+            std::unordered_map<size_t, linear::basic_block> blocks;
+            register_allocator register_allocator;
         };
 	}
 }

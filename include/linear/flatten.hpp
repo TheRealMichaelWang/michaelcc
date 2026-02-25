@@ -131,9 +131,7 @@ namespace michaelcc {
         std::optional<function_builder> m_current_function;
 
         //these values are returned as part of the CFG
-        std::unordered_map<size_t, linear::basic_block> m_finished_blocks;
-        std::vector<linear::function_definition> m_function_definitions;
-        linear::register_allocator m_register_allocator; 
+        linear::translation_unit m_translation_unit;
 
         std::unordered_map<size_t, block_var_ctx> m_finished_block_var_ctx;
         std::unordered_map<size_t, loop_info> m_loop_infos;
@@ -184,7 +182,10 @@ namespace michaelcc {
         size_t seal_block() {
             if (!m_current_block) throw std::runtime_error("Cannot seal a block that does not exist");
             auto& cb = *m_current_block;
-            m_finished_blocks.emplace(cb.id, linear::basic_block(cb.id, std::move(cb.instructions)));
+            m_translation_unit.blocks.emplace(cb.id, linear::basic_block(
+                cb.id, 
+                std::move(cb.instructions)
+            ));
             m_finished_block_var_ctx.emplace(cb.id, std::move(cb.var_info));
             size_t return_id = cb.id;
             m_current_block.reset();
@@ -223,6 +224,14 @@ namespace michaelcc {
         void lower_static_variable_declaration(const logic::variable_declaration& declaration);
     public:
         explicit logic_lowerer(const platform_info& platform_info);
+
+        void lower(const logic::translation_unit& translation_unit);
+
+        const linear::translation_unit& get_translation_unit() const { return m_translation_unit; }
+
+        linear::translation_unit&& release_translation_unit() { return std::move(m_translation_unit); m_translation_unit = linear::translation_unit(); }
+
+        const platform_info& get_platform_info() const noexcept { return m_platform_info; }
     };
 }
 
