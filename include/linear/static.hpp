@@ -2,10 +2,39 @@
 #define MICHAELCC_LINEAR_STATIC_HPP
 
 #include "logic/ir.hpp"
+#include <variant>
 
 namespace michaelcc {
     namespace linear {
         namespace static_storage {
+            struct bss_allocation {
+                const std::string label;
+                const size_t size;
+                const size_t alignment;
+            };
+
+            struct data_word {
+                using word = std::variant<
+                    uint64_t, uint32_t, uint16_t, uint8_t,
+                    float, double,
+                    std::string
+                >;
+                
+                const word value;
+                const size_t offset;
+            };
+
+            struct data_allocation {
+                const std::vector<data_word> data_words;
+                const size_t alignment;
+                const size_t size;
+            };
+
+            struct static_sections {
+                const std::vector<bss_allocation> bss_allocations;
+                const std::vector<data_allocation> data_allocations;
+            };
+
             class is_default_initialized : public logic::const_expression_dispatcher<bool> {
             protected:
                 bool dispatch(const logic::integer_constant& node) override {
