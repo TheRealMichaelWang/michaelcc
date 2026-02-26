@@ -16,6 +16,10 @@ namespace michaelcc {
                     return node.value() == 0.0;
                 }
 
+                bool dispatch(const logic::type_cast& node) override {
+                    return (*this)(*node.operand());
+                }
+
                 bool dispatch(const logic::variable_reference& node) override {
                     return node.is_global();
                 }
