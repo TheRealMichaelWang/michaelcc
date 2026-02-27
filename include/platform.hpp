@@ -1,6 +1,7 @@
 #ifndef MICHAELCC_PLATFORM_HPP
 #define MICHAELCC_PLATFORM_HPP
 
+#include "linear/registers.hpp"
 #include <cstddef>
 #include <linear/registers.hpp>
 #include <vector>
@@ -8,16 +9,16 @@
 namespace michaelcc {
     // generic platform info struct
     struct platform_info {
-        size_t pointer_size;
+        linear::word_size pointer_size;
 
-        size_t char_size = 1;
-        size_t short_size;
-        size_t int_size;
-        size_t long_size;
-        size_t long_long_size;
+        linear::word_size char_size = linear::word_size::MICHAELCC_WORD_SIZE_BYTE;
+        linear::word_size short_size;
+        linear::word_size int_size;
+        linear::word_size long_size;
+        linear::word_size long_long_size;
 
-        size_t float_size;
-        size_t double_size;
+        linear::word_size float_size;
+        linear::word_size double_size;
 
         size_t max_alignment;
         bool optimize_struct_layout = true;

@@ -43,14 +43,14 @@ int main()
 		}
 
 		michaelcc::platform_info platform_info{
-			.pointer_size = 8,
-			.short_size = 2,
-			.int_size = 4,
-			.long_size = 4,
-			.long_long_size = 8,
-			.float_size = 4,
-			.double_size = 8,
-			.max_alignment = 16,
+			.pointer_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64,
+			.short_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT16,
+			.int_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+			.long_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+			.long_long_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64,
+			.float_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+			.double_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64,
+			.max_alignment = 8,
 		};
 
 		michaelcc::semantic_lowerer lowerer(platform_info);

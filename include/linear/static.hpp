@@ -1,8 +1,8 @@
 #ifndef MICHAELCC_LINEAR_STATIC_HPP
 #define MICHAELCC_LINEAR_STATIC_HPP
 
+#include "linear/registers.hpp"
 #include "logic/ir.hpp"
-#include <variant>
 
 namespace michaelcc {
     namespace linear {
@@ -14,13 +14,8 @@ namespace michaelcc {
             };
 
             struct data_word {
-                using word = std::variant<
-                    uint64_t, uint32_t, uint16_t, uint8_t,
-                    float, double,
-                    std::string
-                >;
-                
-                const word value;
+                const register_word value;
+                const word_size size;
                 const size_t offset;
             };
 
@@ -84,6 +79,16 @@ namespace michaelcc {
                 is_default_initialized is_default_initialized;
                 return is_default_initialized(*declaration.initializer());
             }
+
+            class data_section_builder : public logic::const_expression_dispatcher<void> {
+            private:
+                std::vector<data_word> m_data_words;
+                size_t current_size;
+                size_t current_offset;
+
+            public:
+                data_section_builder() : m_data_words(), current_size(0), current_offset(0) {}
+            };
         }
     }
 }

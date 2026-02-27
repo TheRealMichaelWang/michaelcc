@@ -133,11 +133,11 @@ namespace michaelcc {
         class init_register : public instruction {
         private:
             virtual_register m_destination;
-            uint64_t m_value;
+            register_word m_value;
         public:
-            init_register(virtual_register destination, uint64_t value) : m_destination(destination), m_value(value) {}
+            init_register(virtual_register destination, register_word value) : m_destination(destination), m_value(value) {}
             virtual_register destination() const noexcept { return m_destination; }
-            uint64_t value() const noexcept { return m_value; }
+            register_word value() const noexcept { return m_value; }
         };
 
 

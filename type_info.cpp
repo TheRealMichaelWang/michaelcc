@@ -3,10 +3,10 @@
 #include <numeric>
 
 namespace michaelcc {
-    size_t type_layout_calculator::get_int_type_size(const typing::int_type& type, const platform_info& info) {
+    linear::word_size type_layout_calculator::get_int_type_size(const typing::int_type& type, const platform_info& info) {
         switch (type.type_class()) {
             case typing::CHAR_INT_CLASS:
-                return 1;
+                return info.char_size;
             case typing::SHORT_INT_CLASS:
                 return info.short_size;
             case typing::INT_INT_CLASS:
@@ -18,6 +18,23 @@ namespace michaelcc {
             default:
                 throw std::runtime_error("Invalid int type class");
         }
+    }
+
+    linear::word_size type_layout_info::get_register_size(size_t size_bytes) {
+        linear::word_size sizes_to_fit[] = {
+            linear::word_size::MICHAELCC_WORD_SIZE_BYTE,
+            linear::word_size::MICHAELCC_WORD_SIZE_UINT16,
+            linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+            linear::word_size::MICHAELCC_WORD_SIZE_UINT64,
+        };
+
+        for (linear::word_size size : sizes_to_fit) {
+            if (size_bytes * 8 <= static_cast<size_t>(size)) {
+                return size;
+            }
+        }
+
+        throw std::runtime_error("Size of " + std::to_string(size_bytes) + " bytes is too large for any register size");
     }
 
     bool type_layout_calculator::must_alloca(const typing::qual_type type) noexcept {
@@ -57,25 +74,7 @@ namespace michaelcc {
     }
 
     const type_layout_info type_layout_calculator::dispatch(typing::int_type& type) {
-        size_t size;
-        switch (type.type_class()) {
-            case typing::CHAR_INT_CLASS:
-                size = 1;
-                break;
-            case typing::SHORT_INT_CLASS:
-                size = m_platform_info.short_size;
-                break;
-            case typing::INT_INT_CLASS:
-                size = (type.int_qualifiers() & typing::LONG_INT_QUALIFIER)
-                    ? m_platform_info.long_size
-                    : m_platform_info.int_size;
-                break;
-            case typing::LONG_INT_CLASS:
-                size = m_platform_info.long_long_size;
-                break;
-            default:
-                throw std::runtime_error("Invalid int type class");
-        }
+        size_t size = static_cast<size_t>(get_int_type_size(type, m_platform_info)) / 8;
         return { size, std::min<size_t>(size, m_platform_info.max_alignment) };
     }
 
