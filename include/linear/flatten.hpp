@@ -229,7 +229,7 @@ namespace michaelcc {
 
         const linear::translation_unit& get_translation_unit() const { return m_translation_unit; }
 
-        linear::translation_unit&& release_translation_unit() { return std::move(m_translation_unit); m_translation_unit = linear::translation_unit(); }
+        linear::translation_unit&& release_translation_unit() { return std::move(m_translation_unit); }
 
         const platform_info& get_platform_info() const noexcept { return m_platform_info; }
     };

@@ -6,6 +6,7 @@
 #include <optional>
 #include <vector>
 #include <unordered_map>
+#include <memory>
 #include <cstdint>
 
 namespace michaelcc {
@@ -43,7 +44,7 @@ namespace michaelcc {
             std::string description;
 
             std::vector<uint8_t> mutually_exclusive_registers;
-            size_t size_bits;
+            word_size size;
         };
 
         struct alloc_information {

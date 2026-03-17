@@ -1,14 +1,17 @@
 #include "linear/flatten.hpp"
 #include "linear/ir.hpp"
+#include "linear/registers.hpp"
 #include "logic/ir.hpp"
 #include "logic/type_info.hpp"
 #include "logic/typing.hpp"
+#include "linear/static.hpp"
 #include <memory>
 #include <sstream>
 #include <unordered_set>
 #include <variant>
 #include <stdexcept>
 #include <cassert>
+#include <utility>
 
 using namespace michaelcc;
 
@@ -265,36 +268,8 @@ linear::virtual_register logic_lowerer::lower_at_address(linear::virtual_registe
 }
 
 linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::integer_constant& node) {
-    type_layout_calculator calculator(m_lowerer.m_platform_info);
-
-    std::shared_ptr<typing::int_type> int_type = std::static_pointer_cast<typing::int_type>(node.get_type().type());
-
-    auto reg_size = type_layout_calculator::get_int_type_size(
-        *int_type, 
-        m_lowerer.m_platform_info
-    );
-    auto dest_reg = m_lowerer.m_translation_unit.register_allocator.new_vreg(
-        reg_size
-    );
-    
-    linear::register_word value;
-    bool is_signed = int_type->int_qualifiers() & typing::SIGNED_INT_QUALIFIER;
-    switch (int_type->type_class()) {
-        case typing::CHAR_INT_CLASS:
-            if (is_signed) { value.sbyte = node.value(); } else { value.ubyte = node.value(); } break;
-        case typing::SHORT_INT_CLASS:
-            if (is_signed) { value.int16 = node.value(); } else { value.uint16 = node.value(); } break;
-        case typing::INT_INT_CLASS:
-            if(int_type->int_qualifiers() & typing::LONG_INT_QUALIFIER) {
-                if (is_signed) { value.int64 = node.value(); } else { value.uint64 = node.value(); } break;
-            }
-            if (is_signed) { value.int32 = node.value(); } else { value.uint32 = node.value(); } break;
-        case typing::LONG_INT_CLASS:
-            if (is_signed) { value.int64 = node.value(); } else { value.uint64 = node.value(); } break;
-        default:
-            throw std::runtime_error("Invalid int type class");
-    }
-
+    auto [value, reg_size] = linear::static_storage::int_literal_to_regword(node, m_lowerer.m_platform_info);
+    auto dest_reg = m_lowerer.m_translation_unit.register_allocator.new_vreg(reg_size);
     m_lowerer.emit(std::make_unique<linear::init_register>(
         dest_reg, value
     ));
@@ -303,18 +278,20 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
 }
 
 linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::floating_constant& node) {
-    type_layout_calculator calculator(m_lowerer.m_platform_info);
-    auto float_layout = calculator(*node.get_type().type());
+    std::shared_ptr<typing::float_type> float_type = std::static_pointer_cast<typing::float_type>(node.get_type().type());
     auto dest_reg = m_lowerer.m_translation_unit.register_allocator.new_vreg(
-        type_layout_info::get_register_size(float_layout.size)
+        type_layout_info::get_register_size(float_type->type_class() == typing::FLOAT_FLOAT_CLASS 
+            ? linear::word_size::MICHAELCC_WORD_SIZE_UINT32 
+            : linear::word_size::MICHAELCC_WORD_SIZE_UINT64
+        )
     );
 
     linear::register_word value;
-    if (dest_reg.reg_size == linear::word_size::MICHAELCC_WORD_SIZE_UINT64) {
+    if (float_type->type_class() == typing::DOUBLE_FLOAT_CLASS) {
         value.float64 = node.value();
     }
     else {
-        assert(dest_reg.reg_size == linear::word_size::MICHAELCC_WORD_SIZE_UINT32);
+        assert(float_type->type_class() == typing::FLOAT_FLOAT_CLASS);
         value.float32 = node.value();
     }
 
@@ -332,6 +309,19 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     auto dest_reg = m_lowerer.m_translation_unit.register_allocator.new_vreg(m_lowerer.m_platform_info.pointer_size);
     m_lowerer.emit(std::make_unique<linear::load_effective_address>(
         dest_reg, ss.str()
+    ));
+    return dest_reg;
+}
+
+linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::enumerator_literal& node) {
+    int64_t enumerator_value = node.enumerator().value;
+
+    auto dest_reg = m_lowerer.m_translation_unit.register_allocator.new_vreg(m_lowerer.m_platform_info.int_size);
+
+    linear::register_word value = linear::static_storage::const_to_regword(enumerator_value, m_lowerer.m_platform_info.int_size, true);
+
+    m_lowerer.emit(std::make_unique<linear::init_register>(
+        dest_reg, value
     ));
     return dest_reg;
 }
@@ -1379,6 +1369,24 @@ void logic_lowerer::lower_function(const logic::function_definition& node) {
         std::move(parameters)
     ));
     m_current_function = std::nullopt;
+}
+
+void logic_lowerer::lower_static_variable_declaration(const logic::variable_declaration& declaration) {
+    linear::static_storage::is_default_initialized is_default_initialized(m_platform_info);
+    auto default_layout = is_default_initialized(*declaration.initializer());
+    if (default_layout.has_value()) {
+        m_translation_unit.static_sections.bss_allocations.emplace_back(linear::static_storage::bss_allocation{
+            .label = declaration.variable()->name(),
+            .layout = *default_layout
+        });
+    }
+    else { //allocate data section
+        linear::static_storage::data_section_builder builder(m_platform_info, declaration.variable()->name());
+        auto data_allocations = builder.build(*declaration.initializer());
+        for (auto& data_allocation : data_allocations) {
+            m_translation_unit.static_sections.data_allocations.emplace_back(std::move(data_allocation));
+        }
+    }
 }
 
 void logic_lowerer::lower(const logic::translation_unit& translation_unit) {

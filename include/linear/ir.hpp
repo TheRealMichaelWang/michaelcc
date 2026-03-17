@@ -4,6 +4,7 @@
 #include "logic/ir.hpp"
 #include "utils.hpp"
 #include "registers.hpp"
+#include "static.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -336,6 +337,7 @@ namespace michaelcc {
             std::vector<std::unique_ptr<function_definition>> function_definitions;
             std::unordered_map<size_t, linear::basic_block> blocks;
             register_allocator register_allocator;
+            static_storage::static_sections static_sections;
         };
 	}
 }
