@@ -47,7 +47,7 @@ namespace michaelcc {
             }
             return false;
         }
-        return type.is_same_type<typing::struct_type>() || (*this)(*type.type()).size * 8 > m_platform_info.max_register_size();
+        return type.is_same_type<typing::struct_type>() || (*this)(*type.type()).size * 8 > static_cast<size_t>(m_platform_info.max_register_size());
     }
 
     bool typing::int_type::is_assignable_from(const typing::base_type& other, const platform_info& platform) const {

@@ -223,7 +223,7 @@ namespace michaelcc {
         void lower_function(const logic::function_definition& function);
         void lower_static_variable_declaration(const logic::variable_declaration& declaration);
     public:
-        explicit logic_lowerer(const platform_info& platform_info);
+        explicit logic_lowerer(const platform_info& platform_info) : m_platform_info(platform_info) { }
 
         void lower(const logic::translation_unit& translation_unit);
 

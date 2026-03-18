@@ -31,10 +31,10 @@ namespace michaelcc {
             return registers.at(id);
         }
 
-        size_t max_register_size() const {
+        linear::word_size max_register_size() const {
             return std::max_element(registers.begin(), registers.end(), [](const linear::register_info& a, const linear::register_info& b) {
-                return a.size_bits < b.size_bits;
-            })->size_bits;
+                return static_cast<size_t>(a.size) < static_cast<size_t>(b.size);
+            })->size;
         }
     };
 }

@@ -281,8 +281,8 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     std::shared_ptr<typing::float_type> float_type = std::static_pointer_cast<typing::float_type>(node.get_type().type());
     auto dest_reg = m_lowerer.m_translation_unit.register_allocator.new_vreg(
         type_layout_info::get_register_size(float_type->type_class() == typing::FLOAT_FLOAT_CLASS 
-            ? linear::word_size::MICHAELCC_WORD_SIZE_UINT32 
-            : linear::word_size::MICHAELCC_WORD_SIZE_UINT64
+            ? static_cast<size_t>(linear::word_size::MICHAELCC_WORD_SIZE_UINT32) / 8
+            : static_cast<size_t>(linear::word_size::MICHAELCC_WORD_SIZE_UINT64) / 8
         )
     );
 
