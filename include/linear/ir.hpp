@@ -27,6 +27,7 @@ namespace michaelcc {
 
         class a_instruction;
         class a2_instruction;
+        class u_instruction;
         class init_register;
         class load_memory;
         class store_memory;
@@ -43,6 +44,24 @@ namespace michaelcc {
         using instruction_transformer = generic_dispatcher<std::unique_ptr<instruction>, const instruction,
             const a_instruction,
             const a2_instruction,
+            const u_instruction,
+            const init_register,
+            const load_memory,
+            const store_memory,
+            const alloca_instruction,
+            const valloca_instruction,
+            const branch,
+            const branch_condition,
+            const function_call,
+            const function_return,
+            const phi_instruction,
+            const load_effective_address
+        >;
+
+        using const_visitor = generic_dispatcher<void, const instruction,
+            const a_instruction,
+            const a2_instruction,
+            const u_instruction,
             const init_register,
             const load_memory,
             const store_memory,
@@ -339,6 +358,8 @@ namespace michaelcc {
             register_allocator register_allocator;
             static_storage::static_sections static_sections;
         };
+
+        std::string print_linear_ir(const translation_unit& unit);
 	}
 }
 

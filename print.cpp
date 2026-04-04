@@ -2,8 +2,11 @@
 #include "syntax/ast.hpp"
 #include "logic/typing.hpp"
 #include "logic/ir.hpp"
+#include "linear/ir.hpp"
 #include <cctype>
 #include <iomanip>
+#include <unordered_set>
+#include <queue>
 
 using namespace michaelcc;
 using namespace michaelcc::ast;
@@ -112,6 +115,42 @@ const std::string michaelcc::token_to_str(token_type type) {
         "END"
     };
     return tok_names[type];
+}
+
+const std::string a_instruction_type_to_str(linear::a_instruction_type type) {
+    static const char* a_instruction_type_names[] = {
+        "+",
+        "-",
+        "*",
+        "/",
+        "%",
+        "<<",
+        ">>",
+        "&",
+        "|",
+        "^",
+        "~",
+        "&&",
+        "||",
+        "^^",
+        "!",
+        "==",
+        "!=",
+        "<",
+        "<=",
+        ">",
+        ">="
+    };
+    return a_instruction_type_names[type];
+}
+
+const std::string u_instruction_type_to_str(linear::u_instruction_type type) {
+    static const char* u_instruction_type_names[] = {
+        "-",
+        "!",
+        "~"
+    };
+    return u_instruction_type_names[type];
 }
 
 const std::string michaelcc::token_to_str(const token tok)
@@ -704,7 +743,9 @@ private:
     int m_indent = 0;
     std::vector<int> m_child_stack;
 
-    void print_indent() { m_out << std::string(m_indent * 2, ' '); }
+    void print_indent() { 
+        for (int i = 0; i < m_indent; i++) { m_out << "\t"; }
+    }
 
     // Call before printing: decrement parent's expected child count
     void before_print() {
@@ -1014,12 +1055,214 @@ public:
     }
 };
 
+class linear_print_visitor : linear::const_visitor {
+private:
+    std::ostream& m_out;
+    size_t m_indent;
+    std::vector<size_t> subsequent_block_ids;
+    
+    void print_virtual_register(const linear::virtual_register& reg, bool include_size=false) {
+        m_out << '%' << reg.id;
+        if (include_size) {
+            m_out << "(" << static_cast<size_t>(reg.reg_size) << " bits)";
+        }
+    }
+
+    void print_register_word(const linear::register_word& word, const linear::word_size size) {
+        m_out << 'u';
+        switch (size) {
+            case linear::word_size::MICHAELCC_WORD_SIZE_BYTE: m_out << word.ubyte; break;
+            case linear::word_size::MICHAELCC_WORD_SIZE_UINT16: m_out << word.uint16; break;
+            case linear::word_size::MICHAELCC_WORD_SIZE_UINT32: m_out << word.uint32; break;
+            case linear::word_size::MICHAELCC_WORD_SIZE_UINT64: m_out << word.uint64; break;
+            default: throw std::runtime_error("Invalid word size");
+        }
+    }
+
+    void print_indent() { 
+        for (size_t i = 0; i < m_indent; i++) { m_out << "\t"; }
+    }
+
+public:
+    linear_print_visitor(std::ostream& out, int indent = 0) : m_out(out), m_indent(indent) {}
+
+    std::vector<size_t> print_basic_block(const linear::basic_block& node, std::optional<std::string> label = std::nullopt) {
+        print_indent();
+        if (label.has_value()) {
+            m_out << label.value() << ":\n";
+        }
+        else {
+            m_out << "basic_block(id=" << node.id() << "):\n";
+        }
+        m_indent++;
+        for (const auto& instruction : node.instructions()) {
+            (*this)(*instruction);
+        }
+        m_indent--;
+
+        return subsequent_block_ids;
+    }
+
+protected:
+    void dispatch(const linear::a_instruction& node) override {
+        print_indent();
+        print_virtual_register(node.destination(), true);
+        m_out << " = ";
+        print_virtual_register(node.operand_a());
+        m_out << " " << a_instruction_type_to_str(node.type()) << " ";
+        print_virtual_register(node.operand_b());
+        m_out << "\n";
+    }
+
+    void dispatch(const linear::a2_instruction& node) override {
+        print_indent();
+        print_virtual_register(node.destination(), true);
+        m_out << " = ";
+        print_virtual_register(node.operand_a());
+        m_out << " " << a_instruction_type_to_str(node.type()) << " " << node.constant() << " ";
+        m_out << "\n";
+    }
+
+    void dispatch(const linear::u_instruction& node) override {
+        print_indent();
+        print_virtual_register(node.destination(), true);
+        m_out << " = " << u_instruction_type_to_str(node.type());
+        print_virtual_register(node.operand());
+        m_out << "\n";
+    }
+
+    void dispatch(const linear::init_register& node) override {
+        print_indent();
+        print_virtual_register(node.destination(), true);
+        m_out << " = ";
+        print_register_word(node.value(), node.destination().reg_size);
+        m_out << "\n";
+    }
+
+    void dispatch(const linear::load_memory& node) override {
+        print_indent();
+        print_virtual_register(node.destination(), true);
+        m_out << " = *(";
+        print_virtual_register(node.source_address());
+        m_out << " + " << node.offset() << ") ;(" << node.size_bytes() << " bytes)\n";
+    }
+
+    void dispatch(const linear::store_memory& node) override {
+        print_indent();
+        print_virtual_register(node.source_address(), true);
+        m_out << " = *(";
+        print_virtual_register(node.value());
+        m_out << " + " << node.offset() << ") ;(" << node.size_bytes() << " bytes)\n";
+    }
+
+    void dispatch(const linear::alloca_instruction& node) override {
+        print_indent();
+        print_virtual_register(node.destination(), true);
+        m_out << " = alloca(size=" << node.size_bytes() << " bytes, alignment=" << node.alignment() << " bytes)\n";
+    }
+
+    void dispatch(const linear::valloca_instruction& node) override {
+        print_indent();
+        print_virtual_register(node.destination(), true);
+        m_out << " = valloca(size=";
+        print_virtual_register(node.size());
+        m_out << " bytes, alignment=" << node.alignment() << " bytes)\n";
+    }
+
+    void dispatch(const linear::branch& node) override {
+        print_indent();
+        m_out << "branch(block" << node.next_block_id() << ")\n";
+        subsequent_block_ids.push_back(node.next_block_id());
+    }
+
+    void dispatch(const linear::branch_condition& node) override {
+        print_indent();
+        m_out << "branch_condition(condition=";
+        print_virtual_register(node.condition(), true);
+        m_out << ", true_block=" << node.if_true_block_id() << ", false_block=" << node.if_false_block_id() << ", is_loop=" << node.is_loop() << ")\n";
+        subsequent_block_ids.push_back(node.if_true_block_id());
+        subsequent_block_ids.push_back(node.if_false_block_id());
+    }
+
+    void dispatch(const linear::function_call& node) override {
+        print_indent();
+        print_virtual_register(node.destination(), true);
+        m_out << " = function_call(callee=";
+        std::visit(overloaded{
+            [this](const std::string& label) { m_out << label; },
+            [this](const linear::virtual_register& reg) { print_virtual_register(reg, true); }
+        }, node.callee());
+        m_out << ", arguments=";
+        for (const auto& arg : node.arguments()) {
+            print_virtual_register(arg, true);
+            m_out << ", ";
+        }
+        m_out << ")\n";
+    }
+
+    void dispatch(const linear::function_return& node) override {
+        print_indent();
+        m_out << "function_return\n";
+    }
+
+    void dispatch(const linear::phi_instruction& node) override {
+        print_indent();
+        print_virtual_register(node.destination(), true);
+        m_out << " = phi(";
+        for (const auto& value : node.values()) {
+            print_virtual_register(value.vreg, true);
+            m_out << ", ";
+        }
+        m_out << ")\n";
+    }
+
+    void dispatch(const linear::load_effective_address& node) override {
+        print_indent();
+        print_virtual_register(node.destination(), true);
+        m_out << " = load_effective_address(label=" << node.label() << ")\n";
+    }
+};
+
 namespace michaelcc {
 namespace logic {
     std::string to_tree_string(const translation_unit& unit) {
         std::stringstream ss;
         logical_print_visitor visitor(ss);
         unit.accept(visitor);
+        return ss.str();
+    }
+}
+}
+
+namespace michaelcc {
+namespace linear {
+    std::string print_linear_ir(const translation_unit& unit) {
+        std::stringstream ss;
+        
+        std::unordered_set<size_t> printed_block_ids;
+        std::queue<size_t> block_queue;
+        
+        for (const auto& func : unit.function_definitions) {
+            block_queue.push(func->entry_block_id());
+            std::optional<std::string> label = func->name();
+            while (!block_queue.empty()) {
+                size_t block_id = block_queue.front();
+                block_queue.pop();
+                
+                printed_block_ids.insert(block_id);
+                linear_print_visitor visitor(ss);
+                auto subsequent_block_ids = visitor.print_basic_block(unit.blocks.at(block_id), label);
+                if (label.has_value()) {
+                    label = std::nullopt;
+                }
+
+                for (const auto& subsequent_block_id : subsequent_block_ids) {
+                    if (printed_block_ids.contains(subsequent_block_id)) continue;
+                    block_queue.push(subsequent_block_id);
+                }
+            }
+        }
+
         return ss.str();
     }
 }

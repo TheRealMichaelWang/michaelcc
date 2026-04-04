@@ -22,7 +22,7 @@ int main(int argc, char* argv[])
 	std::vector<std::string_view> args(argv, argv + argc);
 
     cout << "Michael C Compiler" << endl;
-	auto path = args.empty() ? "../../tests/constant_folding.c" : args.at(1);
+	auto path = args.size() > 1 ? args.at(1) : "../../tests/control_flow.c";
 	ifstream infile = std::ifstream(std::string(path));
 	
 	if (!infile.is_open()) {
@@ -62,7 +62,7 @@ int main(int argc, char* argv[])
 				{
 					.id = 0,
 					.name = "rax",
-					.description = "RAX",
+					.description = "RAX/Return Value Register",
 					.mutually_exclusive_registers = { 1, 2, 3, 4 },
 					.size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64
 				},
@@ -83,14 +83,14 @@ int main(int argc, char* argv[])
 				{
 					.id = 3,
 					.name = "al",
-					.description = "AL",
+					.description = "AL/Lower 8 bits of AX",
 					.mutually_exclusive_registers = { 0, 1, 2 },
 					.size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE
 				},
 				{
 					.id = 4,
 					.name = "ah",
-					.description = "AH",
+					.description = "AH/Upper 8 bits of AX",
 					.mutually_exclusive_registers = { 0, 1, 2 },
 					.size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE
 				},
@@ -364,7 +364,7 @@ int main(int argc, char* argv[])
 		linear_lowerer.lower(logic_translation_unit);
 		auto linear_translation_unit = linear_lowerer.release_translation_unit();
 
-
+		cout << michaelcc::linear::print_linear_ir(linear_translation_unit) << endl;
 	}
 	catch (const michaelcc::compilation_error& error) {
 		cerr << "Compilation error: " << error.what() << endl;
