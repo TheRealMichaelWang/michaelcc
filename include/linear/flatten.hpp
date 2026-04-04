@@ -84,7 +84,7 @@ namespace michaelcc {
         };
 
         struct block_var_ctx {
-            std::unordered_map<std::shared_ptr<logic::variable>, std::vector<linear::var_info>> m_variable_to_vreg;
+            std::unordered_map<std::shared_ptr<logic::variable>, linear::var_info> m_variable_to_vreg;
         };
 
         struct block_builder {
@@ -115,7 +115,6 @@ namespace michaelcc {
 
             std::vector<size_t> incoming_break_block_ids;
             std::vector<size_t> incoming_continue_block_ids;
-            std::unordered_map<std::shared_ptr<logic::variable>, std::vector<linear::var_info>> original_var_info;
             std::unordered_map<std::shared_ptr<logic::variable>, linear::phi_instruction*> init_phi_nodes;
         };
 
@@ -153,9 +152,10 @@ namespace michaelcc {
 
         void begin_block(size_t head_block_id, const std::vector<size_t> incoming_block_ids, bool is_loop_start=false) {
             m_current_block = block_builder{ 
-                .id = head_block_id, 
-                .var_info = reconcile_var_regs(incoming_block_ids) 
+                .id = head_block_id
             };
+            // needs to be done AFTER m_current_block is set because reconcile_var_regs emits phi nodes
+            m_current_block->var_info = reconcile_var_regs(incoming_block_ids);
             if (is_loop_start) {
                 emit_phi_all();
             }

@@ -1064,16 +1064,22 @@ private:
     const linear::register_allocator& m_register_allocator;
     const platform_info& m_platform_info;
     
-    void print_virtual_register(const linear::virtual_register& reg, bool include_size=false) {
+    void print_virtual_register(const linear::virtual_register& reg, bool include_size=false, bool is_setting=false) {
         m_out << '%' << reg.id;
         if (include_size) {
             m_out << "(";
             m_out << static_cast<size_t>(reg.reg_size) << " bits";
 
-            auto alloc_info = m_register_allocator.get_alloc_information(reg);
-            if (alloc_info.register_id) {
-                auto register_info = m_platform_info.get_register_info(alloc_info.register_id.value());
-                m_out << ", register " << register_info.name;
+            if (is_setting) {
+                auto alloc_info = m_register_allocator.get_alloc_information(reg);
+                
+                if (alloc_info.register_id) {
+                    auto register_info = m_platform_info.get_register_info(alloc_info.register_id.value());
+                    m_out << ", register " << register_info.name;
+                }
+                else if (alloc_info.must_use_register) {
+                    m_out << ", register required";
+                }
             }
 
             m_out << ")";
@@ -1119,7 +1125,7 @@ public:
 protected:
     void dispatch(const linear::a_instruction& node) override {
         print_indent();
-        print_virtual_register(node.destination(), true);
+        print_virtual_register(node.destination(), true, true);
         m_out << " = ";
         print_virtual_register(node.operand_a());
         m_out << " " << a_instruction_type_to_str(node.type()) << " ";
@@ -1129,7 +1135,7 @@ protected:
 
     void dispatch(const linear::a2_instruction& node) override {
         print_indent();
-        print_virtual_register(node.destination(), true);
+        print_virtual_register(node.destination(), true, true);
         m_out << " = ";
         print_virtual_register(node.operand_a());
         m_out << " " << a_instruction_type_to_str(node.type()) << " " << node.constant() << " ";
@@ -1138,7 +1144,7 @@ protected:
 
     void dispatch(const linear::u_instruction& node) override {
         print_indent();
-        print_virtual_register(node.destination(), true);
+        print_virtual_register(node.destination(), true, true);
         m_out << " = " << u_instruction_type_to_str(node.type());
         print_virtual_register(node.operand());
         m_out << "\n";
@@ -1146,7 +1152,7 @@ protected:
 
     void dispatch(const linear::copy_instruction& node) override {
         print_indent();
-        print_virtual_register(node.destination(), true);
+        print_virtual_register(node.destination(), true, true);
         m_out << " = ";
         print_virtual_register(node.source());
         m_out << "\n";
@@ -1154,7 +1160,7 @@ protected:
 
     void dispatch(const linear::init_register& node) override {
         print_indent();
-        print_virtual_register(node.destination(), true);
+        print_virtual_register(node.destination(), true, true);
         m_out << " = ";
         print_register_word(node.value(), node.destination().reg_size);
         m_out << "\n";
@@ -1162,7 +1168,7 @@ protected:
 
     void dispatch(const linear::load_memory& node) override {
         print_indent();
-        print_virtual_register(node.destination(), true);
+        print_virtual_register(node.destination(), true, true);
         m_out << " = *(";
         print_virtual_register(node.source_address());
         m_out << " + " << node.offset() << ") ;(" << node.size_bytes() << " bytes)\n";
@@ -1170,7 +1176,7 @@ protected:
 
     void dispatch(const linear::store_memory& node) override {
         print_indent();
-        print_virtual_register(node.source_address(), true);
+        print_virtual_register(node.source_address(), true, true);
         m_out << " = *(";
         print_virtual_register(node.value());
         m_out << " + " << node.offset() << ") ;(" << node.size_bytes() << " bytes)\n";
@@ -1178,13 +1184,13 @@ protected:
 
     void dispatch(const linear::alloca_instruction& node) override {
         print_indent();
-        print_virtual_register(node.destination(), true);
+        print_virtual_register(node.destination(), true, true);
         m_out << " = alloca(size=" << node.size_bytes() << " bytes, alignment=" << node.alignment() << " bytes)\n";
     }
 
     void dispatch(const linear::valloca_instruction& node) override {
         print_indent();
-        print_virtual_register(node.destination(), true);
+        print_virtual_register(node.destination(), true, true);
         m_out << " = valloca(size=";
         print_virtual_register(node.size());
         m_out << " bytes, alignment=" << node.alignment() << " bytes)\n";
@@ -1199,7 +1205,7 @@ protected:
     void dispatch(const linear::branch_condition& node) override {
         print_indent();
         m_out << "branch_condition(condition=";
-        print_virtual_register(node.condition(), true);
+        print_virtual_register(node.condition(), true, true);
         m_out << ", true_block=" << node.if_true_block_id() << ", false_block=" << node.if_false_block_id() << ", is_loop=" << node.is_loop() << ")\n";
         subsequent_block_ids.push_back(node.if_true_block_id());
         subsequent_block_ids.push_back(node.if_false_block_id());
@@ -1207,7 +1213,7 @@ protected:
 
     void dispatch(const linear::function_call& node) override {
         print_indent();
-        print_virtual_register(node.destination(), true);
+        print_virtual_register(node.destination(), true, true);
         m_out << " = function_call(callee=";
         std::visit(overloaded{
             [this](const std::string& label) { m_out << label; },
@@ -1232,7 +1238,7 @@ protected:
 
     void dispatch(const linear::phi_instruction& node) override {
         print_indent();
-        print_virtual_register(node.destination(), true);
+        print_virtual_register(node.destination(), true, true);
         m_out << " = phi(";
         bool first = true;
         for (const auto& value : node.values()) {
@@ -1250,7 +1256,7 @@ protected:
 
     void dispatch(const linear::load_effective_address& node) override {
         print_indent();
-        print_virtual_register(node.destination(), true);
+        print_virtual_register(node.destination(), true, true);
         m_out << " = load_effective_address(label=" << node.label() << ")\n";
     }
 };

@@ -48,9 +48,7 @@ namespace michaelcc {
         };
 
         struct alloc_information {
-            std::optional<std::string> name = std::nullopt;
             bool must_use_register = false;
-
             std::optional<uint8_t> register_id = std::nullopt;
         };
 
@@ -68,7 +66,6 @@ namespace michaelcc {
             linear::alloc_information get_alloc_information(linear::virtual_register vreg) const {
                 if (m_vreg_alloc_information.find(vreg.id) == m_vreg_alloc_information.end()) {
                     return linear::alloc_information{
-                        .name = std::nullopt,
                         .must_use_register = false,
                         .register_id = std::nullopt
                     };
@@ -76,11 +73,18 @@ namespace michaelcc {
                 return *m_vreg_alloc_information.at(vreg.id);
             }
 
-            void set_alloc_information(linear::virtual_register vreg, std::shared_ptr<linear::alloc_information> alloc_information) {
-                m_vreg_alloc_information[vreg.id] = alloc_information;
-            }
+            void set_alloc_information(linear::virtual_register vreg, std::shared_ptr<linear::alloc_information> alloc_information);
         };
     }
+}
+
+namespace std {
+    template<>
+    struct hash<michaelcc::linear::virtual_register> {
+        size_t operator()(const michaelcc::linear::virtual_register& reg) const {
+            return std::hash<size_t>()(reg.id);
+        }
+    };
 }
 
 #endif

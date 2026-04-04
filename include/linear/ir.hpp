@@ -343,11 +343,9 @@ namespace michaelcc {
             virtual_register destination() const noexcept { return m_destination; }
             const std::vector<var_info>& values() const noexcept { return m_values; }
 
-            void augment_values(const std::vector<var_info>& values) {
-                for (const auto& value : values) {
-                    if (std::find(m_values.begin(), m_values.end(), value) == m_values.end() && m_destination != value.vreg) {
-                        m_values.push_back(value);
-                    }
+            void augment_value(const var_info& value) {
+                if (std::find(m_values.begin(), m_values.end(), value) == m_values.end() && m_destination != value.vreg) {
+                    m_values.push_back(value);
                 }
             }
         };

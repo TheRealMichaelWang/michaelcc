@@ -33,35 +33,49 @@ logic_lowerer::block_var_ctx logic_lowerer::reconcile_var_regs(const std::vector
             const auto& block_var_ctx = m_finished_block_var_ctx.at(block_id);
             auto it = block_var_ctx.m_variable_to_vreg.find(variable);
             if (it != block_var_ctx.m_variable_to_vreg.end()) {
-                vregs.insert(vregs.end(), it->second.begin(), it->second.end());
+                vregs.push_back(linear::var_info{ .vreg = it->second.vreg, .block_id = block_id });
             }
         }
-        result.m_variable_to_vreg[variable] = vregs;
+        if (vregs.size() == 1) {
+            result.m_variable_to_vreg[variable] = vregs.at(0);
+        }
+        else {
+            type_layout_calculator calculator(get_platform_info());
+            auto layout = calculator(*variable->get_type().type());
+            auto dest_reg = m_translation_unit.register_allocator.new_vreg(
+                type_layout_info::get_register_size(layout.size)
+            );
+            m_translation_unit.register_allocator.set_alloc_information(dest_reg, std::make_shared<linear::alloc_information>(linear::alloc_information{
+                .must_use_register = variable->must_use_register()
+            }));
+            
+            emit(std::make_unique<linear::phi_instruction>(dest_reg, std::vector<linear::var_info>(vregs)));
+
+            result.m_variable_to_vreg[variable] = linear::var_info{ .vreg = dest_reg, .block_id = current_block_id() };
+        }
     }    
     return result;
 }
 
 void logic_lowerer::emit_phi_all() {
     std::unordered_map<std::shared_ptr<logic::variable>, linear::phi_instruction*> init_phi_nodes;
-    for (const auto& [variable, vregs] : m_current_block->var_info.m_variable_to_vreg) {
+    for (const auto& [variable, var_info] : m_current_block->var_info.m_variable_to_vreg) {
         type_layout_calculator calculator(get_platform_info());
         auto var_layout = calculator(*variable->get_type().type());
         auto dest_reg = m_translation_unit.register_allocator.new_vreg(
             type_layout_info::get_register_size(var_layout.size)
         );
         m_translation_unit.register_allocator.set_alloc_information(dest_reg, std::make_shared<linear::alloc_information>(linear::alloc_information{
-            .name = variable->name(),
             .must_use_register = variable->must_use_register()
         }));
-        auto phi_node = std::make_unique<linear::phi_instruction>(dest_reg, std::vector<linear::var_info>(vregs));
+        auto phi_node = std::make_unique<linear::phi_instruction>(dest_reg, std::vector<linear::var_info>({ var_info }));
         init_phi_nodes[variable] = phi_node.get();
         emit(std::move(phi_node));
-        m_current_block->var_info.m_variable_to_vreg[variable] = { linear::var_info{ .vreg = dest_reg, .block_id = current_block_id() } };
+        m_current_block->var_info.m_variable_to_vreg[variable] = linear::var_info{ .vreg = dest_reg, .block_id = current_block_id() };
     }
     m_loop_infos[current_block_id()] = loop_info{ 
         .block_id = current_block_id(), 
         .finish_block_id = allocate_block_id(),
-        .original_var_info = m_current_block->var_info.m_variable_to_vreg, 
         .init_phi_nodes = std::move(init_phi_nodes)
     };
     m_loop_stack.push_back(current_block_id());
@@ -71,10 +85,10 @@ void logic_lowerer::recurse_block(size_t source_block_id, size_t target_block_id
     auto& source_block_var_ctx = m_finished_block_var_ctx.at(source_block_id);
     auto& target_loop_info = m_loop_infos.at(target_block_id);
 
-    for (const auto& [variable, vregs] : source_block_var_ctx.m_variable_to_vreg) {
+    for (const auto& [variable, var_info] : source_block_var_ctx.m_variable_to_vreg) {
         auto it = target_loop_info.init_phi_nodes.find(variable);
         if (it != target_loop_info.init_phi_nodes.end()) {
-            it->second->augment_values(vregs);
+            it->second->augment_value(var_info);
         }
     }
 }
@@ -87,30 +101,7 @@ linear::virtual_register logic_lowerer::get_var_reg(const std::shared_ptr<logic:
         return addr_reg;
     }
 
-    std::vector<linear::var_info> vregs = m_current_block->var_info.m_variable_to_vreg.at(variable);
-    
-    // if only one definition we are gtg
-    if (vregs.size() == 1) {
-        return vregs.at(0).vreg;
-    }
-
-    // if multiple definitions we need to reconcile with phi node
-    type_layout_calculator calculator(get_platform_info());
-    auto var_layout = calculator(*variable->get_type().type());
-    auto dest_reg = m_translation_unit.register_allocator.new_vreg(
-        type_layout_info::get_register_size(var_layout.size)
-    );
-    m_translation_unit.register_allocator.set_alloc_information(dest_reg, std::make_shared<linear::alloc_information>(linear::alloc_information{
-        .name = variable->name(),
-        .must_use_register = variable->must_use_register()
-    }));
-    
-    emit(std::make_unique<linear::phi_instruction>(dest_reg, std::move(vregs)));
-
-    // update the current block's var info
-    m_current_block->var_info.m_variable_to_vreg[variable] = { linear::var_info{ .vreg = dest_reg, .block_id = current_block_id() } };
-
-    return dest_reg;
+    return m_current_block->var_info.m_variable_to_vreg.at(variable).vreg;
 }
 
 void logic_lowerer::emit_iloop(linear::virtual_register count, std::function<void(linear::virtual_register)> body) {
@@ -362,21 +353,23 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     auto new_reg = m_lowerer.lower_expression(
         *node.value()
     );
+    
     m_lowerer.m_translation_unit.register_allocator.set_alloc_information(new_reg, 
         std::make_shared<linear::alloc_information>(m_lowerer.m_translation_unit.register_allocator.get_alloc_information(var_reg))
     );
     assert(new_reg != var_reg);
 
-    m_lowerer.m_current_block->var_info.m_variable_to_vreg[node.variable()] = { linear::var_info{ 
+    m_lowerer.m_current_block->var_info.m_variable_to_vreg[node.variable()] = linear::var_info{ 
         .vreg = new_reg, 
         .block_id = m_lowerer.current_block_id() 
-    } };
+    };
 
     return new_reg;
 }
 
 void logic_lowerer::statement_lowerer::dispatch(const logic::variable_declaration& node) {
     type_layout_calculator calculator(m_lowerer.get_platform_info());
+    auto var_layout = calculator(*node.variable()->get_type().type());
 
     if (node.variable()->use_static_storage()) {
         m_lowerer.lower_static_variable_declaration(node);
@@ -385,35 +378,32 @@ void logic_lowerer::statement_lowerer::dispatch(const logic::variable_declaratio
         auto var_reg = m_lowerer.m_translation_unit.register_allocator.new_vreg(
             m_lowerer.get_platform_info().pointer_size
         );
-        auto layout = calculator(*node.variable()->get_type().type());
         m_lowerer.emit(std::make_unique<linear::alloca_instruction>(
             var_reg, 
-            layout.size, 
-            layout.alignment
+            var_layout.size, 
+            var_layout.alignment
         ));
 
         m_lowerer.lower_at_address(var_reg, node.initializer(), 0);
         
         m_lowerer.m_translation_unit.register_allocator.set_alloc_information(var_reg, std::make_shared<linear::alloc_information>(linear::alloc_information{
-            .name = node.variable()->name(),
             .must_use_register = node.variable()->must_use_register()
         }));
-        m_lowerer.m_current_block->var_info.m_variable_to_vreg[node.variable()] = { linear::var_info{ 
+        m_lowerer.m_current_block->var_info.m_variable_to_vreg[node.variable()] = linear::var_info{ 
             .vreg = var_reg, 
             .block_id = m_lowerer.current_block_id() 
-        } };
+        };
     }
     else {
         auto var_reg = m_lowerer.lower_expression(*node.initializer());
         
         m_lowerer.m_translation_unit.register_allocator.set_alloc_information(var_reg, std::make_shared<linear::alloc_information>(linear::alloc_information{
-            .name = node.variable()->name(),
             .must_use_register = node.variable()->must_use_register()
         }));
-        m_lowerer.m_current_block->var_info.m_variable_to_vreg[node.variable()] = { linear::var_info{ 
+        m_lowerer.m_current_block->var_info.m_variable_to_vreg[node.variable()] = linear::var_info{ 
             .vreg = var_reg, 
             .block_id = m_lowerer.current_block_id() 
-        } };
+        };
     }
 }
 
@@ -471,7 +461,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
                 ));
             }
             
-            m_lowerer.m_current_block->var_info.m_variable_to_vreg[variable] = { linear::var_info{ .vreg = new_var_reg, .block_id = m_lowerer.current_block_id() } };
+            m_lowerer.m_current_block->var_info.m_variable_to_vreg[variable] = linear::var_info{ .vreg = new_var_reg, .block_id = m_lowerer.current_block_id() };
             return var_reg;
         }
     }
@@ -1356,12 +1346,11 @@ void logic_lowerer::lower_function(const logic::function_definition& node) {
         parameters.push_back(parameter_reg);
 
         m_translation_unit.register_allocator.set_alloc_information(parameter_reg, std::make_shared<linear::alloc_information>(linear::alloc_information{
-            .name = parameter->name(),
             .must_use_register = parameter->must_use_register()
         }));
-        m_current_block->var_info.m_variable_to_vreg[parameter] = { linear::var_info{ 
+        m_current_block->var_info.m_variable_to_vreg[parameter] = linear::var_info{ 
             .vreg = parameter_reg, .block_id = entry_block_id 
-        } };
+        };
     }
 
     auto final_block_id = lower_statements(node.statements());
