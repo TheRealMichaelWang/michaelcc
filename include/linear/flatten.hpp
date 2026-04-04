@@ -125,8 +125,6 @@ namespace michaelcc {
             std::vector<linear::var_info> return_var_info;
         };
 
-        const platform_info m_platform_info;
-
         std::optional<block_builder> m_current_block;
         std::optional<function_builder> m_current_function;
 
@@ -223,7 +221,9 @@ namespace michaelcc {
         void lower_function(const logic::function_definition& function);
         void lower_static_variable_declaration(const logic::variable_declaration& declaration);
     public:
-        explicit logic_lowerer(const platform_info& platform_info) : m_platform_info(platform_info) { }
+        explicit logic_lowerer(const platform_info& platform_info) : m_translation_unit(linear::translation_unit{
+            .platform_info = platform_info
+        }) { }
 
         void lower(const logic::translation_unit& translation_unit);
 
@@ -231,7 +231,7 @@ namespace michaelcc {
 
         linear::translation_unit&& release_translation_unit() { return std::move(m_translation_unit); }
 
-        const platform_info& get_platform_info() const noexcept { return m_platform_info; }
+        const platform_info& get_platform_info() const noexcept { return m_translation_unit.platform_info; }
     };
 }
 

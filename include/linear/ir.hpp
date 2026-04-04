@@ -357,6 +357,7 @@ namespace michaelcc {
             std::unordered_map<size_t, linear::basic_block> blocks;
             register_allocator register_allocator;
             static_storage::static_sections static_sections;
+            const platform_info& platform_info;
         };
 
         std::string print_linear_ir(const translation_unit& unit);

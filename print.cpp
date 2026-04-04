@@ -1,3 +1,4 @@
+#include "linear/registers.hpp"
 #include "syntax/tokens.hpp"
 #include "syntax/ast.hpp"
 #include "logic/typing.hpp"
@@ -1060,11 +1061,22 @@ private:
     std::ostream& m_out;
     size_t m_indent;
     std::vector<size_t> subsequent_block_ids;
+    const linear::register_allocator& m_register_allocator;
+    const platform_info& m_platform_info;
     
     void print_virtual_register(const linear::virtual_register& reg, bool include_size=false) {
         m_out << '%' << reg.id;
         if (include_size) {
-            m_out << "(" << static_cast<size_t>(reg.reg_size) << " bits)";
+            m_out << "(";
+            m_out << static_cast<size_t>(reg.reg_size) << " bits";
+
+            auto alloc_info = m_register_allocator.get_alloc_information(reg);
+            if (alloc_info.register_id) {
+                auto register_info = m_platform_info.get_register_info(alloc_info.register_id.value());
+                m_out << ", register " << register_info.name;
+            }
+
+            m_out << ")";
         }
     }
 
@@ -1084,7 +1096,8 @@ private:
     }
 
 public:
-    linear_print_visitor(std::ostream& out, int indent = 0) : m_out(out), m_indent(indent) {}
+    linear_print_visitor(std::ostream& out, const linear::register_allocator& register_allocator, const platform_info& platform_info, int indent = 0) 
+    : m_out(out), m_register_allocator(register_allocator), m_platform_info(platform_info), m_indent(indent) {}
 
     std::vector<size_t> print_basic_block(const linear::basic_block& node, std::optional<std::string> label = std::nullopt) {
         print_indent();
@@ -1250,7 +1263,7 @@ namespace linear {
                 block_queue.pop();
                 
                 printed_block_ids.insert(block_id);
-                linear_print_visitor visitor(ss);
+                linear_print_visitor visitor(ss, unit.register_allocator, unit.platform_info, 0);
                 auto subsequent_block_ids = visitor.print_basic_block(unit.blocks.at(block_id), label);
                 if (label.has_value()) {
                     label = std::nullopt;

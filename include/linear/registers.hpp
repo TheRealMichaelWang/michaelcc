@@ -65,7 +65,7 @@ namespace michaelcc {
                 return { id, reg_size };
             }
 
-            linear::alloc_information get_alloc_information(linear::virtual_register vreg) {
+            linear::alloc_information get_alloc_information(linear::virtual_register vreg) const {
                 if (m_vreg_alloc_information.find(vreg.id) == m_vreg_alloc_information.end()) {
                     return linear::alloc_information{
                         .name = std::nullopt,
