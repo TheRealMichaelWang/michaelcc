@@ -28,6 +28,7 @@ namespace michaelcc {
         class a_instruction;
         class a2_instruction;
         class u_instruction;
+        class copy_instruction;
         class init_register;
         class load_memory;
         class store_memory;
@@ -45,6 +46,7 @@ namespace michaelcc {
             const a_instruction,
             const a2_instruction,
             const u_instruction,
+            const copy_instruction,
             const init_register,
             const load_memory,
             const store_memory,
@@ -62,6 +64,7 @@ namespace michaelcc {
             const a_instruction,
             const a2_instruction,
             const u_instruction,
+            const copy_instruction,
             const init_register,
             const load_memory,
             const store_memory,
@@ -148,6 +151,18 @@ namespace michaelcc {
             virtual_register operand() const noexcept { return m_operand; }
         };
 
+
+        // Copy a register and initialize a new register with the value
+        class copy_instruction : public instruction {
+        private:
+            virtual_register m_destination;
+            virtual_register m_source;
+        public:
+            copy_instruction(virtual_register destination, virtual_register source) : m_destination(destination), m_source(source) {}
+            
+            virtual_register destination() const noexcept { return m_destination; }
+            virtual_register source() const noexcept { return m_source; }
+        };
         
         // Initialize a register with a literal value
         class init_register : public instruction {
@@ -330,7 +345,7 @@ namespace michaelcc {
 
             void augment_values(const std::vector<var_info>& values) {
                 for (const auto& value : values) {
-                    if (std::find(m_values.begin(), m_values.end(), value) == m_values.end()) {
+                    if (std::find(m_values.begin(), m_values.end(), value) == m_values.end() && m_destination != value.vreg) {
                         m_values.push_back(value);
                     }
                 }

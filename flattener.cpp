@@ -18,6 +18,7 @@ using namespace michaelcc;
 logic_lowerer::block_var_ctx logic_lowerer::reconcile_var_regs(const std::vector<size_t>& incoming_block_ids) {
     block_var_ctx result;
 
+    // search and find all variables that are defined in any of the incoming blocks
     std::unordered_set<std::shared_ptr<logic::variable>> seen_variables;
     for (size_t block_id : incoming_block_ids) {
         const auto& block_var_ctx = m_finished_block_var_ctx.at(block_id);
@@ -1125,11 +1126,15 @@ void logic_lowerer::statement_lowerer::dispatch(const logic::return_statement& n
     }
     else {
         if (node.value()) {
-            //auto return_value_reg = m_lowerer.get_platform_info().get_register_info(m_lowerer.get_platform_info().return_value_register_id);
             auto virtual_reg = m_lowerer.lower_expression(*node.value());
-            m_lowerer.m_translation_unit.register_allocator.set_alloc_information(virtual_reg, std::make_shared<linear::alloc_information>(linear::alloc_information{
+
+            auto return_physical_reg = m_lowerer.get_platform_info().get_register_info(m_lowerer.get_platform_info().return_value_register_id);
+            auto return_vreg = m_lowerer.m_translation_unit.register_allocator.new_vreg(return_physical_reg.size);
+            m_lowerer.m_translation_unit.register_allocator.set_alloc_information(return_vreg, std::make_shared<linear::alloc_information>(linear::alloc_information{
                 .register_id = m_lowerer.get_platform_info().return_value_register_id
             }));
+
+            m_lowerer.emit(std::make_unique<linear::copy_instruction>(return_vreg, virtual_reg));
         }
 
         m_lowerer.emit(std::make_unique<linear::function_return>());

@@ -1144,6 +1144,14 @@ protected:
         m_out << "\n";
     }
 
+    void dispatch(const linear::copy_instruction& node) override {
+        print_indent();
+        print_virtual_register(node.destination(), true);
+        m_out << " = ";
+        print_virtual_register(node.source());
+        m_out << "\n";
+    }
+
     void dispatch(const linear::init_register& node) override {
         print_indent();
         print_virtual_register(node.destination(), true);
@@ -1206,25 +1214,36 @@ protected:
             [this](const linear::virtual_register& reg) { print_virtual_register(reg, true); }
         }, node.callee());
         m_out << ", arguments=";
+        bool first = true;
         for (const auto& arg : node.arguments()) {
+            if (!first) {
+                m_out << ", ";
+            }
             print_virtual_register(arg, true);
-            m_out << ", ";
+            first = false;
         }
         m_out << ")\n";
     }
 
     void dispatch(const linear::function_return& node) override {
         print_indent();
-        m_out << "function_return\n";
+        m_out << "return\n";
     }
 
     void dispatch(const linear::phi_instruction& node) override {
         print_indent();
         print_virtual_register(node.destination(), true);
         m_out << " = phi(";
+        bool first = true;
         for (const auto& value : node.values()) {
+            if (!first) {
+                m_out << ", ";
+            }
             print_virtual_register(value.vreg, true);
-            m_out << ", ";
+
+            m_out << " from block " << value.block_id;
+
+            first = false;
         }
         m_out << ")\n";
     }
@@ -1261,6 +1280,8 @@ namespace linear {
             while (!block_queue.empty()) {
                 size_t block_id = block_queue.front();
                 block_queue.pop();
+
+                if (printed_block_ids.contains(block_id)) continue;
                 
                 printed_block_ids.insert(block_id);
                 linear_print_visitor visitor(ss, unit.register_allocator, unit.platform_info, 0);

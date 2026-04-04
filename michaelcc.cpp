@@ -22,7 +22,7 @@ int main(int argc, char* argv[])
 	std::vector<std::string_view> args(argv, argv + argc);
 
     cout << "Michael C Compiler" << endl;
-	auto path = args.size() > 1 ? args.at(1) : "../../tests/control_flow.c";
+	auto path = args.size() > 1 ? args.at(1) : "../../tests/loops.c";
 	ifstream infile = std::ifstream(std::string(path));
 	
 	if (!infile.is_open()) {
