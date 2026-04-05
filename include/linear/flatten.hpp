@@ -99,6 +99,7 @@ namespace michaelcc {
 
             size_t static_var_counter = 0;
             std::unordered_map<std::shared_ptr<logic::variable>, std::string> static_var_labels;
+            std::unordered_map<std::string, linear::function_parameter> parameters;
 
             std::string next_static_label(const std::shared_ptr<logic::variable>& variable) {
                 size_t id = static_var_counter++;

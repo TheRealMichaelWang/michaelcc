@@ -2,6 +2,7 @@
 #define MICHAELCC_CFG_IR_HPP
 
 #include "logic/ir.hpp"
+#include "logic/type_info.hpp"
 #include "utils.hpp"
 #include "registers.hpp"
 #include "static.hpp"
@@ -39,6 +40,7 @@ namespace michaelcc {
         class branch_condition;
         class function_call;
         class function_return;
+        class load_parameter;
         class phi_instruction;
         class load_effective_address;
 
@@ -52,6 +54,7 @@ namespace michaelcc {
             const store_memory,
             const alloca_instruction,
             const valloca_instruction,
+            const load_parameter,
             const branch,
             const branch_condition,
             const function_call,
@@ -70,6 +73,7 @@ namespace michaelcc {
             const store_memory,
             const alloca_instruction,
             const valloca_instruction,
+            const load_parameter,
             const branch,
             const branch_condition,
             const function_call,
@@ -245,7 +249,6 @@ namespace michaelcc {
             size_t alignment() const noexcept { return m_alignment; }
         };
 
-
         // Branch "B" instructions
         class basic_block {
         private:
@@ -289,19 +292,26 @@ namespace michaelcc {
 
 
         // Function Stuff
+        struct function_parameter {
+            std::string name;
+
+            type_layout_info layout;
+            bool pass_as_alloca;
+        };
+
         class function_definition {
         private:
             std::string m_name;
 
             size_t m_entry_block_id;
-            std::vector<virtual_register> m_parameters;
+            std::vector<function_parameter> m_parameters;
 
         public:
-            function_definition(std::string name, size_t entry_block_id, std::vector<virtual_register>&& parameters) 
+            function_definition(std::string name, size_t entry_block_id, std::vector<function_parameter>&& parameters) 
                 : m_name(name), m_entry_block_id(entry_block_id), m_parameters(std::move(parameters)) {}
             
             size_t entry_block_id() const noexcept { return m_entry_block_id; }
-            const std::vector<virtual_register>& parameters() const noexcept { return m_parameters; }
+            const std::vector<function_parameter>& parameters() const noexcept { return m_parameters; }
             const std::string& name() const noexcept { return m_name; }
         };
 
@@ -327,6 +337,23 @@ namespace michaelcc {
         class function_return : public instruction {
         public:
             function_return() { } 
+        };
+
+
+        // load parameter from the stack; stores the value or stores the address of the stack location into the destination register
+        class load_parameter : public instruction {
+        private:
+            virtual_register m_destination;
+            function_parameter m_parameter;
+            
+        public:
+            load_parameter(virtual_register destination, function_parameter parameter) : 
+                m_destination(destination), m_parameter(parameter) {}
+
+            virtual_register destination() const noexcept { return m_destination; }
+            const function_parameter& parameter() const noexcept { return m_parameter; }
+
+            bool is_address() const noexcept { return m_parameter.pass_as_alloca; }
         };
 
 

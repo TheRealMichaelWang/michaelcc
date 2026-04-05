@@ -1236,6 +1236,16 @@ protected:
         m_out << "return\n";
     }
 
+    void dispatch(const linear::load_parameter& node) override {
+        print_indent();
+        print_virtual_register(node.destination(), true, true);
+        m_out << " = load_parameter";
+        if (node.is_address()) {
+            m_out << "_addr";
+        }
+        m_out << "(parameter=" << node.parameter().name << ")\n";
+    }
+
     void dispatch(const linear::phi_instruction& node) override {
         print_indent();
         print_virtual_register(node.destination(), true, true);

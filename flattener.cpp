@@ -100,6 +100,18 @@ linear::virtual_register logic_lowerer::get_var_reg(const std::shared_ptr<logic:
         emit(std::make_unique<linear::load_effective_address>(addr_reg, label));
         return addr_reg;
     }
+    
+    auto it = m_current_function->parameters.find(variable->name());
+    if (it != m_current_function->parameters.end()) {
+        auto var_reg = m_translation_unit.register_allocator.new_vreg(
+            it->second.pass_as_alloca ? get_platform_info().pointer_size : type_layout_info::get_register_size(it->second.layout.size)
+        );
+        emit(std::make_unique<linear::load_parameter>(
+            var_reg,
+            it->second
+        ));
+        return var_reg;
+    }
 
     return m_current_block->var_info.m_variable_to_vreg.at(variable).vreg;
 }
@@ -1327,35 +1339,34 @@ void logic_lowerer::statement_lowerer::dispatch(const logic::statement_block& no
 }
 
 void logic_lowerer::lower_function(const logic::function_definition& node) {
+    std::unordered_map<std::string, linear::function_parameter> parameter_map;
+    parameter_map.reserve(node.parameters().size());
+    type_layout_calculator calculator(get_platform_info());
+    for (const auto& parameter : node.parameters()) {
+        parameter_map.emplace(parameter->name(), linear::function_parameter{
+            .name = parameter->name(),
+            .layout = calculator(*parameter->get_type().type()),
+            .pass_as_alloca = calculator.must_alloca(parameter->get_type())
+        });
+    }
+
     m_current_function = function_builder{
-        .name = node.name()
+        .name = node.name(),
+        .parameters = std::move(parameter_map)
     };
 
     auto entry_block_id = allocate_block_id();
     begin_block(entry_block_id, {});
 
-    std::vector<linear::virtual_register> parameters;
-    parameters.reserve(node.parameters().size());
-    type_layout_calculator calculator(get_platform_info());
-    for (const auto& parameter : node.parameters()) {
-        auto layout = calculator(*parameter->get_type().type());
-        linear::word_size reg_size_bytes = calculator.must_alloca(parameter->get_type()) 
-            ? get_platform_info().pointer_size 
-            : type_layout_info::get_register_size(layout.size);
-        auto parameter_reg = m_translation_unit.register_allocator.new_vreg(reg_size_bytes);
-        parameters.push_back(parameter_reg);
-
-        m_translation_unit.register_allocator.set_alloc_information(parameter_reg, std::make_shared<linear::alloc_information>(linear::alloc_information{
-            .must_use_register = parameter->must_use_register()
-        }));
-        m_current_block->var_info.m_variable_to_vreg[parameter] = linear::var_info{ 
-            .vreg = parameter_reg, .block_id = entry_block_id 
-        };
-    }
-
     auto final_block_id = lower_statements(node.statements());
     assert(!final_block_id.has_value()); //all code paths must return and hence seal off the block
     assert(!m_current_block.has_value());
+
+    std::vector<linear::function_parameter> parameters;
+    parameters.reserve(m_current_function->parameters.size());
+    for (const auto& [name, parameter] : m_current_function->parameters) {
+        parameters.emplace_back(std::move(parameter));
+    }
 
     m_translation_unit.function_definitions.emplace_back(std::make_unique<linear::function_definition>(
         node.name(), 
