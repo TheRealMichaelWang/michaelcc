@@ -5,6 +5,8 @@
 #include "logic/type_info.hpp"
 #include "logic/typing.hpp"
 #include "linear/static.hpp"
+#include <algorithm>
+#include <format>
 #include <memory>
 #include <sstream>
 #include <unordered_set>
@@ -101,19 +103,24 @@ linear::virtual_register logic_lowerer::get_var_reg(const std::shared_ptr<logic:
         return addr_reg;
     }
     
-    auto it = m_current_function->parameters.find(variable->name());
-    if (it != m_current_function->parameters.end()) {
+    auto var_reg_it = m_current_block->var_info.m_variable_to_vreg.find(variable);
+    if (var_reg_it != m_current_block->var_info.m_variable_to_vreg.end()) {
+        return var_reg_it->second.vreg;
+    }
+
+    auto parameter_it = m_current_function->parameters.find(variable->name());
+    if (parameter_it != m_current_function->parameters.end()) {
         auto var_reg = m_translation_unit.register_allocator.new_vreg(
-            it->second.pass_as_alloca ? get_platform_info().pointer_size : type_layout_info::get_register_size(it->second.layout.size)
+            get_platform_info().pointer_size
         );
         emit(std::make_unique<linear::load_parameter>(
             var_reg,
-            it->second
+            parameter_it->second
         ));
         return var_reg;
     }
 
-    return m_current_block->var_info.m_variable_to_vreg.at(variable).vreg;
+    throw std::runtime_error(std::format("Variable \"{}\" not found in current block or parameters", variable->name()));
 }
 
 void logic_lowerer::emit_iloop(linear::virtual_register count, std::function<void(linear::virtual_register)> body) {
@@ -1357,6 +1364,17 @@ void logic_lowerer::lower_function(const logic::function_definition& node) {
 
     auto entry_block_id = allocate_block_id();
     begin_block(entry_block_id, {});
+
+    // declare registers for params that need to be passed by value, and loaded directly in registers
+    for (const auto& [name, parameter] : m_current_function->parameters) {
+        if (!parameter.pass_as_alloca) {
+            auto var_reg = m_translation_unit.register_allocator.new_vreg(type_layout_info::get_register_size(parameter.layout.size));
+            emit(std::make_unique<linear::load_parameter>(var_reg, parameter));
+
+            auto var = std::find_if(node.parameters().begin(), node.parameters().end(), [&](const auto& p) { return p->name() == name; });
+            m_current_block->var_info.m_variable_to_vreg[*var] = linear::var_info{ .vreg = var_reg, .block_id = current_block_id() };
+        }
+    }
 
     auto final_block_id = lower_statements(node.statements());
     assert(!final_block_id.has_value()); //all code paths must return and hence seal off the block
