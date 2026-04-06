@@ -193,16 +193,16 @@ static void escape_char(std::ostream& out, char c) {
     }
 }
 
+static void print_indent(std::ostream& out, int indent) { 
+    for (size_t i = 0; i < indent; i++) { out << '\t'; }
+}
+
 class ast_print_visitor : public visitor {
 private:
     std::stringstream& m_out;
     int m_indent;
     bool m_print_requested = false;
     int m_parent_precedence = 0;
-
-    std::string indent_str() const {
-        return std::string(m_indent * 2, ' ');
-    }
 
     void print_type_qualifiers(uint8_t q) {
         if (q & CONST_TYPE_QUALIFIER) m_out << "const ";
@@ -278,7 +278,7 @@ public:
         m_out << "{\n";
         m_indent++;
         for (const auto& stmt : node.statements()) {
-            m_out << indent_str();
+            print_indent(m_out, m_indent);
             print(*stmt);
             // Add semicolon for statements that need it
             if (!dynamic_cast<const for_loop*>(stmt.get()) &&
@@ -292,7 +292,8 @@ public:
             m_out << "\n";
         }
         m_indent--;
-        m_out << indent_str() << "}";
+        print_indent(m_out, m_indent);
+        m_out << '}';
     }
 
     void visit(const for_loop& node) override {
@@ -594,12 +595,13 @@ public:
         m_out << " {\n";
         m_indent++;
         for (const auto& field : node.fields()) {
-            m_out << indent_str();
+            print_indent(m_out, m_indent);
             print(field);
             m_out << ";\n";
         }
         m_indent--;
-        m_out << indent_str() << "}";
+        print_indent(m_out, m_indent);
+        m_out << '}';
     }
 
     void visit(const enum_declaration& node) override {
@@ -923,10 +925,6 @@ protected:
 
     void dispatch(const logic::compound_expression& node) override;
 };
-
-void print_indent(std::ostream& out, int indent) { 
-    for (size_t i = 0; i < indent; i++) { out << '\t'; }
-}
 
 class logical_statement_printer : public logic::const_statement_dispatcher<void> {
 private:
