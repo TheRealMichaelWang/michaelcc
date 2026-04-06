@@ -968,16 +968,16 @@ protected:
     
     void dispatch(const logic::if_statement& node) override {
         print_indent(m_out, m_indent);
-        m_out << "if (";
+        m_out << "if ";
         m_expression_printer(*node.condition());
-        m_out << ") {\n";
+        m_out << " {\n";
         m_indent++;
         for (const auto& statement : node.then_body()->statements()) {
             (*this)(*statement);
         }
         m_indent--;
         print_indent(m_out, m_indent);
-        m_out << "}\n";
+        m_out << '}';
 
         if (node.else_body()) {
             m_out << " else {\n";
@@ -987,8 +987,9 @@ protected:
             }
             m_indent--;
             print_indent(m_out, m_indent);
-            m_out << "}\n";
+            m_out << '}';
         }
+        m_out << '\n';
     }
 
     void dispatch(const logic::break_statement& node) override {
@@ -1004,9 +1005,9 @@ protected:
         print_indent(m_out, m_indent);
 
         if (node.check_condition_first()) {
-            m_out << "while (";
+            m_out << "while ";
             m_expression_printer(*node.condition());
-            m_out << ") {\n";
+            m_out << " {\n";
         }
         else {
             m_out << "do {\n";
@@ -1020,9 +1021,9 @@ protected:
         m_out << "}";
 
         if (!node.check_condition_first()) {
-            m_out << " while (";
+            m_out << " while ";
             m_expression_printer(*node.condition());
-            m_out << ");";
+            m_out << ";";
         }
 
         m_out << '\n';
