@@ -6,6 +6,7 @@
 #include "linear/ir.hpp"
 #include <cctype>
 #include <iomanip>
+#include <memory>
 #include <unordered_set>
 #include <queue>
 
@@ -169,6 +170,29 @@ const std::string michaelcc::token_to_str(const token tok)
     }
 }
 
+static void escape_char(std::ostream& out, char c) {
+    switch (c) {
+    case '\\': out << "\\\\"; break;
+    case '"':  out << "\\\""; break;
+    case '\n': out << "\\n";  break;
+    case '\r': out << "\\r";  break;
+    case '\t': out << "\\t";  break;
+    case '\a': out << "\\a";  break;
+    case '\b': out << "\\b";  break;
+    case '\f': out << "\\f";  break;
+    case '\v': out << "\\v";  break;
+    default:
+        if (std::isprint(static_cast<unsigned char>(c))) {
+            out << c;
+        }
+        else {
+            out << "\\x" << std::hex << std::setw(2) << std::setfill('0')
+                << static_cast<int>(static_cast<unsigned char>(c));
+        }
+        break;
+    }
+}
+
 class ast_print_visitor : public visitor {
 private:
     std::stringstream& m_out;
@@ -184,29 +208,6 @@ private:
         if (q & CONST_TYPE_QUALIFIER) m_out << "const ";
         if (q & VOLATILE_TYPE_QUALIFIER) m_out << "volatile ";
         if (q & RESTRICT_TYPE_QUALIFIER) m_out << "restrict ";
-    }
-
-    void escape_char(char c) {
-        switch (c) {
-        case '\\': m_out << "\\\\"; break;
-        case '"':  m_out << "\\\""; break;
-        case '\n': m_out << "\\n";  break;
-        case '\r': m_out << "\\r";  break;
-        case '\t': m_out << "\\t";  break;
-        case '\a': m_out << "\\a";  break;
-        case '\b': m_out << "\\b";  break;
-        case '\f': m_out << "\\f";  break;
-        case '\v': m_out << "\\v";  break;
-        default:
-            if (std::isprint(static_cast<unsigned char>(c))) {
-                m_out << c;
-            }
-            else {
-                m_out << "\\x" << std::hex << std::setw(2) << std::setfill('0')
-                    << static_cast<int>(static_cast<unsigned char>(c));
-            }
-            break;
-        }
     }
 
     // Prints a type with a declarator name (handles complex C declarator syntax)
@@ -399,7 +400,7 @@ public:
         m_print_requested = false;
         m_out << "\"";
         for (char c : node.value()) {
-            escape_char(c);
+            escape_char(m_out, c);
         }
         m_out << "\"";
     }
@@ -737,324 +738,327 @@ namespace ast {
 }
 }
 
-// Simple tree printer for logical IR using stack-based indent tracking
-class logical_print_visitor : public logic::const_visitor {
+class logical_expression_printer : public logic::const_expression_dispatcher<void> {
 private:
     std::ostream& m_out;
-    int m_indent = 0;
-    std::vector<int> m_child_stack;
-
-    void print_indent() { 
-        for (int i = 0; i < m_indent; i++) { m_out << "\t"; }
-    }
-
-    // Call before printing: decrement parent's expected child count
-    void before_print() {
-        if (!m_child_stack.empty()) {
-            m_child_stack.back()--;
-        }
-    }
-
-    // Call after printing: pop completed parents, then push our child count
-    void after_print(int child_count) {
-        // Pop any parents whose children are all visited
-        while (!m_child_stack.empty() && m_child_stack.back() == 0) {
-            m_child_stack.pop_back();
-            m_indent--;
-        }
-        // Push our child count and indent if we have children
-        if (child_count > 0) {
-            m_child_stack.push_back(child_count);
-            m_indent++;
-        }
-    }
+    const logic::translation_unit& m_unit;
+    int m_indent;
 
 public:
-    logical_print_visitor(std::ostream& out) : m_out(out) {}
+    logical_expression_printer(std::ostream& out, const logic::translation_unit& unit, int indent = 0) 
+    : m_out(out), m_unit(unit), m_indent(indent) {}
 
-    // translation_unit: children = number of global symbols (vars + funcs)
-    void visit(const logic::translation_unit& node) override {
-        before_print();
-        print_indent();
-        m_out << "translation_unit\n";
-        // Count how many symbols will be visited (see translation_unit::accept)
-        int child_count = 0;
-        for (const auto& sym : node.global_symbols()) {
-            if (dynamic_cast<logic::variable*>(sym.get()) ||
-                dynamic_cast<logic::function_definition*>(sym.get())) {
-                child_count++;
+protected:
+    void dispatch(const logic::integer_constant& node) override {
+        m_out << node.value();
+    }
+
+    void dispatch(const logic::floating_constant& node) override {
+        m_out << node.value();
+    }
+    
+    void dispatch(const logic::string_constant& node) override {
+        m_out << "\"";
+        for (char c : m_unit.strings().at(node.index())) {
+            escape_char(m_out, c);
+        }
+        m_out << "\"";
+    }
+
+    void dispatch(const logic::enumerator_literal& node) override {
+        m_out << node.enumerator().name;
+    }
+
+    void dispatch(const logic::variable_reference& node) override {
+        m_out << node.get_variable()->name();
+    }
+
+    void dispatch(const logic::function_reference& node) override {
+        m_out << node.get_function()->name();
+    }
+
+    void dispatch(const logic::increment_operator& node) override {
+        std::visit(overloaded{
+            [this](const std::unique_ptr<logic::expression>& expr) { m_out << "*("; (*this)(*expr); m_out << ")"; },
+            [this](const std::shared_ptr<logic::variable>& var) { m_out << var->name(); }
+        }, node.destination());
+
+        m_out << ' ' << token_to_str(node.get_operator()) << ' ';
+
+        if (node.increment_amount().has_value()) {
+            m_out << ' ';
+            (*this)(*node.increment_amount().value());
+        }
+    }
+
+    void dispatch(const logic::arithmetic_operator& node) override {
+        m_out << '(';
+        (*this)(*node.left());
+        m_out << ' ' << token_to_str(node.get_operator()) << ' ';
+        (*this)(*node.right());
+        m_out << ')';
+    }
+
+    void dispatch(const logic::unary_operation& node) override {
+        m_out << '(' << token_to_str(node.get_operator());
+        (*this)(*node.operand());
+        m_out << ')';
+    }
+
+    void dispatch(const logic::type_cast& node) override {
+        m_out << '(';
+        m_out << "(";
+        m_out << node.get_type().to_string();
+        m_out << ") ";
+        (*this)(*node.operand());
+        m_out << ')';
+    }
+    
+    void dispatch(const logic::address_of& node) override {
+        m_out << "&";
+        std::visit(overloaded{
+            [this](const std::unique_ptr<logic::array_index>& index) { (*this)(*index); },
+            [this](const std::unique_ptr<logic::member_access>& access) { (*this)(*access); },
+            [this](const std::shared_ptr<logic::variable>& var) { m_out << var->name(); }
+        }, node.operand());
+    }
+
+    void dispatch(const logic::dereference& node) override {
+        m_out << '*';
+        (*this)(*node.operand());
+    }
+
+    void dispatch(const logic::array_index& node) override {
+        (*this)(*node.base());
+        m_out << '[';
+        (*this)(*node.index());
+        m_out << ']';
+    }
+
+    void dispatch(const logic::member_access& node) override {
+        (*this)(*node.base());
+        m_out << (node.is_dereference() ? "->" : ".");
+        m_out << node.member().name;
+    }
+    
+    void dispatch(const logic::array_initializer& node) override {
+        m_out << "{";
+        for (size_t i = 0; i < node.initializers().size(); ++i) {
+            if (i > 0) m_out << ", ";
+            (*this)(*node.initializers()[i]);
+        }
+        m_out << "}";
+    }
+
+    void dispatch(const logic::allocate_array& node) override {
+        m_out << "new " << node.get_type().to_string();
+
+        for (const auto& dimension : node.dimensions()) {
+            m_out << '[';
+            (*this)(*dimension);
+            m_out << ']';
+        }
+
+        if (node.fill_value()) {
+            m_out << '(';
+            (*this)(*node.fill_value());
+            m_out << ')';
+        }
+    }
+
+    void dispatch(const logic::struct_initializer& node) override {
+        m_out << node.get_type().to_string();
+        m_out << " {";
+        for (const auto& initializer : node.initializers()) {
+            m_out << initializer.member_name << " = ";
+            (*this)(*initializer.initializer);
+            m_out << ", ";
+        }
+        m_out << "}";
+    }
+
+    void dispatch(const logic::union_initializer& node) override {
+        m_out << node.get_type().to_string();
+        m_out << " {" << node.target_member().name << " = ";
+        (*this)(*node.initializer());
+        m_out << "}";
+    }
+
+    void dispatch(const logic::function_call& node) override {
+        std::visit(overloaded{
+            [this](const std::shared_ptr<logic::function_definition>& function) { m_out << function->name(); },
+            [this](const std::unique_ptr<logic::expression>& expression) { (*this)(*expression); }
+        }, node.callee());
+        m_out << "(";
+        bool first = true;
+        for (const auto& argument : node.arguments()) {
+            if (!first) m_out << ", ";
+            (*this)(*argument);
+            first = false;
+        }
+        m_out << ")";
+    }
+
+    void dispatch(const logic::conditional_expression& node) override {
+        m_out << "(";
+        (*this)(*node.condition());
+        m_out << " ? ";
+        (*this)(*node.then_expression());
+        m_out << " : ";
+        (*this)(*node.else_expression());
+        m_out << ')';
+    }
+
+    void dispatch(const logic::set_address& node) override {
+        m_out << "*(";
+        (*this)(*node.destination());
+        m_out << ") = ";
+        (*this)(*node.value());
+    }
+
+    void dispatch(const logic::set_variable& node) override {
+        m_out << node.variable()->name() << " = ";
+        (*this)(*node.value());
+    }
+
+    void dispatch(const logic::compound_expression& node) override;
+};
+
+void print_indent(std::ostream& out, int indent) { 
+    for (size_t i = 0; i < indent; i++) { out << '\t'; }
+}
+
+class logical_statement_printer : public logic::const_statement_dispatcher<void> {
+private:
+    std::ostream& m_out;
+    const logic::translation_unit& m_unit;
+    logical_expression_printer m_expression_printer;
+    int m_indent;
+
+public:
+    logical_statement_printer(std::ostream& out, const logic::translation_unit& unit, int indent = 0) 
+    : m_out(out), m_unit(unit), m_expression_printer(out, unit), m_indent(indent) {}
+
+    void begin_indent() { m_indent++; }
+    void end_indent() { m_indent--; }
+
+protected:
+    void dispatch(const logic::expression_statement& node) override {
+        print_indent(m_out, m_indent);
+        m_expression_printer(*node.expression());
+        m_out << ";\n";
+    }
+
+    void dispatch(const logic::variable_declaration& node) override {
+        print_indent(m_out, m_indent);
+        m_out << node.variable()->get_type().to_string() << " " << node.variable()->name();
+        m_out << " = ";
+        m_expression_printer(*node.initializer());
+        m_out << ";\n";
+    }
+
+    void dispatch(const logic::return_statement& node) override {
+        print_indent(m_out, m_indent);
+        m_out << "return ";
+        if (node.value()) {
+            m_expression_printer(*node.value());
+        }
+        m_out << ";\n";
+    }
+    
+    void dispatch(const logic::if_statement& node) override {
+        print_indent(m_out, m_indent);
+        m_out << "if (";
+        m_expression_printer(*node.condition());
+        m_out << ") {\n";
+        m_indent++;
+        for (const auto& statement : node.then_body()->statements()) {
+            (*this)(*statement);
+        }
+        m_indent--;
+        print_indent(m_out, m_indent);
+        m_out << "}\n";
+
+        if (node.else_body()) {
+            m_out << " else {\n";
+            m_indent++;
+            for (const auto& statement : node.else_body()->statements()) {
+                (*this)(*statement);
             }
+            m_indent--;
+            print_indent(m_out, m_indent);
+            m_out << "}\n";
         }
-        after_print(child_count);
     }
 
-    // variable: 0 children
-    void visit(const logic::variable& node) override {
-        before_print();
-        print_indent();
-        m_out << "variable: " << node.name() << (node.is_global() ? " (global)" : " (local)") << "\n";
-        after_print(0);
-    }
-
-    // function_definition: params.size() + 1 (for control_block base)
-    void visit(const logic::function_definition& node) override {
-        before_print();
-        print_indent();
-        m_out << "function_definition: " << node.name() << "\n";
-        int child_count = static_cast<int>(node.parameters().size()) + 1;
-        after_print(child_count);
-    }
-
-    // control_block: statements.size()
-    void visit(const logic::control_block& node) override {
-        before_print();
-        print_indent();
-        m_out << "control_block\n";
-        after_print(static_cast<int>(node.statements().size()));
-    }
-
-    // statement_block: 1 child (control_block)
-    void visit(const logic::statement_block& node) override {
-        before_print();
-        print_indent();
-        m_out << "statement_block\n";
-        after_print(1);
-    }
-
-    // integer_constant: 0 children
-    void visit(const logic::integer_constant& node) override {
-        before_print();
-        print_indent();
-        m_out << "integer_constant: " << node.value() << "\n";
-        after_print(0);
-    }
-
-    // floating_constant: 0 children
-    void visit(const logic::floating_constant& node) override {
-        before_print();
-        print_indent();
-        m_out << "floating_constant: " << node.value() << "\n";
-        after_print(0);
-    }
-
-    // string_constant: 0 children
-    void visit(const logic::string_constant& node) override {
-        before_print();
-        print_indent();
-        m_out << "string_constant: [index " << node.index() << "]\n";
-        after_print(0);
-    }
-
-    // variable_reference: 0 children (doesn't visit the variable)
-    void visit(const logic::variable_reference& node) override {
-        before_print();
-        print_indent();
-        m_out << "variable_reference: " << node.get_variable()->name() << "\n";
-        after_print(0);
-    }
-
-    // function_reference: 0 children
-    void visit(const logic::function_reference& node) override {
-        before_print();
-        print_indent();
-        m_out << "function_reference: " << node.get_function()->name() << "\n";
-        after_print(0);
-    }
-
-    // var_increment_operator: 0 children (doesn't visit destination/amount)
-    void visit(const logic::increment_operator& node) override {
-        before_print();
-        print_indent();
-        m_out << "increment_operator\n";
-        after_print(0);
-    }
-
-    // arithmetic_operator: 2 children (left, right)
-    void visit(const logic::arithmetic_operator& node) override {
-        before_print();
-        print_indent();
-        m_out << "arithmetic_operator: " << token_to_str(node.get_operator()) << "\n";
-        after_print(2);
-    }
-
-    // unary_operation: 1 child (operand)
-    void visit(const logic::unary_operation& node) override {
-        before_print();
-        print_indent();
-        m_out << "unary_operation: " << token_to_str(node.get_operator()) << "\n";
-        after_print(1);
-    }
-
-    // type_cast: 1 child (operand)
-    void visit(const logic::type_cast& node) override {
-        before_print();
-        print_indent();
-        m_out << "type_cast\n";
-        after_print(1);
-    }
-
-    // address_of: 1 child (operand)
-    void visit(const logic::address_of& node) override {
-        before_print();
-        print_indent();
-        m_out << "address_of\n";
-        after_print(1);
-    }
-
-    // dereference: 1 child (operand)
-    void visit(const logic::dereference& node) override {
-        before_print();
-        print_indent();
-        m_out << "dereference\n";
-        after_print(1);
-    }
-
-    // member_access: 1 child (base)
-    void visit(const logic::member_access& node) override {
-        before_print();
-        print_indent();
-        m_out << "member_access: [field " << node.member().name << "]\n";
-        after_print(1);
-    }
-
-    // array_index: 2 children (base, index)
-    void visit(const logic::array_index& node) override {
-        before_print();
-        print_indent();
-        m_out << "array_index\n";
-        after_print(2);
-    }
-
-    // array_initializer: initializers.size() children
-    void visit(const logic::array_initializer& node) override {
-        before_print();
-        print_indent();
-        m_out << "array_initializer\n";
-        after_print(static_cast<int>(node.initializers().size()));
-    }
-
-    // allocate_array: dimensions.size() children
-    void visit(const logic::allocate_array& node) override {
-        before_print();
-        print_indent();
-        m_out << "allocate_array\n";
-        after_print(static_cast<int>(node.dimensions().size()));
-    }
-
-    // struct_initializer: initializers.size() children
-    void visit(const logic::struct_initializer& node) override {
-        before_print();
-        print_indent();
-        m_out << "struct_initializer\n";
-        after_print(static_cast<int>(node.initializers().size()));
-    }
-
-    // union_initializer: 1 child (initializer)
-    void visit(const logic::union_initializer& node) override {
-        before_print();
-        print_indent();
-        m_out << "union_initializer\n";
-        after_print(1);
-    }
-
-    // function_call: 1 + arguments.size() (callee + args)
-    void visit(const logic::function_call& node) override {
-        before_print();
-        print_indent();
-        m_out << "function_call\n";
-        after_print(1 + static_cast<int>(node.arguments().size()));
-    }
-
-    // conditional_expression: 3 children (condition, then, else)
-    void visit(const logic::conditional_expression& node) override {
-        before_print();
-        print_indent();
-        m_out << "conditional_expression\n";
-        after_print(3);
-    }
-
-    // set_address: 2 children (destination, value)
-    void visit(const logic::set_address& node) override {
-        before_print();
-        print_indent();
-        m_out << "set_address\n";
-        after_print(2);
-    }
-
-    // set_variable: 2 children (variable, value)
-    void visit(const logic::set_variable& node) override {
-        before_print();
-        print_indent();
-        m_out << "set_variable\n";
-        after_print(2);
-    }
-
-    void visit(const logic::compound_expression& node) override {
-        before_print();
-        print_indent();
-        m_out << "compound_expression\n";
-        after_print(1);
-    }
-
-    // expression_statement: 1 child (expression)
-    void visit(const logic::expression_statement& node) override {
-        before_print();
-        print_indent();
-        m_out << "expression_statement\n";
-        after_print(1);
-    }
-
-    // local_declaration: 1 + (initializer ? 1 : 0)
-    void visit(const logic::variable_declaration& node) override {
-        before_print();
-        print_indent();
-        m_out << "local_declaration\n";
-        after_print(1 + (node.initializer() ? 1 : 0));
-    }
-
-    // return_statement: (value ? 1 : 0)
-    void visit(const logic::return_statement& node) override {
-        before_print();
-        print_indent();
-        if (node.is_compound_return()) {
-            m_out << "compound_";
+    void dispatch(const logic::break_statement& node) override {
+        print_indent(m_out, m_indent);
+        m_out << "break";
+        if (node.loop_depth() > 1) {
+            m_out << " " << node.loop_depth();
         }
-        m_out << "return_statement\n";
-        after_print(node.value() ? 1 : 0);
+        m_out << ";\n";
+    }
+    
+    void dispatch(const logic::loop_statement& node) override {
+        print_indent(m_out, m_indent);
+
+        if (node.check_condition_first()) {
+            m_out << "while (";
+            m_expression_printer(*node.condition());
+            m_out << ") {\n";
+        }
+        else {
+            m_out << "do {\n";
+        }
+        m_indent++;
+        for (const auto& statement : node.body()->statements()) {
+            (*this)(*statement);
+        }
+        m_indent--;
+        print_indent(m_out, m_indent);
+        m_out << "}";
+
+        if (!node.check_condition_first()) {
+            m_out << " while (";
+            m_expression_printer(*node.condition());
+            m_out << ");";
+        }
+
+        m_out << '\n';
     }
 
-    // if_statement: 2 + (else_body ? 1 : 0)
-    void visit(const logic::if_statement& node) override {
-        before_print();
-        print_indent();
-        m_out << "if_statement\n";
-        after_print(2 + (node.else_body() ? 1 : 0));
+    void dispatch(const logic::continue_statement& node) override {
+        print_indent(m_out, m_indent);
+        m_out << "continue";
+        if (node.loop_depth() > 1) {
+            m_out << " " << node.loop_depth();
+        }
+        m_out << ";\n";
     }
 
-    // loop_statement: 2 children (condition, body)
-    void visit(const logic::loop_statement& node) override {
-        before_print();
-        print_indent();
-        m_out << "loop_statement" << (node.check_condition_first() ? " (while)" : " (do-while)") << "\n";
-        after_print(2);
-    }
-
-    // break_statement: 0 children
-    void visit(const logic::break_statement& node) override {
-        before_print();
-        print_indent();
-        m_out << "break_statement\n";
-        after_print(0);
-    }
-
-    // continue_statement: 0 children
-    void visit(const logic::continue_statement& node) override {
-        before_print();
-        print_indent();
-        m_out << "continue_statement\n";
-        after_print(0);
+    void dispatch(const logic::statement_block& node) override {
+        print_indent(m_out, m_indent);
+        m_out << "{\n";
+        m_indent++;
+        for (const auto& statement : node.control_block()->statements()) {
+            (*this)(*statement);
+        }
+        m_indent--;
+        print_indent(m_out, m_indent);
+        m_out << "}\n";
     }
 };
+
+void logical_expression_printer::dispatch(const logic::compound_expression& node) {
+    m_out << "({";
+    logical_statement_printer statement_printer(m_out, m_unit, m_indent + 1);
+    for (const auto& statement : node.control_block()->statements()) {
+        statement_printer(*statement);
+    }
+    print_indent(m_out, m_indent);
+    m_out << "})";
+}
 
 class linear_print_visitor : linear::const_visitor {
 private:
@@ -1097,16 +1101,12 @@ private:
         }
     }
 
-    void print_indent() { 
-        for (size_t i = 0; i < m_indent; i++) { m_out << "\t"; }
-    }
-
 public:
     linear_print_visitor(std::ostream& out, const linear::register_allocator& register_allocator, const platform_info& platform_info, int indent = 0) 
     : m_out(out), m_register_allocator(register_allocator), m_platform_info(platform_info), m_indent(indent) {}
 
     std::vector<size_t> print_basic_block(const linear::basic_block& node, std::optional<std::string> label = std::nullopt) {
-        print_indent();
+        print_indent(m_out, m_indent);
         if (label.has_value()) {
             m_out << label.value() << ":\n";
         }
@@ -1124,7 +1124,7 @@ public:
 
 protected:
     void dispatch(const linear::a_instruction& node) override {
-        print_indent();
+        print_indent(m_out, m_indent);
         print_virtual_register(node.destination(), true, true);
         m_out << " = ";
         print_virtual_register(node.operand_a());
@@ -1134,7 +1134,7 @@ protected:
     }
 
     void dispatch(const linear::a2_instruction& node) override {
-        print_indent();
+        print_indent(m_out, m_indent);
         print_virtual_register(node.destination(), true, true);
         m_out << " = ";
         print_virtual_register(node.operand_a());
@@ -1143,7 +1143,7 @@ protected:
     }
 
     void dispatch(const linear::u_instruction& node) override {
-        print_indent();
+        print_indent(m_out, m_indent);
         print_virtual_register(node.destination(), true, true);
         m_out << " = " << u_instruction_type_to_str(node.type());
         print_virtual_register(node.operand());
@@ -1151,7 +1151,7 @@ protected:
     }
 
     void dispatch(const linear::copy_instruction& node) override {
-        print_indent();
+        print_indent(m_out, m_indent);
         print_virtual_register(node.destination(), true, true);
         m_out << " = ";
         print_virtual_register(node.source());
@@ -1159,7 +1159,7 @@ protected:
     }
 
     void dispatch(const linear::init_register& node) override {
-        print_indent();
+        print_indent(m_out, m_indent);
         print_virtual_register(node.destination(), true, true);
         m_out << " = ";
         print_register_word(node.value(), node.destination().reg_size);
@@ -1167,7 +1167,7 @@ protected:
     }
 
     void dispatch(const linear::load_memory& node) override {
-        print_indent();
+        print_indent(m_out, m_indent);
         print_virtual_register(node.destination(), true, true);
         m_out << " = *(";
         print_virtual_register(node.source_address());
@@ -1175,7 +1175,7 @@ protected:
     }
 
     void dispatch(const linear::store_memory& node) override {
-        print_indent();
+        print_indent(m_out, m_indent);
         print_virtual_register(node.source_address(), true, true);
         m_out << " = *(";
         print_virtual_register(node.value());
@@ -1183,13 +1183,13 @@ protected:
     }
 
     void dispatch(const linear::alloca_instruction& node) override {
-        print_indent();
+        print_indent(m_out, m_indent);
         print_virtual_register(node.destination(), true, true);
         m_out << " = alloca(size=" << node.size_bytes() << " bytes, alignment=" << node.alignment() << " bytes)\n";
     }
 
     void dispatch(const linear::valloca_instruction& node) override {
-        print_indent();
+        print_indent(m_out, m_indent);
         print_virtual_register(node.destination(), true, true);
         m_out << " = valloca(size=";
         print_virtual_register(node.size());
@@ -1197,13 +1197,13 @@ protected:
     }
 
     void dispatch(const linear::branch& node) override {
-        print_indent();
+        print_indent(m_out, m_indent);
         m_out << "branch(block" << node.next_block_id() << ")\n";
         subsequent_block_ids.push_back(node.next_block_id());
     }
 
     void dispatch(const linear::branch_condition& node) override {
-        print_indent();
+        print_indent(m_out, m_indent);
         m_out << "branch_condition(condition=";
         print_virtual_register(node.condition(), true, true);
         m_out << ", true_block=" << node.if_true_block_id() << ", false_block=" << node.if_false_block_id() << ", is_loop=" << node.is_loop() << ")\n";
@@ -1212,7 +1212,7 @@ protected:
     }
 
     void dispatch(const linear::function_call& node) override {
-        print_indent();
+        print_indent(m_out, m_indent);
         print_virtual_register(node.destination(), true, true);
         m_out << " = function_call(callee=";
         std::visit(overloaded{
@@ -1232,12 +1232,12 @@ protected:
     }
 
     void dispatch(const linear::function_return& node) override {
-        print_indent();
+        print_indent(m_out, m_indent);
         m_out << "return\n";
     }
 
     void dispatch(const linear::load_parameter& node) override {
-        print_indent();
+        print_indent(m_out, m_indent);
         print_virtual_register(node.destination(), true, true);
         m_out << " = load_parameter";
         if (node.is_address()) {
@@ -1247,7 +1247,7 @@ protected:
     }
 
     void dispatch(const linear::phi_instruction& node) override {
-        print_indent();
+        print_indent(m_out, m_indent);
         print_virtual_register(node.destination(), true, true);
         m_out << " = phi(";
         bool first = true;
@@ -1265,7 +1265,7 @@ protected:
     }
 
     void dispatch(const linear::load_effective_address& node) override {
-        print_indent();
+        print_indent(m_out, m_indent);
         print_virtual_register(node.destination(), true, true);
         m_out << " = load_effective_address(label=" << node.label() << ")\n";
     }
@@ -1275,8 +1275,40 @@ namespace michaelcc {
 namespace logic {
     std::string to_tree_string(const translation_unit& unit) {
         std::stringstream ss;
-        logical_print_visitor visitor(ss);
-        unit.accept(visitor);
+
+        logical_statement_printer statement_printer(ss, unit, 0);
+        for (const auto& static_variable : unit.static_variable_declarations()) {
+            statement_printer(static_variable);
+        }
+
+        for (const auto& sym : unit.global_context()->symbols()) {
+            auto* func = dynamic_cast<logic::function_definition*>(sym.get());
+            if (!func) { continue; }
+
+            if (func->should_inline()) {
+                ss << "inline ";
+            }
+            if (func->should_tail_call_optimize()) {
+                ss << "tail_call_optimize ";
+            }
+            ss << func->return_type().to_string() << " " << func->name() << "(";
+            bool first = true;
+            for (const auto& param : func->parameters()) {
+                if (!first) {
+                    ss << ", ";
+                }
+                ss << param->get_type().to_string() << " " << param->name();
+            }
+            ss << ") {\n";
+
+            statement_printer.begin_indent();
+            for (const auto& statement : func->statements()) {
+                statement_printer(*statement);
+            }
+            statement_printer.end_indent();
+            ss << "}\n";
+        }
+
         return ss.str();
     }
 }
