@@ -1412,6 +1412,32 @@ void logic_lowerer::lower_static_variable_declaration(const logic::variable_decl
     }
 }
 
+size_t logic_lowerer::seal_block() {
+    if (!m_current_block) throw std::runtime_error("Cannot seal a block that does not exist");
+    auto& cb = *m_current_block;
+    
+    std::vector<size_t> successor_block_ids;
+    std::vector<size_t> predecessor_block_ids;
+
+    if (auto branch = dynamic_cast<const linear::branch*>(cb.instructions.back().get())) {
+        successor_block_ids.push_back(branch->next_block_id());
+    }
+    else if (auto branch_condition = dynamic_cast<const linear::branch_condition*>(cb.instructions.back().get())) {
+        successor_block_ids.push_back(branch_condition->if_true_block_id());
+        successor_block_ids.push_back(branch_condition->if_false_block_id());
+    }
+    
+    m_translation_unit.blocks.emplace(cb.id, linear::basic_block(
+        cb.id, 
+        std::move(cb.instructions),
+        std::move(successor_block_ids)
+    ));
+    m_finished_block_var_ctx.emplace(cb.id, std::move(cb.var_info));
+    size_t return_id = cb.id;
+    m_current_block.reset();
+    return return_id;
+}
+
 void logic_lowerer::lower(const logic::translation_unit& translation_unit) {
     for (const auto& declaration : translation_unit.static_variable_declarations()) {
         lower_static_variable_declaration(declaration);
@@ -1420,6 +1446,13 @@ void logic_lowerer::lower(const logic::translation_unit& translation_unit) {
         auto* func = dynamic_cast<logic::function_definition*>(sym.get());
         if (func) {
             lower_function(*func);
+        }
+    }
+
+    // compute predecessor based on all basic block predecessors
+    for (const auto& [block_id, block] : m_translation_unit.blocks) {
+        for (const auto& successor_block_id : block.successor_block_ids()) {
+            m_translation_unit.blocks.at(successor_block_id).add_predecessor_block_id(block_id);
         }
     }
 }

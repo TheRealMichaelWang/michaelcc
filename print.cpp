@@ -1107,11 +1107,30 @@ public:
     std::vector<size_t> print_basic_block(const linear::basic_block& node, std::optional<std::string> label = std::nullopt) {
         print_indent(m_out, m_indent);
         if (label.has_value()) {
-            m_out << label.value() << ":\n";
+            m_out << label.value() << "(id=" << node.id();
         }
         else {
-            m_out << "basic_block(id=" << node.id() << "):\n";
+            m_out << "basic_block(id=" << node.id();
         }
+        m_out << ", pred=[";
+        bool first = true;
+        for (const auto& predecessor_block_id : node.predecessor_block_ids()) {
+            if (!first) {
+                m_out << ", ";
+            }
+            m_out << predecessor_block_id;
+            first = false;
+        }
+        m_out << "], succ=[";
+        first = true;
+        for (const auto& successor_block_id : node.successor_block_ids()) {
+            if (!first) {
+                m_out << ", ";
+            }
+            m_out << successor_block_id;
+            first = false;
+        }
+        m_out << "]):\n";
         m_indent++;
         for (const auto& instruction : node.instructions()) {
             (*this)(*instruction);

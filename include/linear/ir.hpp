@@ -253,15 +253,24 @@ namespace michaelcc {
         class basic_block {
         private:
             std::vector<std::unique_ptr<instruction>> m_instructions;
+            std::vector<size_t> m_successor_block_ids;
+            std::vector<size_t> m_predecessor_block_ids;
+
             size_t m_id;
 
         public:
-            basic_block(size_t id, std::vector<std::unique_ptr<instruction>>&& instructions) 
-                : m_id(id), m_instructions(std::move(instructions)) {}
+            basic_block(size_t id, std::vector<std::unique_ptr<instruction>>&& instructions, std::vector<size_t>&& successor_block_ids) 
+                : m_id(id), m_instructions(std::move(instructions)), m_successor_block_ids(std::move(successor_block_ids)) {}
 
             size_t id() const noexcept { return m_id; }
 
             const std::vector<std::unique_ptr<instruction>>& instructions() const noexcept { return m_instructions; }   
+            const std::vector<size_t>& successor_block_ids() const noexcept { return m_successor_block_ids; }
+            const std::vector<size_t>& predecessor_block_ids() const noexcept { return m_predecessor_block_ids; }
+
+            void add_predecessor_block_id(size_t block_id) {
+                m_predecessor_block_ids.push_back(block_id);
+            }
         };
 
         class branch : public instruction {

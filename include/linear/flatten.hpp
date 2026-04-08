@@ -178,18 +178,7 @@ namespace michaelcc {
             m_loop_stack.pop_back();
         }
 
-        size_t seal_block() {
-            if (!m_current_block) throw std::runtime_error("Cannot seal a block that does not exist");
-            auto& cb = *m_current_block;
-            m_translation_unit.blocks.emplace(cb.id, linear::basic_block(
-                cb.id, 
-                std::move(cb.instructions)
-            ));
-            m_finished_block_var_ctx.emplace(cb.id, std::move(cb.var_info));
-            size_t return_id = cb.id;
-            m_current_block.reset();
-            return return_id;
-        }
+        size_t seal_block();
 
         void emit_iloop(linear::virtual_register count, std::function<void(linear::virtual_register)> body);
 
