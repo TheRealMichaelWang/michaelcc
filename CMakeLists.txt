@@ -23,7 +23,7 @@ add_executable(michaelcc
     linker.cpp
     flattener.cpp
     type_info.cpp
-    registers.cpp
+    linear/registers.cpp
     linear/static.cpp
     logic/optimization.cpp
     logic/constant_folding.cpp
