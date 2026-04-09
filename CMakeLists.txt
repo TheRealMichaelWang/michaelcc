@@ -26,6 +26,7 @@ add_executable(michaelcc
     linear/registers.cpp
     linear/static.cpp
     linear/dominators.cpp
+    linear/optimization.cpp
     logic/optimization.cpp
     logic/constant_folding.cpp
     logic/dead_code.cpp

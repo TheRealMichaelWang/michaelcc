@@ -347,17 +347,14 @@ int main(int argc, char* argv[])
 		lowerer.lower(ast);
 		auto logic_translation_unit = lowerer.release_translation_unit();
 
-		auto passes = std::vector<std::unique_ptr<michaelcc::optimization::pass>>();
-		passes.emplace_back(michaelcc::optimization::make_constant_folding_pass(x64_platform_info));
-		passes.emplace_back(std::make_unique<michaelcc::optimization::ir_simplify_pass>(x64_platform_info));
-		//passes.emplace_back(std::make_unique<michaelcc::optimization::dead_code_pass>());
-		//passes.emplace_back(std::make_unique<michaelcc::optimization::inline_functions_pass>());
-		//passes.emplace_back(std::make_unique<michaelcc::optimization::pointer_propagation_pass>());
-		//passes.emplace_back(std::make_unique<michaelcc::optimization::const_propagation_pass>(x64_platform_info));
-		int passes_run = michaelcc::optimization::transform(logic_translation_unit, passes);
-
-		cout << michaelcc::logic::to_tree_string(logic_translation_unit) << endl;
-		cout << "Passes run: " << passes_run << endl;
+		auto passes = std::vector<std::unique_ptr<michaelcc::logic::optimization::pass>>();
+		passes.emplace_back(michaelcc::logic::optimization::make_constant_folding_pass(x64_platform_info));
+		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::ir_simplify_pass>(x64_platform_info));
+		//passes.emplace_back(std::make_unique<michaelcc::logic::optimization::dead_code_pass>());
+		//passes.emplace_back(std::make_unique<michaelcc::logic::optimization::inline_functions_pass>());
+		//passes.emplace_back(std::make_unique<michaelcc::logic::optimization::pointer_propagation_pass>());
+		//passes.emplace_back(std::make_unique<michaelcc::logic::optimization::const_propagation_pass>(x64_platform_info));
+		michaelcc::logic::optimization::transform(logic_translation_unit, passes);
 
 
 		michaelcc::logic_lowerer linear_lowerer(x64_platform_info);

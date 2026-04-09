@@ -283,6 +283,10 @@ namespace michaelcc {
                 m_immediate_dominator_block_id = std::move(immediate_dominator_block_id);
                 m_immediately_dominated_block_ids = std::move(ids);
             }
+
+            void replace_instructions(std::vector<std::unique_ptr<instruction>>&& instructions) {
+                m_instructions = std::move(instructions);
+            }
         };
 
         class branch : public instruction {
