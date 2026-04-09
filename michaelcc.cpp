@@ -11,6 +11,8 @@
 #include "logic/optimization/pointer_propagation.hpp"
 #include "logic/optimization/const_propagation.hpp"	
 #include "linear/flatten.hpp"
+#include "linear/optimization.hpp"
+#include "linear/optimization/dead_code.hpp"
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -22,7 +24,7 @@ int main(int argc, char* argv[])
 	std::vector<std::string_view> args(argv, argv + argc);
 
     cout << "Michael C Compiler" << endl;
-	auto path = args.size() > 1 ? args.at(1) : "../../tests/control_flow.c";
+	auto path = args.size() > 1 ? args.at(1) : "../../tests/loops.c";
 	ifstream infile = std::ifstream(std::string(path));
 	
 	if (!infile.is_open()) {
@@ -360,6 +362,10 @@ int main(int argc, char* argv[])
 		michaelcc::logic_lowerer linear_lowerer(x64_platform_info);
 		linear_lowerer.lower(logic_translation_unit);
 		auto linear_translation_unit = linear_lowerer.release_translation_unit();
+
+		auto linear_passes = std::vector<std::unique_ptr<michaelcc::linear::optimization::pass>>();
+		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_code_pass>());
+		michaelcc::linear::optimization::transform(linear_translation_unit, linear_passes);
 
 		cout << michaelcc::linear::print_linear_ir(linear_translation_unit) << endl;
 	}

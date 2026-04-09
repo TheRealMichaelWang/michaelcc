@@ -25,6 +25,7 @@ namespace michaelcc {
         public:
             virtual std::optional<linear::virtual_register> destination_register() const noexcept = 0;
             virtual std::vector<linear::virtual_register> operand_registers() const noexcept = 0;
+            virtual bool has_side_effects() const noexcept { return false; }
 
             virtual ~instruction() = default;
         };
@@ -239,6 +240,8 @@ namespace michaelcc {
 
             std::optional<linear::virtual_register> destination_register() const noexcept override { return std::nullopt; }
             std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_source_address, m_value }; }
+
+            bool has_side_effects() const noexcept override { return true; }
         };
 
 
@@ -298,13 +301,15 @@ namespace michaelcc {
 
             size_t id() const noexcept { return m_id; }
 
-            const std::vector<std::unique_ptr<instruction>>& instructions() const noexcept { return m_instructions; }   
+            const std::vector<std::unique_ptr<instruction>>& instructions() const noexcept { return m_instructions; }
             const std::vector<size_t>& successor_block_ids() const noexcept { return m_successor_block_ids; }
             const std::vector<size_t>& predecessor_block_ids() const noexcept { return m_predecessor_block_ids; }
             const std::vector<size_t>& immediately_dominated_block_ids() const noexcept { return m_immediately_dominated_block_ids; }
 
             std::optional<size_t> immediate_dominator_block_id() const noexcept { return m_immediate_dominator_block_id; }
 
+            std::vector<std::unique_ptr<instruction>>&& release_instructions() noexcept { return std::move(m_instructions); }   
+            
             void add_predecessor_block_id(size_t block_id) {
                 m_predecessor_block_ids.push_back(block_id);
             }
@@ -330,6 +335,8 @@ namespace michaelcc {
 
             std::optional<linear::virtual_register> destination_register() const noexcept override { return std::nullopt; }
             std::vector<linear::virtual_register> operand_registers() const noexcept override { return {}; }
+
+            bool has_side_effects() const noexcept override { return true; }
         };
 
         class branch_condition : public instruction {
@@ -349,6 +356,8 @@ namespace michaelcc {
 
             std::optional<linear::virtual_register> destination_register() const noexcept override { return std::nullopt; }
             std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_condition }; }
+
+            bool has_side_effects() const noexcept override { return true; }
         };
 
 
@@ -396,11 +405,18 @@ namespace michaelcc {
 
             std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
             std::vector<linear::virtual_register> operand_registers() const noexcept override { return m_arguments; }
+
+            bool has_side_effects() const noexcept override { return true; }
         };
 
         class function_return : public instruction {
         public:
-            function_return() { } 
+            function_return() { }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return std::nullopt; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return {}; }
+
+            bool has_side_effects() const noexcept override { return true; }
         };
 
 

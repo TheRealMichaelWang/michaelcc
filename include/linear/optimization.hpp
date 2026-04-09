@@ -9,10 +9,6 @@
 namespace michaelcc {
     namespace linear {
         namespace optimization {
-            struct result {
-                std::vector<size_t> blocks_to_remove;
-                std::unordered_map<size_t, std::vector<std::unique_ptr<instruction>>> block_new_instructions;
-            };
 
             class pass {
             public:
@@ -20,7 +16,7 @@ namespace michaelcc {
                 virtual void prescan(const translation_unit& unit) = 0;
 
                 // optimize the IR
-                virtual result optimize(translation_unit& unit) = 0;
+                virtual bool optimize(translation_unit& unit) = 0;
 
                 // reset the state of the pass
                 virtual void reset() = 0;

@@ -15,19 +15,9 @@ namespace michaelcc {
                     for (auto& pass : passes) {
                         pass->prescan(unit);
 
-                        result result = pass->optimize(unit);
+                        any_pass_mutated |= pass->optimize(unit);
 
-                        if (result.blocks_to_remove.size() > 0 || result.block_new_instructions.size() > 0) {
-                            any_pass_mutated = true;
-
-                            for (size_t block_index : result.blocks_to_remove) {
-                                unit.blocks.erase(block_index);
-                            }
-
-                            for (auto& [block_index, new_instructions] : result.block_new_instructions) {
-                                unit.blocks.at(block_index).replace_instructions(std::move(new_instructions));
-                            }
-                        }
+                        pass->reset();
                     }
 
                     passes_run++;
