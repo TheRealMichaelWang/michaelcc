@@ -20,6 +20,8 @@ namespace michaelcc {
 
                 // reset the state of the pass
                 virtual void reset() = 0;
+
+                virtual ~pass() = default;
             };
 
             bool transform(translation_unit& unit, std::vector<std::unique_ptr<pass>>& passes, int max_passes=1000);

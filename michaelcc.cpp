@@ -364,7 +364,8 @@ int main(int argc, char* argv[])
 		auto linear_translation_unit = linear_lowerer.release_translation_unit();
 
 		auto linear_passes = std::vector<std::unique_ptr<michaelcc::linear::optimization::pass>>();
-		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_code_pass>());
+		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_instruction_pass>());
+		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_block_pass>());
 		michaelcc::linear::optimization::transform(linear_translation_unit, linear_passes);
 
 		cout << michaelcc::linear::print_linear_ir(linear_translation_unit) << endl;

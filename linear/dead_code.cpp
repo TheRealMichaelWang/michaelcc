@@ -3,7 +3,7 @@
 #include <unordered_map>
 #include <queue>
 
-void michaelcc::linear::optimization::dead_code_pass::prescan(const translation_unit& unit) {
+void michaelcc::linear::optimization::dead_instruction_pass::prescan(const translation_unit& unit) {
     // prowl through the IR to find all the definitions of virtual registers
     std::unordered_map<virtual_register, instruction*> m_vreg_defintions;
 
@@ -43,7 +43,7 @@ void michaelcc::linear::optimization::dead_code_pass::prescan(const translation_
     }
 }
 
-bool michaelcc::linear::optimization::dead_code_pass::optimize(translation_unit& unit) {
+bool michaelcc::linear::optimization::dead_instruction_pass::optimize(translation_unit& unit) {
     bool made_changes = false;
     for (auto& [block_id, block] : unit.blocks) {
         std::vector<std::unique_ptr<instruction>> new_instructions;
@@ -61,5 +61,40 @@ bool michaelcc::linear::optimization::dead_code_pass::optimize(translation_unit&
         block.replace_instructions(std::move(new_instructions));
     }
 
+    return made_changes;
+}
+
+// use mark sweep to detect unreachable blocks
+void michaelcc::linear::optimization::dead_block_pass::prescan(const translation_unit& unit) {
+    std::queue<size_t> block_ids_to_traverse;
+    for (const auto& function : unit.function_definitions) {
+        block_ids_to_traverse.push(function->entry_block_id());
+    }
+
+    while (!block_ids_to_traverse.empty()) {
+        auto block_id = block_ids_to_traverse.front();
+        block_ids_to_traverse.pop();
+
+        if (used_block_ids.contains(block_id)) {
+            continue;
+        }
+        used_block_ids.insert(block_id);
+
+        for (const auto& successor_block_id : unit.blocks.at(block_id).successor_block_ids()) {
+            if (!used_block_ids.contains(successor_block_id)) {
+                block_ids_to_traverse.push(successor_block_id);
+            }
+        }
+    }
+}
+
+bool michaelcc::linear::optimization::dead_block_pass::optimize(translation_unit& unit) {
+    bool made_changes = false;
+    for (auto& [block_id, block] : unit.blocks) {
+        if (!used_block_ids.contains(block_id)) {
+            made_changes = true;
+            unit.blocks.erase(block_id);
+        }
+    }
     return made_changes;
 }
