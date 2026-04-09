@@ -254,7 +254,11 @@ namespace michaelcc {
         private:
             std::vector<std::unique_ptr<instruction>> m_instructions;
             std::vector<size_t> m_successor_block_ids;
+
+            // computed and set after all blocks are created and analyzed
+            std::optional<size_t> m_immediate_dominator_block_id;
             std::vector<size_t> m_predecessor_block_ids;
+            std::vector<size_t> m_immediately_dominated_block_ids;
 
             size_t m_id;
 
@@ -267,9 +271,17 @@ namespace michaelcc {
             const std::vector<std::unique_ptr<instruction>>& instructions() const noexcept { return m_instructions; }   
             const std::vector<size_t>& successor_block_ids() const noexcept { return m_successor_block_ids; }
             const std::vector<size_t>& predecessor_block_ids() const noexcept { return m_predecessor_block_ids; }
+            const std::vector<size_t>& immediately_dominated_block_ids() const noexcept { return m_immediately_dominated_block_ids; }
+
+            std::optional<size_t> immediate_dominator_block_id() const noexcept { return m_immediate_dominator_block_id; }
 
             void add_predecessor_block_id(size_t block_id) {
                 m_predecessor_block_ids.push_back(block_id);
+            }
+
+            void set_dominator_info(std::optional<size_t>&& immediate_dominator_block_id, std::vector<size_t>&& ids) {
+                m_immediate_dominator_block_id = std::move(immediate_dominator_block_id);
+                m_immediately_dominated_block_ids = std::move(ids);
             }
         };
 
@@ -404,6 +416,7 @@ namespace michaelcc {
         struct translation_unit {
             std::vector<std::unique_ptr<function_definition>> function_definitions;
             std::unordered_map<size_t, linear::basic_block> blocks;
+
             register_allocator register_allocator;
             static_storage::static_sections static_sections;
             const platform_info& platform_info;

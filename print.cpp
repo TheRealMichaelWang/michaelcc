@@ -1112,6 +1112,9 @@ public:
         else {
             m_out << "basic_block(id=" << node.id();
         }
+        if (node.immediate_dominator_block_id().has_value()) {
+            m_out << ", idom=" << node.immediate_dominator_block_id().value();
+        }
         m_out << ", pred=[";
         bool first = true;
         for (const auto& predecessor_block_id : node.predecessor_block_ids()) {
@@ -1128,6 +1131,15 @@ public:
                 m_out << ", ";
             }
             m_out << successor_block_id;
+            first = false;
+        }
+        m_out << "], dom=[";
+        first = true;
+        for (const auto& dominated_block_id : node.immediately_dominated_block_ids()) {
+            if (!first) {
+                m_out << ", ";
+            }
+            m_out << dominated_block_id;
             first = false;
         }
         m_out << "]):\n";

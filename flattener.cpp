@@ -1,5 +1,6 @@
 #include "linear/flatten.hpp"
 #include "linear/ir.hpp"
+#include "linear/dominators.hpp"
 #include "linear/registers.hpp"
 #include "logic/ir.hpp"
 #include "logic/type_info.hpp"
@@ -1455,4 +1456,6 @@ void logic_lowerer::lower(const logic::translation_unit& translation_unit) {
             m_translation_unit.blocks.at(successor_block_id).add_predecessor_block_id(block_id);
         }
     }
+
+    linear::compute_dominators(m_translation_unit);
 }
