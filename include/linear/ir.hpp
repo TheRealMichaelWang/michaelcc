@@ -23,6 +23,9 @@ namespace michaelcc {
 
         class instruction {
         public:
+            virtual std::optional<linear::virtual_register> destination_register() const noexcept = 0;
+            virtual std::vector<linear::virtual_register> operand_registers() const noexcept = 0;
+
             virtual ~instruction() = default;
         };
 
@@ -112,6 +115,9 @@ namespace michaelcc {
             virtual_register destination() const noexcept { return m_destination; }
             virtual_register operand_a() const noexcept { return m_operand_a; }
             virtual_register operand_b() const noexcept { return m_operand_b; }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_operand_a, m_operand_b }; }
         };
 
 
@@ -131,6 +137,9 @@ namespace michaelcc {
             virtual_register destination() const noexcept { return m_destination; }
             virtual_register operand_a() const noexcept { return m_operand_a; }
             size_t constant() const noexcept { return m_constant; }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_operand_a }; }
         };
 
 
@@ -153,6 +162,9 @@ namespace michaelcc {
             u_instruction_type type() const noexcept { return m_type; }
             virtual_register destination() const noexcept { return m_destination; }
             virtual_register operand() const noexcept { return m_operand; }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_operand }; }
         };
 
 
@@ -166,6 +178,9 @@ namespace michaelcc {
             
             virtual_register destination() const noexcept { return m_destination; }
             virtual_register source() const noexcept { return m_source; }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_source }; }
         };
         
         // Initialize a register with a literal value
@@ -177,6 +192,9 @@ namespace michaelcc {
             init_register(virtual_register destination, register_word value) : m_destination(destination), m_value(value) {}
             virtual_register destination() const noexcept { return m_destination; }
             register_word value() const noexcept { return m_value; }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return {}; }
         };
 
 
@@ -196,6 +214,9 @@ namespace michaelcc {
             virtual_register source_address() const noexcept { return m_source_address; }
             int64_t offset() const noexcept { return m_offset; }
             size_t size_bytes() const noexcept { return m_size_bytes; }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_source_address }; }
         };
 
 
@@ -215,6 +236,9 @@ namespace michaelcc {
             virtual_register value() const noexcept { return m_value; }
             int64_t offset() const noexcept { return m_offset; }
             size_t size_bytes() const noexcept { return m_size_bytes; }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return std::nullopt; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_source_address, m_value }; }
         };
 
 
@@ -232,6 +256,9 @@ namespace michaelcc {
             virtual_register destination() const noexcept { return m_destination; }
             size_t size_bytes() const noexcept { return m_size_bytes; }
             size_t alignment() const noexcept { return m_alignment; }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return {}; }
         };
 
         class valloca_instruction : public instruction {
@@ -247,6 +274,9 @@ namespace michaelcc {
             virtual_register destination() const noexcept { return m_destination; }
             virtual_register size() const noexcept { return m_size; }
             size_t alignment() const noexcept { return m_alignment; }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_size }; }
         };
 
         // Branch "B" instructions
@@ -297,6 +327,9 @@ namespace michaelcc {
             branch(size_t next_block_id) : m_next_block_id(next_block_id) {}
 
             size_t next_block_id() const noexcept { return m_next_block_id; }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return std::nullopt; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return {}; }
         };
 
         class branch_condition : public instruction {
@@ -313,6 +346,9 @@ namespace michaelcc {
             size_t if_true_block_id() const noexcept { return m_if_true_block_id; }
             size_t if_false_block_id() const noexcept { return m_if_false_block_id; }
             bool is_loop() const noexcept { return m_is_loop; }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return std::nullopt; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_condition }; }
         };
 
 
@@ -357,6 +393,9 @@ namespace michaelcc {
             virtual_register destination() const noexcept { return m_destination; }
             const callable& callee() const noexcept { return m_callee; }
             const std::vector<virtual_register>& arguments() const noexcept { return m_arguments; }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return m_arguments; }
         };
 
         class function_return : public instruction {
@@ -379,6 +418,9 @@ namespace michaelcc {
             const function_parameter& parameter() const noexcept { return m_parameter; }
 
             bool is_address() const noexcept { return m_parameter.pass_as_alloca; }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return {}; }
         };
 
 
@@ -400,6 +442,16 @@ namespace michaelcc {
                     m_values.push_back(value);
                 }
             }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { 
+                std::vector<linear::virtual_register> operands;
+                operands.reserve(m_values.size());
+                for (const auto& value : m_values) {
+                    operands.push_back(value.vreg);
+                }
+                return operands;
+            }
         };
 
         
@@ -415,6 +467,9 @@ namespace michaelcc {
 
             virtual_register destination() const noexcept { return m_destination; }
             const std::string& label() const noexcept { return m_label; }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return {}; }
         };
 
         struct translation_unit {
