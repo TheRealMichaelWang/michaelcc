@@ -16,7 +16,7 @@ namespace michaelcc::linear::optimization {
             std::unique_ptr<instruction> dispatch(const a_instruction& node) override;
             std::unique_ptr<instruction> dispatch(const a2_instruction& node) override;
             std::unique_ptr<instruction> dispatch(const u_instruction& node) override;
-            std::unique_ptr<instruction> dispatch(const copy_instruction& node) override;
+            std::unique_ptr<instruction> dispatch(const c_instruction& node) override;
             std::unique_ptr<instruction> dispatch(const valloca_instruction& node) override;
             std::unique_ptr<instruction> dispatch(const branch_condition& node) override;
             std::unique_ptr<instruction> dispatch(const phi_instruction& node) override;

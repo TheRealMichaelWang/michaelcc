@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <cassert>
 
 namespace michaelcc {
 	namespace linear {
@@ -121,7 +122,10 @@ namespace michaelcc {
 
         public:
             a_instruction(a_instruction_type type, virtual_register destination, virtual_register operand_a, virtual_register operand_b) 
-                : m_type(type), m_destination(destination), m_operand_a(operand_a), m_operand_b(operand_b) {}
+                : m_type(type), m_destination(destination), m_operand_a(operand_a), m_operand_b(operand_b) {
+                    assert(operand_a.reg_size == operand_b.reg_size);
+                    assert(operand_a.reg_class == operand_b.reg_class);
+                }
 
             a_instruction_type type() const noexcept { return m_type; }
             virtual_register destination() const noexcept { return m_destination; }
