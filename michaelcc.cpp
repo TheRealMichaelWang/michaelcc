@@ -14,6 +14,7 @@
 #include "linear/optimization.hpp"
 #include "linear/optimization/dead_code.hpp"
 #include "linear/optimization/const_prop.hpp"
+#include "linear/optimization/copy_prop.hpp"
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -25,7 +26,7 @@ int main(int argc, char* argv[])
 	std::vector<std::string_view> args(argv, argv + argc);
 
     cout << "Michael C Compiler" << endl;
-	auto path = args.size() > 1 ? args.at(1) : "../../tests/constant_folding.c";
+	auto path = args.size() > 1 ? args.at(1) : "../../tests/loops.c";
 	ifstream infile = std::ifstream(std::string(path));
 	
 	if (!infile.is_open()) {
@@ -370,6 +371,7 @@ int main(int argc, char* argv[])
 		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_instruction_pass>());
 		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_block_pass>());
 		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::const_prop_pass>());
+		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::copy_prop_pass>());
 		michaelcc::linear::optimization::transform(linear_translation_unit, linear_passes);
 
 		cout << michaelcc::linear::print_linear_ir(linear_translation_unit) << endl;
