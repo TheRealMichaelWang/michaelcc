@@ -174,6 +174,7 @@ const std::string a_instruction_type_to_str(linear::a_instruction_type type) {
 const std::string u_instruction_type_to_str(linear::u_instruction_type type) {
     static const char* u_instruction_type_names[] = {
         "-",
+        "f-",
         "!",
         "~"
     };
@@ -1096,6 +1097,11 @@ private:
         m_out << '%' << reg.id;
         if (include_size) {
             m_out << "(";
+            switch (reg.reg_class) {
+                case linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER: m_out << "int, "; break;
+                case linear::register_class::MICHAELCC_REGISTER_CLASS_FLOATING_POINT: m_out << "float, "; break;
+                default: throw std::runtime_error("Invalid register class");
+            }
             m_out << static_cast<size_t>(reg.reg_size) << " bits";
 
             if (is_setting) {
@@ -1205,10 +1211,32 @@ protected:
         m_out << "\n";
     }
 
-    void dispatch(const linear::copy_instruction& node) override {
+    void dispatch(const linear::c_instruction& node) override {
         print_indent(m_out, m_indent);
         print_virtual_register(node.destination(), true, true);
-        m_out << " = ";
+        
+        m_out << " =";
+        switch (node.type()) {
+            case linear::MICHAELCC_LINEAR_C_FLOAT64_TO_SIGNED_INT64: m_out << "f64_to_i64"; break;
+            case linear::MICHAELCC_LINEAR_C_FLOAT64_TO_UNSIGNED_INT64: m_out << "f64_to_u64"; break;
+            case linear::MICHAELCC_LINEAR_C_FLOAT32_TO_SIGNED_INT32: m_out << "f32_to_i32"; break;
+            case linear::MICHAELCC_LINEAR_C_FLOAT32_TO_UNSIGNED_INT32: m_out << "f32_to_u32"; break;
+            case linear::MICHAELCC_LINEAR_C_SIGNED_INT64_TO_FLOAT64: m_out << "i64_to_f64"; break;
+            case linear::MICHAELCC_LINEAR_C_UNSIGNED_INT64_TO_FLOAT64: m_out << "u64_to_f64"; break;
+            case linear::MICHAELCC_LINEAR_C_SIGNED_INT32_TO_FLOAT32: m_out << "i32_to_f32"; break;
+            case linear::MICHAELCC_LINEAR_C_UNSIGNED_INT32_TO_FLOAT32: m_out << "u32_to_f32"; break;
+            case linear::MICHAELCC_LINEAR_C_FLOAT32_TO_FLOAT64: m_out << "f32_to_f64"; break;
+            case linear::MICHAELCC_LINEAR_C_FLOAT64_TO_FLOAT32: m_out << "f64_to_f32"; break;
+            case linear::MICHAELCC_LINEAR_C_SEXT_OR_TRUNC: 
+                m_out << "sext_or_trunc"; break;
+            case linear::MICHAELCC_LINEAR_C_ZEXT_OR_TRUNC: 
+                m_out << "zext_or_trunc"; break;
+            case linear::MICHAELCC_LINEAR_C_COPY_INIT: m_out << "copy_init"; break;
+            default: throw std::runtime_error("Invalid c instruction type");
+        }
+
+        m_out << ' ';
+
         print_virtual_register(node.source());
         m_out << "\n";
     }
