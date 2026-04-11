@@ -300,6 +300,11 @@ namespace michaelcc {
         
         typing::qual_type resolve_type(const ast::ast_element& node, bool allow_vla=false);
         std::unique_ptr<logic::expression> resolve_default_value(const typing::qual_type& type) const noexcept;
+
+        // Lowers an expression to the target type, if provided. If the expression is not the same type as the target type, a type cast is inserted.
+        // - node: The expression to lower.
+        // - target_type: The target type to lower the expression to. If not provided, the expression is not lowered.
+        // - is_type_hint: If true, the expression is guarenteed to be the same type as the target type or error. 
         std::unique_ptr<logic::expression> lower_expression(const ast::ast_element& node, std::optional<typing::qual_type> target_type = std::nullopt, bool is_type_hint=false);
     
         std::shared_ptr<logic::function_definition> lower_function_declaration(const ast::function_declaration& node);
