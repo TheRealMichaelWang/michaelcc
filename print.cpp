@@ -1120,14 +1120,23 @@ private:
         }
     }
 
-    void print_register_word(const linear::register_word& word, const linear::word_size size) {
-        m_out << 'u';
-        switch (size) {
-            case linear::word_size::MICHAELCC_WORD_SIZE_BYTE: m_out << word.ubyte; break;
-            case linear::word_size::MICHAELCC_WORD_SIZE_UINT16: m_out << word.uint16; break;
-            case linear::word_size::MICHAELCC_WORD_SIZE_UINT32: m_out << word.uint32; break;
-            case linear::word_size::MICHAELCC_WORD_SIZE_UINT64: m_out << word.uint64; break;
-            default: throw std::runtime_error("Invalid word size");
+    void print_register_word(const linear::register_word& word, const linear::word_size size, const linear::register_class reg_class) {
+        if (reg_class == linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER) {
+            m_out << 'u';
+            switch (size) {
+                case linear::word_size::MICHAELCC_WORD_SIZE_BYTE: m_out << word.ubyte; break;
+                case linear::word_size::MICHAELCC_WORD_SIZE_UINT16: m_out << word.uint16; break;
+                case linear::word_size::MICHAELCC_WORD_SIZE_UINT32: m_out << word.uint32; break;
+                case linear::word_size::MICHAELCC_WORD_SIZE_UINT64: m_out << word.uint64; break;
+                default: throw std::runtime_error("Invalid word size");
+            }
+        } else {
+            m_out << 'f';
+            switch (size) {
+                case linear::word_size::MICHAELCC_WORD_SIZE_UINT32: m_out << word.float32; break;
+                case linear::word_size::MICHAELCC_WORD_SIZE_UINT64: m_out << word.float64; break;
+                default: throw std::runtime_error("Invalid word size");
+            }
         }
     }
 
@@ -1245,7 +1254,7 @@ protected:
         print_indent(m_out, m_indent);
         print_virtual_register(node.destination(), true, true);
         m_out << " = ";
-        print_register_word(node.value(), node.destination().reg_size);
+        print_register_word(node.value(), node.destination().reg_size, node.destination().reg_class);
         m_out << "\n";
     }
 
