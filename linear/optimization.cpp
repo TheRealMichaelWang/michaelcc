@@ -1,5 +1,5 @@
 #include "linear/optimization.hpp"
-
+#include "linear/dominators.hpp"
 namespace michaelcc {
     namespace linear {
         namespace optimization {
@@ -20,6 +20,9 @@ namespace michaelcc {
                         pass->reset();
                     }
 
+                    if (any_pass_mutated) {
+                        compute_dominators(unit);
+                    }
                     passes_run++;
                 } while (any_pass_mutated);
 
