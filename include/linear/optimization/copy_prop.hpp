@@ -46,8 +46,8 @@ namespace michaelcc {
                     }
                     std::unique_ptr<instruction> dispatch(const function_call& node) override {
                         function_call::callable callee = node.callee();
-                        std::vector<virtual_register> arguments = node.arguments();
-                        return std::make_unique<function_call>(m_new_dest, std::move(callee), std::move(arguments));
+                        size_t argument_count = node.argument_count();
+                        return std::make_unique<function_call>(m_new_dest, std::move(callee), argument_count);
                     }
                     std::unique_ptr<instruction> dispatch(const phi_instruction& node) override {
                         std::vector<var_info> values = node.values();

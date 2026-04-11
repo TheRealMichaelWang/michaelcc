@@ -43,6 +43,7 @@ namespace michaelcc {
         class basic_block;
         class branch;
         class branch_condition;
+        class push_function_argument;
         class function_call;
         class function_return;
         class load_parameter;
@@ -62,6 +63,7 @@ namespace michaelcc {
             const load_parameter,
             const branch,
             const branch_condition,
+            const push_function_argument,
             const function_call,
             const function_return,
             const phi_instruction,
@@ -81,6 +83,7 @@ namespace michaelcc {
             const load_parameter,
             const branch,
             const branch_condition,
+            const push_function_argument,
             const function_call,
             const function_return,
             const phi_instruction,
@@ -414,8 +417,19 @@ namespace michaelcc {
             std::string name;
 
             type_layout_info layout;
+            size_t index;
+
             register_class register_class;
-            bool pass_as_alloca;
+            bool pass_via_stack;
+        };
+
+        // Function Argument
+        struct function_argument {
+            type_layout_info layout;
+            size_t index;
+            
+            register_class register_class;
+            bool pass_via_stack;
         };
 
         class function_definition {
@@ -435,6 +449,8 @@ namespace michaelcc {
         };
 
 
+        
+        // Call a function and store the result in a register
         class function_call : public instruction {
         public:
             using callable = std::variant<std::string, virtual_register>;
@@ -442,18 +458,18 @@ namespace michaelcc {
         private:
             virtual_register m_destination;
             callable m_callee;
-            std::vector<virtual_register> m_arguments;
+            size_t m_argument_count;
 
         public:
-            function_call(virtual_register destination, callable&& callee, std::vector<virtual_register>&& arguments) 
-                : m_destination(destination), m_callee(std::move(callee)), m_arguments(std::move(arguments)) {}
+            function_call(virtual_register destination, callable&& callee, size_t argument_count) 
+                : m_destination(destination), m_callee(std::move(callee)), m_argument_count(argument_count) {}
 
             virtual_register destination() const noexcept { return m_destination; }
             const callable& callee() const noexcept { return m_callee; }
-            const std::vector<virtual_register>& arguments() const noexcept { return m_arguments; }
+            size_t argument_count() const noexcept { return m_argument_count; }
 
             std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
-            std::vector<linear::virtual_register> operand_registers() const noexcept override { return m_arguments; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return {}; }
 
             bool has_side_effects() const noexcept override { return true; }
         };
@@ -466,6 +482,27 @@ namespace michaelcc {
             std::vector<linear::virtual_register> operand_registers() const noexcept override { return {}; }
 
             bool has_side_effects() const noexcept override { return true; }
+        };
+
+        
+        // Push a function argument onto the stack
+        class push_function_argument : public instruction {
+        private:
+            function_argument m_argument;
+            virtual_register m_value;
+
+        public:
+            push_function_argument(function_argument argument, virtual_register value) 
+                : m_argument(argument), m_value(value) {}
+
+            function_argument argument() const noexcept { return m_argument; }
+            virtual_register value() const noexcept { return m_value; }
+
+            bool has_side_effects() const noexcept override { return true; }
+            bool is_address() const noexcept { return m_argument.pass_via_stack; }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return std::nullopt; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_value }; }
         };
 
 
@@ -482,7 +519,7 @@ namespace michaelcc {
             virtual_register destination() const noexcept { return m_destination; }
             const function_parameter& parameter() const noexcept { return m_parameter; }
 
-            bool is_address() const noexcept { return m_parameter.pass_as_alloca; }
+            bool is_address() const noexcept { return m_parameter.pass_via_stack; }
 
             std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
             std::vector<linear::virtual_register> operand_registers() const noexcept override { return {}; }

@@ -118,7 +118,7 @@ linear::virtual_register logic_lowerer::get_var_reg(const std::shared_ptr<logic:
 
     auto parameter_it = m_current_function->parameters.find(variable->name());
     if (parameter_it != m_current_function->parameters.end()) {
-        if (parameter_it->second.pass_as_alloca) {
+        if (parameter_it->second.pass_via_stack) {
             auto var_addr_reg = m_translation_unit.register_allocator.new_vreg(
                 get_platform_info().pointer_size,
                 linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
@@ -1159,37 +1159,46 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
 }
 
 linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::function_call& node) {
-    std::vector<linear::virtual_register> arguments;
-    arguments.reserve(node.arguments().size());
-
-    for (const auto& argument : node.arguments()) {
-        auto argument_reg = m_lowerer.lower_expression(*argument);
-        arguments.push_back(argument_reg);
-    }
-
     type_layout_calculator calculator(m_lowerer.get_platform_info());
+
+    linear::function_call::callable callee = std::visit(overloaded{
+        [this](const std::shared_ptr<logic::function_definition>& function_definition) -> linear::function_call::callable {
+            return function_definition->name();
+        },
+        [this](const std::unique_ptr<logic::expression>& expression) -> linear::function_call::callable {
+            return m_lowerer.lower_expression(*expression);
+        }
+    }, node.callee());
+    
     if (calculator.must_alloca(node.get_type())) {
         throw std::runtime_error("Function return value cannot be alloca'd on the stack.");
     }
+
+    size_t index = 0;
+    for (const auto& argument : node.arguments()) {
+        auto argument_reg = m_lowerer.lower_expression(*argument);
+        m_lowerer.emit(std::make_unique<linear::push_function_argument>(
+            linear::function_argument{
+                .layout = calculator(*argument->get_type().type()),
+                .index = index,
+                .register_class = m_lowerer.get_register_class(argument->get_type()),
+                .pass_via_stack = calculator.must_alloca(argument->get_type())
+            },
+            argument_reg
+        ));
+        index++;
+    }
+
     auto result_layout = calculator(*node.get_type().type());
     auto dest_reg = m_lowerer.m_translation_unit.register_allocator.new_vreg(
         type_layout_info::get_register_size(result_layout.size),
         m_lowerer.get_register_class(node.get_type())
     );
 
-    linear::function_call::callable callee = std::visit(overloaded{
-        [this, dest_reg, &arguments](const std::shared_ptr<logic::function_definition>& function_definition) -> linear::function_call::callable {
-            return function_definition->name();
-        },
-        [this, dest_reg, &arguments](const std::unique_ptr<logic::expression>& expression) -> linear::function_call::callable {
-            return m_lowerer.lower_expression(*expression);
-        }
-    }, node.callee());
-
     m_lowerer.emit(std::make_unique<linear::function_call>(
         dest_reg, 
         std::move(callee), 
-        std::move(arguments)
+        index
     ));
     return dest_reg;
 }
@@ -1593,13 +1602,16 @@ void logic_lowerer::lower_function(const logic::function_definition& node) {
     std::unordered_map<std::string, linear::function_parameter> parameter_map;
     parameter_map.reserve(node.parameters().size());
     type_layout_calculator calculator(get_platform_info());
+    size_t index = 0;
     for (const auto& parameter : node.parameters()) {
         parameter_map.emplace(parameter->name(), linear::function_parameter{
             .name = parameter->name(),
             .layout = calculator(*parameter->get_type().type()),
+            .index = index,
             .register_class = get_register_class(parameter->get_type()),
-            .pass_as_alloca = calculator.must_alloca(parameter->get_type())
+            .pass_via_stack = calculator.must_alloca(parameter->get_type())
         });
+        index++;
     }
 
     m_current_function = function_builder{
@@ -1612,7 +1624,7 @@ void logic_lowerer::lower_function(const logic::function_definition& node) {
 
     // declare registers for params that need to be passed by value, and loaded directly in registers
     for (const auto& [name, parameter] : m_current_function->parameters) {
-        if (!parameter.pass_as_alloca) {
+        if (!parameter.pass_via_stack) {
             auto var_reg = m_translation_unit.register_allocator.new_vreg(type_layout_info::get_register_size(parameter.layout.size), parameter.register_class);
             emit(std::make_unique<linear::load_parameter>(var_reg, parameter));
 

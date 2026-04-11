@@ -1311,21 +1311,23 @@ protected:
             [this](const std::string& label) { m_out << label; },
             [this](const linear::virtual_register& reg) { print_virtual_register(reg, true); }
         }, node.callee());
-        m_out << ", arguments=";
-        bool first = true;
-        for (const auto& arg : node.arguments()) {
-            if (!first) {
-                m_out << ", ";
-            }
-            print_virtual_register(arg, true);
-            first = false;
-        }
-        m_out << ")\n";
+        m_out << ", arguments=" << node.argument_count() << ")\n";
     }
 
     void dispatch(const linear::function_return& node) override {
         print_indent(m_out, m_indent);
         m_out << "return\n";
+    }
+
+    void dispatch(const linear::push_function_argument& node) override {
+        print_indent(m_out, m_indent);
+        m_out << "push_fn_arg(arg";
+        if (node.is_address()) {
+            m_out << "_addr";
+        }
+        m_out << '=';
+        print_virtual_register(node.value(), true, false);
+        m_out << ")\n";
     }
 
     void dispatch(const linear::load_parameter& node) override {
