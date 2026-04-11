@@ -345,5 +345,46 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
 }
 
 std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization::const_prop_pass::instruction_pass::dispatch(const michaelcc::linear::u_instruction& node) {
+    auto const_val = m_pass.get_const_value(node.operand());
+    if (!const_val.has_value()) {
+        return nullptr;
+    }
 
+    auto val = const_val.value();
+    auto sz = node.operand().reg_size;
+    auto dest = node.destination();
+
+    switch (node.type()) {
+    case MICHAELCC_LINEAR_U_NEGATE:
+        switch (sz) {
+        case MICHAELCC_WORD_SIZE_BYTE:   return std::make_unique<init_register>(dest, register_word{ .sbyte = static_cast<int8_t>(-val.sbyte) });
+        case MICHAELCC_WORD_SIZE_UINT16: return std::make_unique<init_register>(dest, register_word{ .int16 = static_cast<int16_t>(-val.int16) });
+        case MICHAELCC_WORD_SIZE_UINT32: return std::make_unique<init_register>(dest, register_word{ .int32 = -val.int32 });
+        case MICHAELCC_WORD_SIZE_UINT64: return std::make_unique<init_register>(dest, register_word{ .int64 = -val.int64 });
+        default: return nullptr;
+        }
+    case MICHAELCC_LINEAR_U_FLOAT_NEGATE:
+        switch (sz) {
+        case MICHAELCC_WORD_SIZE_UINT32: return std::make_unique<init_register>(dest, register_word{ .float32 = -val.float32 });
+        case MICHAELCC_WORD_SIZE_UINT64: return std::make_unique<init_register>(dest, register_word{ .float64 = -val.float64 });
+        default: return nullptr;
+        }
+    case MICHAELCC_LINEAR_U_NOT:
+        switch (sz) {
+        case MICHAELCC_WORD_SIZE_BYTE:   return std::make_unique<init_register>(dest, register_word{ .ubyte = static_cast<uint8_t>(val.ubyte ? 0 : 1) });
+        case MICHAELCC_WORD_SIZE_UINT16: return std::make_unique<init_register>(dest, register_word{ .uint16 = static_cast<uint16_t>(val.uint16 ? 0 : 1) });
+        case MICHAELCC_WORD_SIZE_UINT32: return std::make_unique<init_register>(dest, register_word{ .uint32 = val.uint32 ? 0u : 1u });
+        case MICHAELCC_WORD_SIZE_UINT64: return std::make_unique<init_register>(dest, register_word{ .uint64 = val.uint64 ? 0ull : 1ull });
+        default: return nullptr;
+        }
+    case MICHAELCC_LINEAR_U_BITWISE_NOT:
+        switch (sz) {
+        case MICHAELCC_WORD_SIZE_BYTE:   return std::make_unique<init_register>(dest, register_word{ .ubyte = static_cast<uint8_t>(~val.ubyte) });
+        case MICHAELCC_WORD_SIZE_UINT16: return std::make_unique<init_register>(dest, register_word{ .uint16 = static_cast<uint16_t>(~val.uint16) });
+        case MICHAELCC_WORD_SIZE_UINT32: return std::make_unique<init_register>(dest, register_word{ .uint32 = ~val.uint32 });
+        case MICHAELCC_WORD_SIZE_UINT64: return std::make_unique<init_register>(dest, register_word{ .uint64 = ~val.uint64 });
+        default: return nullptr;
+        }
+    default: return nullptr;
+    }
 }
