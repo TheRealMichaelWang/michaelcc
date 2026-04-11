@@ -590,8 +590,9 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     linear::virtual_register left = m_lowerer.lower_expression(*node.left());
     linear::virtual_register right = m_lowerer.lower_expression(*node.right());
 
-    bool is_float = node.get_type().is_same_type<typing::float_type>();
-    bool is_signed = node.get_type().is_same_type<typing::int_type>() && (std::dynamic_pointer_cast<const typing::int_type>(node.get_type().type())->is_signed());
+    assert(node.left()->get_type().type()->is_equivalent_to(*node.right()->get_type().type(), m_lowerer.get_platform_info()));
+    bool is_float = node.left()->get_type().is_same_type<typing::float_type>();
+    bool is_signed = node.left()->get_type().is_same_type<typing::int_type>() && (std::dynamic_pointer_cast<const typing::int_type>(node.left()->get_type().type())->is_signed());
 
     linear::a_instruction_type type = token_to_a_type(node.get_operator(), is_float, is_signed);
     auto result_reg = m_lowerer.m_translation_unit.register_allocator.new_vreg(
@@ -1373,7 +1374,11 @@ void logic_lowerer::statement_lowerer::dispatch(const logic::return_statement& n
                 .register_id = return_register_id
             }));
 
-            m_lowerer.emit(std::make_unique<linear::copy_instruction>(return_vreg, virtual_reg));
+            m_lowerer.emit(std::make_unique<linear::c_instruction>(
+                linear::MICHAELCC_LINEAR_C_COPY_INIT,
+                return_vreg,
+                virtual_reg
+            ));
         }
 
         m_lowerer.emit(std::make_unique<linear::function_return>());

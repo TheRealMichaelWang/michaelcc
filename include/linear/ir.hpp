@@ -34,7 +34,6 @@ namespace michaelcc {
         class a2_instruction;
         class u_instruction;
         class c_instruction;
-        class copy_instruction;
         class init_register;
         class load_memory;
         class store_memory;
@@ -54,7 +53,6 @@ namespace michaelcc {
             const a2_instruction,
             const u_instruction,
             const c_instruction,
-            const copy_instruction,
             const init_register,
             const load_memory,
             const store_memory,
@@ -74,7 +72,6 @@ namespace michaelcc {
             const a2_instruction,
             const u_instruction,
             const c_instruction,
-            const copy_instruction,
             const init_register,
             const load_memory,
             const store_memory,
@@ -198,40 +195,26 @@ namespace michaelcc {
             MICHAELCC_LINEAR_C_FLOAT64_TO_FLOAT32,
 
             MICHAELCC_LINEAR_C_SEXT_OR_TRUNC,
-            MICHAELCC_LINEAR_C_ZEXT_OR_TRUNC
+            MICHAELCC_LINEAR_C_ZEXT_OR_TRUNC,
+
+            MICHAELCC_LINEAR_C_COPY_INIT
         };
 
         class c_instruction : public instruction {
         private:
             c_instruction_type m_type;
             virtual_register m_destination;
-            virtual_register m_operand;
+            virtual_register m_source;
         public:
-            c_instruction(c_instruction_type type, virtual_register destination, virtual_register operand) 
-            : m_type(type), m_destination(destination), m_operand(operand) {}
+            c_instruction(c_instruction_type type, virtual_register destination, virtual_register source) 
+            : m_type(type), m_destination(destination), m_source(source) {}
 
             c_instruction_type type() const noexcept { return m_type; }
             virtual_register destination() const noexcept { return m_destination; }
-            virtual_register operand() const noexcept { return m_operand; }
-
-            bool is_extension() const noexcept { return m_destination.reg_size > m_operand.reg_size; }
-            bool is_truncation() const noexcept { return m_destination.reg_size < m_operand.reg_size; }
-
-            std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
-            std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_operand }; }
-        };
-
-
-        // Copy a register and initialize a new register with the value
-        class copy_instruction : public instruction {
-        private:
-            virtual_register m_destination;
-            virtual_register m_source;
-        public:
-            copy_instruction(virtual_register destination, virtual_register source) : m_destination(destination), m_source(source) {}
-            
-            virtual_register destination() const noexcept { return m_destination; }
             virtual_register source() const noexcept { return m_source; }
+
+            bool is_extension() const noexcept { return m_destination.reg_size > m_source.reg_size; }
+            bool is_truncation() const noexcept { return m_destination.reg_size < m_source.reg_size; }
 
             std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
             std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_source }; }

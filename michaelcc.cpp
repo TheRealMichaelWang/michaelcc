@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
 	std::vector<std::string_view> args(argv, argv + argc);
 
     cout << "Michael C Compiler" << endl;
-	auto path = args.size() > 1 ? args.at(1) : "../../tests/loops.c";
+	auto path = args.size() > 1 ? args.at(1) : "../../tests/constant_folding.c";
 	ifstream infile = std::ifstream(std::string(path));
 	
 	if (!infile.is_open()) {
@@ -351,7 +351,7 @@ int main(int argc, char* argv[])
 		auto logic_translation_unit = lowerer.release_translation_unit();
 
 		auto passes = std::vector<std::unique_ptr<michaelcc::logic::optimization::pass>>();
-		passes.emplace_back(michaelcc::logic::optimization::make_constant_folding_pass(x64_platform_info));
+		//passes.emplace_back(michaelcc::logic::optimization::make_constant_folding_pass(x64_platform_info));
 		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::ir_simplify_pass>(x64_platform_info));
 		//passes.emplace_back(std::make_unique<michaelcc::logic::optimization::dead_code_pass>());
 		//passes.emplace_back(std::make_unique<michaelcc::logic::optimization::inline_functions_pass>());
