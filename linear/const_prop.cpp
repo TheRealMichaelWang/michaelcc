@@ -4,8 +4,8 @@
 void michaelcc::linear::optimization::const_prop_pass::prescan(const translation_unit& unit) {
     for (const auto& [block_id, block] : unit.blocks) {
         for (const auto& instruction : block.instructions()) {
-            if (auto init_register = dynamic_cast<linear::init_register*>(instruction.get())) {
-                m_const_vregs[init_register->destination()] = init_register;
+            if (auto* init = dynamic_cast<linear::init_register*>(instruction.get())) {
+                m_const_values[init->destination()] = init->value();
             }
         }
     }
@@ -25,6 +25,12 @@ bool michaelcc::linear::optimization::const_prop_pass::optimize(translation_unit
 
             if (new_instruction) {
                 made_changes = true;
+                if (auto* old_init = dynamic_cast<linear::init_register*>(instruction.get())) {
+                    m_const_values.erase(old_init->destination());
+                }
+                if (auto* new_init = dynamic_cast<linear::init_register*>(new_instruction.get())) {
+                    m_const_values[new_init->destination()] = new_init->value();
+                }
                 new_instructions.emplace_back(std::move(new_instruction));
             } else {
                 new_instructions.emplace_back(std::move(instruction));
@@ -387,4 +393,45 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
         }
     default: return nullptr;
     }
+}
+
+std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization::const_prop_pass::instruction_pass::dispatch(const michaelcc::linear::valloca_instruction& node) {
+    auto length_const = m_pass.get_const_value(node.size());
+    if (!length_const.has_value()) {
+        return nullptr;
+    }
+    return std::make_unique<alloca_instruction>(node.destination(), length_const.value().uint64, node.alignment());
+}
+
+std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization::const_prop_pass::instruction_pass::dispatch(const michaelcc::linear::branch_condition& node) {
+    auto condition_const = m_pass.get_const_value(node.condition());
+    if (!condition_const.has_value()) {
+        return nullptr;
+    }
+
+    if (condition_const.value().uint64 == 0) { //take false branch
+        return std::make_unique<branch>(node.if_false_block_id());
+    } else { //take true branch
+        return std::make_unique<branch>(node.if_true_block_id());
+    }
+}
+
+std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization::const_prop_pass::instruction_pass::dispatch(const michaelcc::linear::phi_instruction& node) {
+    std::optional<register_word> common_value;
+    
+    for (const auto& value : node.values()) {
+        auto const_value = m_pass.get_const_value(value.vreg);
+        if (!const_value.has_value()) {
+            return nullptr;
+        }
+        if (!common_value.has_value()) {
+            common_value = const_value;
+        }
+        else if (common_value.value().uint64 != const_value.value().uint64) {
+            return nullptr;
+        }
+    }
+
+    assert(common_value.has_value());
+    return std::make_unique<init_register>(node.destination(), common_value.value());
 }

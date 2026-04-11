@@ -13,6 +13,7 @@
 #include "linear/flatten.hpp"
 #include "linear/optimization.hpp"
 #include "linear/optimization/dead_code.hpp"
+#include "linear/optimization/const_prop.hpp"
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -358,7 +359,8 @@ int main(int argc, char* argv[])
 		//passes.emplace_back(std::make_unique<michaelcc::logic::optimization::pointer_propagation_pass>());
 		//passes.emplace_back(std::make_unique<michaelcc::logic::optimization::const_propagation_pass>(x64_platform_info));
 		michaelcc::logic::optimization::transform(logic_translation_unit, passes);
-
+		
+		cout << michaelcc::logic::to_tree_string(logic_translation_unit) << endl;
 
 		michaelcc::logic_lowerer linear_lowerer(x64_platform_info);
 		linear_lowerer.lower(logic_translation_unit);
@@ -367,6 +369,7 @@ int main(int argc, char* argv[])
 		auto linear_passes = std::vector<std::unique_ptr<michaelcc::linear::optimization::pass>>();
 		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_instruction_pass>());
 		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_block_pass>());
+		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::const_prop_pass>());
 		michaelcc::linear::optimization::transform(linear_translation_unit, linear_passes);
 
 		cout << michaelcc::linear::print_linear_ir(linear_translation_unit) << endl;

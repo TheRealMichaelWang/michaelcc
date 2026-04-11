@@ -1369,16 +1369,25 @@ void logic_lowerer::statement_lowerer::dispatch(const logic::return_statement& n
 
             uint8_t return_register_id = m_lowerer.get_platform_info().get_return_register_id(virtual_reg.reg_class);
             auto return_physical_reg = m_lowerer.get_platform_info().get_register_info(return_register_id);
-            auto return_vreg = m_lowerer.m_translation_unit.register_allocator.new_vreg(return_physical_reg.size, return_physical_reg.reg_class);
+            auto return_vreg = m_lowerer.m_translation_unit.register_allocator.new_vreg(return_physical_reg.size, virtual_reg.reg_class);
             m_lowerer.m_translation_unit.register_allocator.set_alloc_information(return_vreg, std::make_shared<linear::alloc_information>(linear::alloc_information{
                 .register_id = return_register_id
             }));
 
-            m_lowerer.emit(std::make_unique<linear::c_instruction>(
-                linear::MICHAELCC_LINEAR_C_COPY_INIT,
-                return_vreg,
-                virtual_reg
-            ));
+            linear::c_instruction_type copy_type = linear::MICHAELCC_LINEAR_C_COPY_INIT;
+            if (virtual_reg.reg_size != return_vreg.reg_size) {
+                if (virtual_reg.reg_class == linear::MICHAELCC_REGISTER_CLASS_INTEGER) {
+                    auto int_type = std::dynamic_pointer_cast<typing::int_type>(node.value()->get_type().type());
+                    copy_type = (int_type && int_type->is_signed())
+                        ? linear::MICHAELCC_LINEAR_C_SEXT_OR_TRUNC
+                        : linear::MICHAELCC_LINEAR_C_ZEXT_OR_TRUNC;
+                } else {
+                    copy_type = (virtual_reg.reg_size == linear::MICHAELCC_WORD_SIZE_UINT32)
+                        ? linear::MICHAELCC_LINEAR_C_FLOAT32_TO_FLOAT64
+                        : linear::MICHAELCC_LINEAR_C_FLOAT64_TO_FLOAT32;
+                }
+            }
+            m_lowerer.emit(std::make_unique<linear::c_instruction>(copy_type, return_vreg, virtual_reg));
         }
 
         m_lowerer.emit(std::make_unique<linear::function_return>());
