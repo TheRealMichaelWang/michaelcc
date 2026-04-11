@@ -50,7 +50,8 @@ namespace michaelcc {
         class phi_instruction;
         class load_effective_address;
 
-        using instruction_transformer = generic_dispatcher<std::unique_ptr<instruction>, const instruction,
+        template<typename ReturnType>
+        using instruction_dispatcher = generic_dispatcher<ReturnType, const instruction,
             const a_instruction,
             const a2_instruction,
             const u_instruction,
@@ -69,6 +70,8 @@ namespace michaelcc {
             const phi_instruction,
             const load_effective_address
         >;
+
+        using instruction_transformer = instruction_dispatcher<std::unique_ptr<instruction>>;
 
         using const_visitor = generic_dispatcher<void, const instruction,
             const a_instruction,

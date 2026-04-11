@@ -30,6 +30,7 @@ add_executable(michaelcc
     linear/dead_code.cpp
     linear/const_prop.cpp
     linear/copy_prop.cpp
+    linear/gvn.cpp
     logic/optimization.cpp
     logic/constant_folding.cpp
     logic/dead_code.cpp
