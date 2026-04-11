@@ -90,10 +90,12 @@ void michaelcc::linear::optimization::dead_block_pass::prescan(const translation
 
 bool michaelcc::linear::optimization::dead_block_pass::optimize(translation_unit& unit) {
     bool made_changes = false;
-    for (auto& [block_id, block] : unit.blocks) {
-        if (!used_block_ids.contains(block_id)) {
+    for (auto it = unit.blocks.begin(); it != unit.blocks.end(); ) {
+        if (!used_block_ids.contains(it->first)) {
+            it = unit.blocks.erase(it);
             made_changes = true;
-            unit.blocks.erase(block_id);
+        } else {
+            ++it;
         }
     }
     return made_changes;

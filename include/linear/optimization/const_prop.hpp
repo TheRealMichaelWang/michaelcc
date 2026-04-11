@@ -26,12 +26,12 @@ namespace michaelcc::linear::optimization {
             }
         };
 
-        std::unordered_map<virtual_register, init_register*> m_const_vregs;
+        std::unordered_map<virtual_register, register_word> m_const_values;
 
         std::optional<register_word> get_const_value(virtual_register vreg) const {
-            auto init_register = m_const_vregs.find(vreg);
-            if (init_register != m_const_vregs.end()) {
-                return init_register->second->value();
+            auto it = m_const_values.find(vreg);
+            if (it != m_const_values.end()) {
+                return it->second;
             }
             return std::nullopt;
         }
@@ -40,6 +40,6 @@ namespace michaelcc::linear::optimization {
 
         bool optimize(translation_unit& unit) override;
 
-        void reset() override { m_const_vregs.clear(); }
+        void reset() override { m_const_values.clear(); }
     };
 }
