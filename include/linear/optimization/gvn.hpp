@@ -3,8 +3,9 @@
 
 #include "linear/ir.hpp"
 #include "linear/optimization.hpp"
-#include <cstddef>
 #include <optional>
+#include <unordered_map>
+#include <utility>
 
 namespace michaelcc {
     namespace linear {
@@ -40,6 +41,33 @@ namespace michaelcc {
                     std::optional<size_t> dispatch(const load_parameter& node) override;
                     std::optional<size_t> dispatch(const load_effective_address& node) override;
                 };
+
+                class instruction_comparator : public instruction_dispatcher<bool> {
+                private:
+                    const instruction* m_compare_to;
+
+                public:
+                    instruction_comparator(const instruction* compare_to) : m_compare_to(compare_to) {}
+
+                protected:
+                    bool handle_default(const instruction& node) override {
+                        (void)node;
+                        return false;
+                    }
+
+                    bool dispatch(const a_instruction& node) override;
+                    bool dispatch(const a2_instruction& node) override;
+                    bool dispatch(const u_instruction& node) override;
+                    bool dispatch(const c_instruction& node) override;
+                    bool dispatch(const init_register& node) override;
+                    bool dispatch(const load_memory& node) override;
+                    bool dispatch(const alloca_instruction& node) override;
+                    bool dispatch(const valloca_instruction& node) override;
+                    bool dispatch(const load_parameter& node) override;
+                    bool dispatch(const load_effective_address& node) override;
+                };
+
+                std::unordered_map<size_t, std::pair<instruction*, size_t>> m_instruction_cache;
 
             public:
                 void prescan(const translation_unit& unit) override;

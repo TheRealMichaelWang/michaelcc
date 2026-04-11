@@ -80,4 +80,14 @@ void compute_dominators(translation_unit& unit) {
     }
 }
 
+bool is_dominated_by(const translation_unit& unit, size_t dominator_block_id, size_t dominated_block_id) {
+    std::optional<size_t> current_block_id = dominated_block_id;
+    while (current_block_id.has_value()) {
+        if (current_block_id.value() == dominator_block_id) return true;
+        
+        current_block_id = unit.blocks.at(current_block_id.value()).immediate_dominator_block_id();
+    }
+    return false;
+}
+
 } // namespace michaelcc::linear

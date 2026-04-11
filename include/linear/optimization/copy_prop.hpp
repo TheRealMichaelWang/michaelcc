@@ -12,10 +12,10 @@ namespace michaelcc {
                 class replace_dest_transform : public instruction_transformer {
                 private:
                     virtual_register m_new_dest;
-
+    
                 public:
                     explicit replace_dest_transform(virtual_register new_dest) : m_new_dest(new_dest) {}
-
+    
                 protected:
                     std::unique_ptr<instruction> dispatch(const a_instruction& node) override {
                         return std::make_unique<a_instruction>(node.type(), m_new_dest, node.operand_a(), node.operand_b());
@@ -60,7 +60,7 @@ namespace michaelcc {
                         return nullptr;
                     }
                 };
-
+                
                 std::unordered_map<instruction*, virtual_register> m_new_definitions;
                 std::unordered_set<instruction*> m_dead_instructions;
 

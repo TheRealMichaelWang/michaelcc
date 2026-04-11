@@ -424,6 +424,15 @@ namespace michaelcc {
 
             register_class register_class;
             bool pass_via_stack;
+
+            bool operator==(const function_parameter& other) const {
+                return name == other.name
+                    && layout.size == other.layout.size
+                    && layout.alignment == other.layout.alignment
+                    && index == other.index
+                    && register_class == other.register_class
+                    && pass_via_stack == other.pass_via_stack;
+            }
         };
 
         // Function Argument
