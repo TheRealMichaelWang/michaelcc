@@ -629,60 +629,58 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
 linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::type_cast& node) {
     auto operand = m_lowerer.lower_expression(*node.operand());
 
+    if (node.get_type().type()->is_equivalent_to(*node.operand()->get_type().type(), m_lowerer.get_platform_info())) {
+        return operand;
+    }
+
     type_layout_calculator calculator(m_lowerer.get_platform_info());
     auto target_layout = calculator(*node.get_type().type());
     auto target_word_size = type_layout_info::get_register_size(target_layout.size);
     if (node.get_type().is_same_type<typing::float_type>() && node.operand()->get_type().is_same_type<typing::int_type>()) {
-        if (operand.reg_size == linear::MICHAELCC_WORD_SIZE_UINT64) {
-            auto dest = m_lowerer.m_translation_unit.register_allocator.new_vreg(
-                linear::MICHAELCC_WORD_SIZE_UINT64,
-                linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
+        std::shared_ptr<typing::int_type> operand_int_type = std::dynamic_pointer_cast<typing::int_type>(node.operand()->get_type().type());
+        auto adjusted_operand = operand;
+        if (type_layout_calculator::get_int_type_size(*operand_int_type, m_lowerer.get_platform_info()) != target_word_size) {
+            adjusted_operand = m_lowerer.m_translation_unit.register_allocator.new_vreg(
+                target_word_size,
+                linear::MICHAELCC_REGISTER_CLASS_INTEGER
             );
-            m_lowerer.emit(std::make_unique<linear::c_instruction>(
-                linear::MICHAELCC_LINEAR_C_FLOAT64_TO_INT64, 
-                dest, 
-                operand
-            ));
-            return dest;
+            if (operand_int_type->is_signed()) {
+                m_lowerer.emit(std::make_unique<linear::c_instruction>(
+                    linear::MICHAELCC_LINEAR_C_SEXT_OR_TRUNC,
+                    adjusted_operand,
+                    operand
+                ));
+            }
+            else {
+                m_lowerer.emit(std::make_unique<linear::c_instruction>(
+                    linear::MICHAELCC_LINEAR_C_ZEXT_OR_TRUNC,
+                    adjusted_operand,
+                    operand
+                ));
+            }
         }
-        else if (operand.reg_size == linear::MICHAELCC_WORD_SIZE_UINT32) {
-            auto dest = m_lowerer.m_translation_unit.register_allocator.new_vreg(
-                linear::MICHAELCC_WORD_SIZE_UINT32,
-                linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
-            );
-            m_lowerer.emit(std::make_unique<linear::c_instruction>(
-                linear::MICHAELCC_LINEAR_C_FLOAT32_TO_INT32, 
-                dest, 
-                operand
-            ));
-            return dest;
-        }
-        else {
-            throw std::runtime_error(std::format("Invalid bitwidth {} for float to int type cast.", static_cast<int>(operand.reg_size)));
-        }
-    }
-    else if (node.get_type().is_same_type<typing::int_type>() && node.operand()->get_type().is_same_type<typing::float_type>()) {
-        if (operand.reg_size == linear::MICHAELCC_WORD_SIZE_UINT64) {
+
+        if (target_word_size == linear::MICHAELCC_WORD_SIZE_UINT64) {
             auto dest = m_lowerer.m_translation_unit.register_allocator.new_vreg(
                 linear::MICHAELCC_WORD_SIZE_UINT64,
                 linear::register_class::MICHAELCC_REGISTER_CLASS_FLOATING_POINT
             );
             m_lowerer.emit(std::make_unique<linear::c_instruction>(
-                linear::MICHAELCC_LINEAR_C_INT64_TO_FLOAT64, 
+                operand_int_type->is_signed() ? linear::MICHAELCC_LINEAR_C_SIGNED_INT64_TO_FLOAT64 : linear::MICHAELCC_LINEAR_C_UNSIGNED_INT64_TO_FLOAT64, 
                 dest, 
-                operand
+                adjusted_operand
             ));
             return dest;
         }
-        else if (operand.reg_size == linear::MICHAELCC_WORD_SIZE_UINT32) {
+        else if (target_word_size == linear::MICHAELCC_WORD_SIZE_UINT32) {
             auto dest = m_lowerer.m_translation_unit.register_allocator.new_vreg(
                 linear::MICHAELCC_WORD_SIZE_UINT32,
                 linear::register_class::MICHAELCC_REGISTER_CLASS_FLOATING_POINT
             );
             m_lowerer.emit(std::make_unique<linear::c_instruction>(
-                linear::MICHAELCC_LINEAR_C_INT32_TO_FLOAT32, 
+                operand_int_type->is_signed() ? linear::MICHAELCC_LINEAR_C_SIGNED_INT32_TO_FLOAT32 : linear::MICHAELCC_LINEAR_C_UNSIGNED_INT32_TO_FLOAT32, 
                 dest, 
-                operand
+                adjusted_operand
             ));
             return dest;
         }
@@ -690,14 +688,56 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
             throw std::runtime_error(std::format("Invalid bitwidth {} for int to float type cast.", static_cast<int>(operand.reg_size)));
         }
     }
-    else if (node.get_type().is_same_type<typing::float_type>() && node.operand()->get_type().is_same_type<typing::float_type>() && operand.reg_size != target_word_size) {
+    else if (node.get_type().is_same_type<typing::int_type>() && node.operand()->get_type().is_same_type<typing::float_type>()) {
+        std::shared_ptr<typing::int_type> target_int_type = std::dynamic_pointer_cast<typing::int_type>(node.get_type().type());
+        linear::virtual_register dest;
+        if (operand.reg_size == linear::MICHAELCC_WORD_SIZE_UINT64) {
+            dest = m_lowerer.m_translation_unit.register_allocator.new_vreg(
+                linear::MICHAELCC_WORD_SIZE_UINT64,
+                linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
+            );
+            m_lowerer.emit(std::make_unique<linear::c_instruction>(
+                target_int_type->is_signed() ? linear::MICHAELCC_LINEAR_C_FLOAT64_TO_SIGNED_INT64 : linear::MICHAELCC_LINEAR_C_FLOAT64_TO_UNSIGNED_INT64, 
+                dest, 
+                operand
+            ));
+        }
+        else if (operand.reg_size == linear::MICHAELCC_WORD_SIZE_UINT32) {
+            dest = m_lowerer.m_translation_unit.register_allocator.new_vreg(
+                linear::MICHAELCC_WORD_SIZE_UINT32,
+                linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
+            );
+            m_lowerer.emit(std::make_unique<linear::c_instruction>(
+                target_int_type->is_signed() ? linear::MICHAELCC_LINEAR_C_FLOAT32_TO_SIGNED_INT32 : linear::MICHAELCC_LINEAR_C_FLOAT32_TO_UNSIGNED_INT32, 
+                dest, 
+                operand
+            ));
+        }
+        else {
+            throw std::runtime_error(std::format("Invalid bitwidth {} for float to int type cast.", static_cast<int>(operand.reg_size)));
+        }
+
+        if (dest.reg_size != type_layout_calculator::get_int_type_size(*target_int_type, m_lowerer.get_platform_info())) {
+            auto new_vreg = m_lowerer.m_translation_unit.register_allocator.new_vreg(
+                type_layout_calculator::get_int_type_size(*target_int_type, m_lowerer.get_platform_info()),
+                linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
+            );
+            m_lowerer.emit(std::make_unique<linear::c_instruction>(
+                target_int_type->is_signed() ? linear::MICHAELCC_LINEAR_C_SEXT_OR_TRUNC : linear::MICHAELCC_LINEAR_C_ZEXT_OR_TRUNC,
+                new_vreg, dest
+            ));
+            return new_vreg;
+        }
+        return dest;
+    }
+    else if (node.get_type().is_same_type<typing::float_type>() && node.operand()->get_type().is_same_type<typing::float_type>()) {
         if (operand.reg_size == linear::MICHAELCC_WORD_SIZE_UINT64 && target_word_size == linear::MICHAELCC_WORD_SIZE_UINT32) {
             auto dest = m_lowerer.m_translation_unit.register_allocator.new_vreg(
                 linear::MICHAELCC_WORD_SIZE_UINT32,
                 linear::register_class::MICHAELCC_REGISTER_CLASS_FLOATING_POINT
             );
             m_lowerer.emit(std::make_unique<linear::c_instruction>(
-                linear::MICHAELCC_LINEAR_C_FLOAT64_TO_INT32, 
+                linear::MICHAELCC_LINEAR_C_FLOAT64_TO_FLOAT32, 
                 dest, 
                 operand
             ));
@@ -709,7 +749,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
                 linear::register_class::MICHAELCC_REGISTER_CLASS_FLOATING_POINT
             );
             m_lowerer.emit(std::make_unique<linear::c_instruction>(
-                linear::MICHAELCC_LINEAR_C_FLOAT32_TO_INT64, 
+                linear::MICHAELCC_LINEAR_C_FLOAT32_TO_FLOAT64, 
                 dest, 
                 operand
             ));
@@ -756,6 +796,21 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
             return new_vreg;
         }
     }
+    else if (node.get_type().is_same_type<typing::pointer_type>() && (node.operand()->get_type().is_same_type<typing::pointer_type>() || node.operand()->get_type().is_same_type<typing::function_pointer_type>())) {
+        return operand; //allow passthrough
+    }
+    else if (node.get_type().is_same_type<typing::function_pointer_type>() && (node.operand()->get_type().is_same_type<typing::function_pointer_type>() || node.operand()->get_type().is_same_type<typing::pointer_type>())) {
+        return operand; //allow passthrough
+    }
+    else if (node.get_type().is_same_type<typing::pointer_type>() && node.operand()->get_type().is_same_type<typing::array_type>()) {
+        std::shared_ptr<typing::array_type> operand_array_type = std::dynamic_pointer_cast<typing::array_type>(node.operand()->get_type().type());
+        std::shared_ptr<typing::pointer_type> target_pointer_type = std::dynamic_pointer_cast<typing::pointer_type>(node.get_type().type());
+        if (operand_array_type->element_type().type()->is_equivalent_to(*target_pointer_type->pointee_type().type(), m_lowerer.get_platform_info())) {
+            return operand;
+        }
+        throw std::runtime_error(std::format("Currently unsupported type cast: {} to {}", node.get_type().to_string(), node.operand()->get_type().to_string()));
+    }
+
     throw std::runtime_error(std::format("Currently unsupported type cast: {} to {}", node.get_type().to_string(), node.operand()->get_type().to_string()));
 }
 
@@ -788,7 +843,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     auto source_address_reg = m_lowerer.lower_expression(*node.operand());
     auto dest_reg = m_lowerer.m_translation_unit.register_allocator.new_vreg(
         type_layout_info::get_register_size(layout.size),
-        m_lowerer.get_register_class(node.operand()->get_type())
+        m_lowerer.get_register_class(pointer_type->pointee_type())
     );
     m_lowerer.emit(std::make_unique<linear::load_memory>(
         dest_reg, 
@@ -829,7 +884,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
 
         auto dest_reg = m_lowerer.m_translation_unit.register_allocator.new_vreg(
             type_layout_info::get_register_size(layout.size),
-            linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
+            m_lowerer.get_register_class(node.member().member_type)
         );
         m_lowerer.emit(std::make_unique<linear::load_memory>(
             dest_reg, 
@@ -853,7 +908,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
             
             auto dest_reg = m_lowerer.m_translation_unit.register_allocator.new_vreg(
                 type_layout_info::get_register_size(layout.size),
-                linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
+                m_lowerer.get_register_class(node.member().member_type)
             );
             m_lowerer.emit(std::make_unique<linear::load_memory>(
                 dest_reg, 
@@ -872,7 +927,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
             auto base_addr = m_lowerer.lower_expression(*node.base());
             auto dest_reg = m_lowerer.m_translation_unit.register_allocator.new_vreg(
                 type_layout_info::get_register_size(layout.size),
-                linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
+                m_lowerer.get_register_class(node.member().member_type)
             );
             m_lowerer.emit(std::make_unique<linear::load_memory>(
                 dest_reg, 
