@@ -362,6 +362,14 @@ namespace michaelcc {
             void replace_instructions(std::vector<std::unique_ptr<instruction>>&& instructions) {
                 m_instructions = std::move(instructions);
             }
+
+            void remove_successor_block_id(size_t block_id) {
+                m_successor_block_ids.erase(std::remove(m_successor_block_ids.begin(), m_successor_block_ids.end(), block_id), m_successor_block_ids.end());
+            }
+
+            void remove_predecessor_block_id(size_t block_id) {
+                m_predecessor_block_ids.erase(std::remove(m_predecessor_block_ids.begin(), m_predecessor_block_ids.end(), block_id), m_predecessor_block_ids.end());
+            }
         };
 
         class branch : public instruction {

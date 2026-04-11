@@ -1,6 +1,7 @@
 #include "linear/ir.hpp"
 #include "linear/optimization.hpp"
 #include "linear/registers.hpp"
+#include <optional>
 
 namespace michaelcc::linear::optimization {
     class const_prop_pass final : public pass {
@@ -8,9 +9,10 @@ namespace michaelcc::linear::optimization {
         class instruction_pass : public instruction_transformer {
         private:
             const_prop_pass& m_pass;
+            translation_unit& m_unit;
 
         public:
-            instruction_pass(const_prop_pass& pass) : m_pass(pass) {}
+            instruction_pass(const_prop_pass& pass, translation_unit& unit) : m_pass(pass), m_unit(unit) {}
 
         protected:
             std::unique_ptr<instruction> dispatch(const a_instruction& node) override;
@@ -27,6 +29,7 @@ namespace michaelcc::linear::optimization {
         };
 
         std::unordered_map<virtual_register, register_word> m_const_values;
+        std::optional<size_t> m_current_block_id = std::nullopt;
 
         std::optional<register_word> get_const_value(virtual_register vreg) const {
             auto it = m_const_values.find(vreg);
@@ -40,6 +43,6 @@ namespace michaelcc::linear::optimization {
 
         bool optimize(translation_unit& unit) override;
 
-        void reset() override { m_const_values.clear(); }
+        void reset() override { m_const_values.clear(); m_current_block_id = std::nullopt; }
     };
 }
