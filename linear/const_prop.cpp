@@ -14,8 +14,9 @@ void michaelcc::linear::optimization::const_prop_pass::prescan(const translation
 bool michaelcc::linear::optimization::const_prop_pass::optimize(translation_unit& unit) {
     bool made_changes = false;
 
-    instruction_pass pass(*this);
+    instruction_pass pass(*this, unit);
     for (auto& [block_id, block] : unit.blocks) {
+        m_current_block_id = block_id;
         auto released_instructions = block.release_instructions();
 
         std::vector<std::unique_ptr<instruction>> new_instructions;
@@ -410,8 +411,12 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
     }
 
     if (condition_const.value().uint64 == 0) { //take false branch
+        m_unit.blocks.at(m_pass.m_current_block_id.value()).remove_successor_block_id(node.if_true_block_id());
+        m_unit.blocks.at(node.if_true_block_id()).remove_predecessor_block_id(m_pass.m_current_block_id.value());
         return std::make_unique<branch>(node.if_false_block_id());
     } else { //take true branch
+        m_unit.blocks.at(m_pass.m_current_block_id.value()).remove_successor_block_id(node.if_false_block_id());
+        m_unit.blocks.at(node.if_false_block_id()).remove_predecessor_block_id(m_pass.m_current_block_id.value());
         return std::make_unique<branch>(node.if_true_block_id());
     }
 }
