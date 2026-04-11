@@ -991,7 +991,7 @@ std::unique_ptr<logic::statement> semantic_lowerer::statement_resolver::handle_d
 }
 
 std::optional<typing::qual_type> semantic_lowerer::arbitrate_operand_type(const typing::qual_type& left, const typing::qual_type& right, const platform_info& platform, type_arbitration_mode mode) noexcept {
-    if (left.is_equivalent(right, platform)) {
+    if (left.type()->is_equivalent_to(*right.type(), platform)) {
         if (mode == ARBITRATE_NONE) {
             return left;
         }
@@ -1077,7 +1077,7 @@ std::unique_ptr<logic::expression> semantic_lowerer::lower_expression(const ast:
             throw panic(ss.str(), node.location());
         }
 
-        if (target_type->is_equivalent(expression->get_type(), m_platform_info)) {
+        if (target_type->type()->is_equivalent_to(*expression->get_type().type(), m_platform_info)) {
             return expression;
         }
 

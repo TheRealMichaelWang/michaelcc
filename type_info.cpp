@@ -75,6 +75,16 @@ namespace michaelcc {
         return false;
     }
 
+    bool typing::int_type::is_equivalent_to(const base_type& other, const platform_info& platform) const {
+        if (typeid(other) != typeid(*this)) {
+            return false;
+        }
+
+        const int_type& other_int = static_cast<const int_type&>(other);
+
+        return m_class == other_int.m_class && m_int_qualifiers == other_int.m_int_qualifiers;
+    }
+
     const type_layout_info type_layout_calculator::dispatch(typing::int_type& type) {
         size_t size = static_cast<size_t>(get_int_type_size(type, m_platform_info)) / 8;
         return { size, std::min<size_t>(size, m_platform_info.max_alignment) };

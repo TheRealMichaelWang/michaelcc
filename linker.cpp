@@ -163,7 +163,7 @@ void semantic_lowerer::forward_declare_functions::forward_declare_function(const
         }
 
         for (size_t i = 0; i < parameters.size(); i++) {
-            if (!existing_function->parameters()[i]->get_type().is_equivalent(m_lowerer.resolve_type(*parameters[i].param_type), m_lowerer.get_platform_info())) {
+            if (!existing_function->parameters()[i]->get_type().type()->is_equivalent_to(*m_lowerer.resolve_type(*parameters[i].param_type).type(), m_lowerer.get_platform_info())) {
                 throw m_lowerer.panic(std::format(
                     "Parameter type mismatch for function {}; Function originally declared with parameter type {}, but now declared with parameter type {}.", 
                     function_name,
@@ -173,7 +173,7 @@ void semantic_lowerer::forward_declare_functions::forward_declare_function(const
             }
         }
 
-        if (!existing_function->return_type().is_equivalent(m_lowerer.resolve_type(return_type), m_lowerer.get_platform_info())) {
+        if (!existing_function->return_type().type()->is_equivalent_to(*m_lowerer.resolve_type(return_type).type(), m_lowerer.get_platform_info())) {
             throw m_lowerer.panic(std::format(
                 "Return type mismatch for function {}; Function originally declared with return type {}, but now declared with return type {}.", 
                 function_name,

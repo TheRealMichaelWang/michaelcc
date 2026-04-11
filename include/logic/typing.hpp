@@ -101,6 +101,8 @@ namespace michaelcc {
 
             virtual bool is_assignable_from(const base_type& other, const platform_info& platform) const = 0;
 
+            virtual bool is_equivalent_to(const base_type& other, const platform_info& platform) const = 0;
+
             virtual void to_string(std::ostringstream& ss) const = 0;
 
             virtual bool is_copy_type() const { return true; }
@@ -132,14 +134,6 @@ namespace michaelcc {
             
             static qual_type weak(std::shared_ptr<base_type> type, uint8_t qualifiers = NO_TYPE_QUALIFIER) {
                 return qual_type(std::weak_ptr<base_type>(type), qualifiers);
-            }
-
-            bool is_equivalent(const qual_type& other, const platform_info& platform) const {
-                auto t1 = type();
-                auto t2 = other.type();
-                if (!t1 || !t2) return false;
-                return t1->is_assignable_from(*t2, platform) && t2->is_assignable_from(*t1, platform)
-                    && m_qualifiers == other.qualifiers();
             }
 
             std::shared_ptr<base_type> type() const noexcept { 
@@ -232,6 +226,10 @@ namespace michaelcc {
             bool is_assignable_from(const base_type& other, const platform_info& platform) const override {
                 return typeid(other) == typeid(*this);
             }
+            
+            bool is_equivalent_to(const base_type& other, const platform_info& platform) const override {
+                return is_assignable_from(other, platform);
+            }
 
             void to_string(std::ostringstream& ss) const override {
                 ss << "void";
@@ -281,6 +279,10 @@ namespace michaelcc {
                 return true;
             }
 
+            bool is_equivalent_to(const base_type& other, const platform_info& platform) const override {
+                return is_assignable_from(other, platform);
+            }
+
             void to_string(std::ostringstream& ss) const override {
                 if (m_name.has_value()) {
                     ss << "enum " << m_name.value();
@@ -312,6 +314,8 @@ namespace michaelcc {
             bool is_long() const noexcept { return m_int_qualifiers & LONG_INT_QUALIFIER; }
 
             bool is_assignable_from(const base_type& other, const platform_info& platform) const override;
+
+            bool is_equivalent_to(const base_type& other, const platform_info& platform) const override;
 
             void to_string(std::ostringstream& ss) const override {
                 if (is_unsigned()) ss << "unsigned ";
@@ -345,6 +349,14 @@ namespace michaelcc {
                 return m_class >= other_float.type_class();
             }
 
+            bool is_equivalent_to(const base_type& other, const platform_info& platform) const override {
+                if (typeid(other) != typeid(*this)) {
+                    return false;
+                }
+                const float_type& other_float = static_cast<const float_type&>(other);
+                return m_class == other_float.m_class;
+            }
+
             void to_string(std::ostringstream& ss) const override {
                 ss << (m_class == FLOAT_FLOAT_CLASS ? "float" : "double");
             }
@@ -366,7 +378,11 @@ namespace michaelcc {
                 }
 
                 const array_type& other_arr = static_cast<const array_type&>(other);
-                return m_element_type.is_equivalent(other_arr.element_type(), platform);
+                return m_element_type.type()->is_equivalent_to(*other_arr.element_type().type(), platform);
+            }
+
+            bool is_equivalent_to(const base_type& other, const platform_info& platform) const override {
+                return is_assignable_from(other, platform);
             }
 
             void to_string(std::ostringstream& ss) const override {
@@ -406,6 +422,22 @@ namespace michaelcc {
                 }
 
                 return m_return_type.type()->is_assignable_from(*other_fptr.return_type().type(), platform);
+            }
+
+            bool is_equivalent_to(const base_type& other, const platform_info& platform) const override {
+                if (typeid(other) != typeid(*this)) {
+                    return false;
+                }
+                const function_pointer_type& other_fptr = static_cast<const function_pointer_type&>(other);
+                if (m_parameter_types.size() != other_fptr.parameter_types().size()) {
+                    return false;
+                }
+                for (size_t i = 0; i < m_parameter_types.size(); i++) {
+                    if (!m_parameter_types[i].type()->is_equivalent_to(*other_fptr.parameter_types()[i].type(), platform)) {
+                        return false;
+                    }
+                }
+                return m_return_type.type()->is_equivalent_to(*other_fptr.return_type().type(), platform);
             }
 
             void to_string(std::ostringstream& ss) const override {
@@ -456,6 +488,14 @@ namespace michaelcc {
                 }
 
                 return m_pointee_type.type()->is_assignable_from(*other_ptr.pointee_type().type(), platform);
+            }
+
+            bool is_equivalent_to(const base_type& other, const platform_info& platform) const override {
+                if (typeid(other) != typeid(*this)) {
+                    return false;
+                }
+                const pointer_type& other_ptr = static_cast<const pointer_type&>(other);
+                return m_pointee_type.type()->is_equivalent_to(*other_ptr.pointee_type().type(), platform);
             }
 
             void to_string(std::ostringstream& ss) const override {
@@ -515,12 +555,16 @@ namespace michaelcc {
                 }
 
                 for (size_t i = 0; i < m_fields.size(); i++) {
-                    if (!m_fields[i].member_type.is_equivalent(other_struct.fields()[i].member_type, platform)) {
+                    if (!m_fields[i].member_type.type()->is_equivalent_to(*other_struct.fields()[i].member_type.type(), platform)) {
                         return false;
                     }
                 }
 
                 return true;
+            }
+
+            bool is_equivalent_to(const base_type& other, const platform_info& platform) const override {
+                return is_assignable_from(other, platform);
             }
 
             bool is_implemented() const noexcept { 
@@ -599,12 +643,16 @@ namespace michaelcc {
                 }
                 for (const auto& m : other_union.members()) {
                     auto it = member_types.find(m.name);
-                    if (it == member_types.end() || !it->second.is_equivalent(m.member_type, platform)) {
+                    if (it == member_types.end() || !it->second.type()->is_equivalent_to(*m.member_type.type(), platform)) {
                         return false;
                     }
                 }
 
                 return true;
+            }
+
+            bool is_equivalent_to(const base_type& other, const platform_info& platform) const override {
+                return is_assignable_from(other, platform);
             }
 
             bool is_implemented() const noexcept { 
