@@ -307,8 +307,8 @@ namespace michaelcc {
             int_class type_class() const noexcept { return m_class; }
             uint8_t int_qualifiers() const noexcept { return m_int_qualifiers; }
 
-            bool is_unsigned() const noexcept { return m_int_qualifiers & UNSIGNED_INT_QUALIFIER; }
-            bool is_signed() const noexcept { return m_int_qualifiers & SIGNED_INT_QUALIFIER; }
+            bool is_unsigned() const noexcept { return m_int_qualifiers & UNSIGNED_INT_QUALIFIER || !is_signed(); }
+            bool is_signed() const noexcept { return m_int_qualifiers & SIGNED_INT_QUALIFIER || m_class > CHAR_INT_CLASS; }
             bool is_long() const noexcept { return m_int_qualifiers & LONG_INT_QUALIFIER; }
 
             bool is_assignable_from(const base_type& other, const platform_info& platform) const override;

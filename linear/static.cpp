@@ -32,7 +32,7 @@ namespace michaelcc {
                     *int_type, 
                     platform_info
                 );
-                return std::make_tuple(const_to_regword(node.value(), reg_size, int_type->int_qualifiers() & typing::SIGNED_INT_QUALIFIER), reg_size);
+                return std::make_tuple(const_to_regword(node.value(), reg_size, int_type->is_signed()), reg_size);
             }
 
             void data_section_builder::dispatch(const logic::integer_constant& node) {

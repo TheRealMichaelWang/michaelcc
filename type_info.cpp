@@ -59,18 +59,20 @@ namespace michaelcc {
         }
 
         const int_type& other_int = static_cast<const int_type&>(other);
-        
-        // Strict signedness matching - unsigned -> signed requires explicit cast
-        if (is_unsigned() != other_int.is_unsigned()) {
-            return false;
-        }
 
         // Use type_layout_calculator to get actual sizes for comparison
         size_t this_size = type_layout_calculator::get_int_type_size(*this, platform);
         size_t other_size = type_layout_calculator::get_int_type_size(other_int, platform);
         
         // Allow smaller or equal size to be assigned to this type
-        return this_size >= other_size;
+        if (is_unsigned() && other_int.is_unsigned()) {
+            return this_size >= other_size;
+        } else if (is_signed() && other_int.is_signed()) {
+            return this_size == other_size; //must be equal, otherwise sign extension/truncation is needed
+        } else if (is_signed() && other_int.is_unsigned()) {
+            return this_size >= other_size;
+        } 
+        return false;
     }
 
     const type_layout_info type_layout_calculator::dispatch(typing::int_type& type) {

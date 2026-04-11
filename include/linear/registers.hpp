@@ -31,8 +31,13 @@ namespace michaelcc {
             double float64;
         };
 
+        enum register_class {
+            MICHAELCC_REGISTER_CLASS_INTEGER,
+            MICHAELCC_REGISTER_CLASS_FLOATING_POINT
+        };
+
         struct virtual_register { 
-            size_t id; word_size reg_size; 
+            size_t id; word_size reg_size; register_class reg_class;
 
             bool operator==(const virtual_register& reg) const { return reg.id == id; }
         };
@@ -45,6 +50,7 @@ namespace michaelcc {
 
             std::vector<uint8_t> mutually_exclusive_registers;
             word_size size;
+            register_class reg_class;
         };
 
         struct alloc_information {
@@ -58,9 +64,9 @@ namespace michaelcc {
             std::unordered_map<size_t, std::shared_ptr<linear::alloc_information>> m_vreg_alloc_information;
             
         public:
-            linear::virtual_register new_vreg(word_size reg_size) {
+            linear::virtual_register new_vreg(word_size reg_size, register_class reg_class) {
                 size_t id = m_next_vreg_id++;
-                return { id, reg_size };
+                return { id, reg_size, reg_class };
             }
 
             linear::alloc_information get_alloc_information(linear::virtual_register vreg) const {

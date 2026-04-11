@@ -121,27 +121,52 @@ const std::string michaelcc::token_to_str(token_type type) {
 
 const std::string a_instruction_type_to_str(linear::a_instruction_type type) {
     static const char* a_instruction_type_names[] = {
-        "+",
-        "-",
-        "*",
-        "/",
-        "%",
-        "<<",
-        ">>",
-        "&",
-        "|",
-        "^",
-        "~",
-        "&&",
-        "||",
-        "^^",
-        "!",
-        "==",
-        "!=",
-        "<",
-        "<=",
-        ">",
-        ">="
+        "+",                // ADD
+        "-",                // SUBTRACT
+        "*",                // MULTIPLY
+        "s/",               // SIGNED_DIVIDE
+        "u/",               // UNSIGNED_DIVIDE
+        "s%",               // SIGNED_MODULO
+        "u%",               // UNSIGNED_MODULO
+
+        "f+",               // FLOAT_ADD
+        "f-",               // FLOAT_SUBTRACT
+        "f*",               // FLOAT_MULTIPLY
+        "f/",               // FLOAT_DIVIDE
+        "f%",               // FLOAT_MODULO
+
+        "<<",               // SHIFT_LEFT
+        "s>>",              // SIGNED_SHIFT_RIGHT
+        "u>>",              // UNSIGNED_SHIFT_RIGHT
+        "&",                // BITWISE_AND
+        "|",                // BITWISE_OR
+        "^",                // BITWISE_XOR
+        "~",                // BITWISE_NOT
+
+        "&&",               // AND
+        "||",               // OR
+        "^^",               // XOR
+        "!",                // NOT
+
+        "==",               // COMPARE_EQUAL
+        "!=",               // COMPARE_NOT_EQUAL
+
+        "s<",               // COMPARE_SIGNED_LESS_THAN
+        "s<=",              // COMPARE_SIGNED_LESS_THAN_OR_EQUAL
+        "u<",               // COMPARE_UNSIGNED_LESS_THAN
+        "u<=",              // COMPARE_UNSIGNED_LESS_THAN_OR_EQUAL
+
+        "s>",               // COMPARE_SIGNED_GREATER_THAN
+        "s>=",              // COMPARE_SIGNED_GREATER_THAN_OR_EQUAL
+        "u>",               // COMPARE_UNSIGNED_GREATER_THAN
+        "u>=",              // COMPARE_UNSIGNED_GREATER_THAN_OR_EQUAL
+
+        "f==",              // FLOAT_COMPARE_EQUAL
+        "f!=",              // FLOAT_COMPARE_NOT_EQUAL
+        "f<",               // FLOAT_COMPARE_LESS_THAN
+        "f<=",              // FLOAT_COMPARE_LESS_THAN_OR_EQUAL
+        "f>",               // FLOAT_COMPARE_GREATER_THAN
+        "f>=",              // FLOAT_COMPARE_GREATER_THAN_OR_EQUAL
     };
     return a_instruction_type_names[type];
 }
