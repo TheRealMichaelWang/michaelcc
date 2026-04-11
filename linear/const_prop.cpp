@@ -1,11 +1,22 @@
 #include "linear/optimization/const_prop.hpp"
+#include "linear/ir.hpp"
 #include <memory>
 
 void michaelcc::linear::optimization::const_prop_pass::prescan(const translation_unit& unit) {
     for (const auto& [block_id, block] : unit.blocks) {
         for (const auto& instruction : block.instructions()) {
             if (auto* init = dynamic_cast<linear::init_register*>(instruction.get())) {
-                m_const_values[init->destination()] = init->value();
+                m_const_definitions.insert({ init->destination(), init->value() });
+            }
+            else if (auto* a2_instruction = dynamic_cast<linear::a2_instruction*>(instruction.get())) {
+                m_a2_definitions.insert({ 
+                    a2_instruction->destination(), linear::a2_instruction(
+                        a2_instruction->type(), 
+                        a2_instruction->destination(), 
+                        a2_instruction->operand_a(), 
+                        a2_instruction->constant()
+                    ) 
+                });
             }
         }
     }
@@ -27,10 +38,10 @@ bool michaelcc::linear::optimization::const_prop_pass::optimize(translation_unit
             if (new_instruction) {
                 made_changes = true;
                 if (auto* old_init = dynamic_cast<linear::init_register*>(instruction.get())) {
-                    m_const_values.erase(old_init->destination());
+                    m_const_definitions.erase(old_init->destination());
                 }
                 if (auto* new_init = dynamic_cast<linear::init_register*>(new_instruction.get())) {
-                    m_const_values[new_init->destination()] = new_init->value();
+                    m_const_definitions[new_init->destination()] = new_init->value();
                 }
                 new_instructions.emplace_back(std::move(new_instruction));
             } else {
@@ -61,10 +72,10 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
         case MICHAELCC_WORD_SIZE_UINT64: constant = val.uint64; break;
         default: return nullptr;
         }
-        if (node.operand_b().reg_class == MICHAELCC_REGISTER_CLASS_INTEGER) {
-            return std::make_unique<a2_instruction>(node.type(), node.destination(), node.operand_b(), constant);
+        if (node.operand_b().reg_class != MICHAELCC_REGISTER_CLASS_INTEGER) {
+            return nullptr;
         } 
-        return nullptr;
+        return std::make_unique<a2_instruction>(node.type(), node.destination(), node.operand_b(), constant);
     }
     if (!const_lhs.has_value() && const_rhs.has_value()) {
         auto val = const_rhs.value();
@@ -77,12 +88,21 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
         default: return nullptr;
         }
 
+        if (node.operand_b().reg_class != MICHAELCC_REGISTER_CLASS_INTEGER) {
+            return nullptr;
+        }
+
         switch (node.type()) {
         case MICHAELCC_LINEAR_A_ADD:
         case MICHAELCC_LINEAR_A_MULTIPLY:
         case MICHAELCC_LINEAR_A_BITWISE_AND:
         case MICHAELCC_LINEAR_A_BITWISE_OR:
         case MICHAELCC_LINEAR_A_BITWISE_XOR:
+        case MICHAELCC_LINEAR_A_AND:
+        case MICHAELCC_LINEAR_A_OR:
+        case MICHAELCC_LINEAR_A_XOR:
+        case MICHAELCC_LINEAR_A_COMPARE_EQUAL:
+        case MICHAELCC_LINEAR_A_COMPARE_NOT_EQUAL:
             return std::make_unique<a2_instruction>(node.type(), node.destination(), node.operand_b(), constant);
         default:
             return nullptr;
@@ -221,6 +241,40 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
 
 std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization::const_prop_pass::instruction_pass::dispatch(const michaelcc::linear::a2_instruction& node) {
     auto const_lhs = m_pass.get_const_value(node.operand_a());
+
+    auto a2_definition = m_pass.m_a2_definitions.find(node.operand_a());
+    if (a2_definition != m_pass.m_a2_definitions.end()) {
+        auto& inner = a2_definition->second;
+        auto a2_fold = [&](a_instruction_type result_type, auto compute) -> std::unique_ptr<instruction> {
+            return std::make_unique<linear::a2_instruction>(
+                result_type,
+                node.destination(), 
+                inner.operand_a(), 
+                compute(inner.constant(), node.constant())
+            );
+        };
+
+        if (node.type() == inner.type()) {
+            switch (node.type()) {
+            case MICHAELCC_LINEAR_A_ADD: return a2_fold(node.type(), [](auto a, auto b) { return a + b; });
+            case MICHAELCC_LINEAR_A_SUBTRACT: return a2_fold(node.type(), [](auto a, auto b) { return a + b; });
+            case MICHAELCC_LINEAR_A_MULTIPLY: return a2_fold(node.type(), [](auto a, auto b) { return a * b; });
+            case MICHAELCC_LINEAR_A_BITWISE_AND: return a2_fold(node.type(), [](auto a, auto b) { return a & b; });
+            case MICHAELCC_LINEAR_A_BITWISE_OR: return a2_fold(node.type(), [](auto a, auto b) { return a | b; });
+            case MICHAELCC_LINEAR_A_BITWISE_XOR: return a2_fold(node.type(), [](auto a, auto b) { return a ^ b; });
+            default: break;
+            };
+        }
+
+        // ADD then SUB (or vice versa): fold the constants against each other
+        if (inner.type() == MICHAELCC_LINEAR_A_ADD && node.type() == MICHAELCC_LINEAR_A_SUBTRACT) {
+            return a2_fold(MICHAELCC_LINEAR_A_ADD, [](auto a, auto b) { return a - b; });
+        }
+        if (inner.type() == MICHAELCC_LINEAR_A_SUBTRACT && node.type() == MICHAELCC_LINEAR_A_ADD) {
+            return a2_fold(MICHAELCC_LINEAR_A_SUBTRACT, [](auto a, auto b) { return a - b; });
+        }
+    }
+    
     if (!const_lhs.has_value()) {
         return nullptr;
     }
@@ -273,6 +327,12 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
     case MICHAELCC_LINEAR_A_BITWISE_AND:     return fold_int([](auto a, auto b) { return a & b; });
     case MICHAELCC_LINEAR_A_BITWISE_OR:      return fold_int([](auto a, auto b) { return a | b; });
     case MICHAELCC_LINEAR_A_BITWISE_XOR:     return fold_int([](auto a, auto b) { return a ^ b; });
+    case MICHAELCC_LINEAR_A_AND:             return fold_int([](auto a, auto b) { return a && b; });
+    case MICHAELCC_LINEAR_A_OR:              return fold_int([](auto a, auto b) { return a || b; });
+    case MICHAELCC_LINEAR_A_XOR:             return fold_int([](auto a, auto b) { return (bool)a ^ (bool)b; });
+    case MICHAELCC_LINEAR_A_NOT:             return nullptr;
+    case MICHAELCC_LINEAR_A_COMPARE_EQUAL:   return fold_int([](auto a, auto b) { return a == b; });
+    case MICHAELCC_LINEAR_A_COMPARE_NOT_EQUAL: return fold_int([](auto a, auto b) { return a != b; });
     default: return nullptr;
     }
 }

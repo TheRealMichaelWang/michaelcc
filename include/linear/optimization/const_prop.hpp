@@ -28,12 +28,13 @@ namespace michaelcc::linear::optimization {
             }
         };
 
-        std::unordered_map<virtual_register, register_word> m_const_values;
+        std::unordered_map<virtual_register, register_word> m_const_definitions;
+        std::unordered_map<virtual_register, a2_instruction> m_a2_definitions;
         std::optional<size_t> m_current_block_id = std::nullopt;
 
         std::optional<register_word> get_const_value(virtual_register vreg) const {
-            auto it = m_const_values.find(vreg);
-            if (it != m_const_values.end()) {
+            auto it = m_const_definitions.find(vreg);
+            if (it != m_const_definitions.end()) {
                 return it->second;
             }
             return std::nullopt;
@@ -43,6 +44,6 @@ namespace michaelcc::linear::optimization {
 
         bool optimize(translation_unit& unit) override;
 
-        void reset() override { m_const_values.clear(); m_current_block_id = std::nullopt; }
+        void reset() override { m_const_definitions.clear(); m_current_block_id = std::nullopt; }
     };
 }
