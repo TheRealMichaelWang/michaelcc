@@ -23,7 +23,12 @@ namespace michaelcc {
         size_t max_alignment;
         bool optimize_struct_layout = true;
 
-        uint8_t return_value_register_id;
+        uint8_t return_register_int_id;
+        uint8_t return_register_float_id;
+
+        uint8_t get_return_register_id(linear::register_class reg_class) const {
+            return reg_class == linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER ? return_register_int_id : return_register_float_id;
+        }
 
         std::vector<linear::register_info> registers;
 

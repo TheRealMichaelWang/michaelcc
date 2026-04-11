@@ -1,5 +1,6 @@
 #include "linear/ir.hpp"
 #include "linear/optimization.hpp"
+#include "linear/registers.hpp"
 
 namespace michaelcc::linear::optimization {
     class const_prop_pass final : public pass {
@@ -27,6 +28,13 @@ namespace michaelcc::linear::optimization {
 
         std::unordered_map<virtual_register, init_register*> m_const_vregs;
 
+        std::optional<register_word> get_const_value(virtual_register vreg) const {
+            auto init_register = m_const_vregs.find(vreg);
+            if (init_register != m_const_vregs.end()) {
+                return init_register->second->value();
+            }
+            return std::nullopt;
+        }
     public:
         void prescan(const translation_unit& unit) override;
 

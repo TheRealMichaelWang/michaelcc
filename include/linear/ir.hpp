@@ -33,6 +33,7 @@ namespace michaelcc {
         class a_instruction;
         class a2_instruction;
         class u_instruction;
+        class c_instruction;
         class copy_instruction;
         class init_register;
         class load_memory;
@@ -52,6 +53,7 @@ namespace michaelcc {
             const a_instruction,
             const a2_instruction,
             const u_instruction,
+            const c_instruction,
             const copy_instruction,
             const init_register,
             const load_memory,
@@ -71,6 +73,7 @@ namespace michaelcc {
             const a_instruction,
             const a2_instruction,
             const u_instruction,
+            const c_instruction,
             const copy_instruction,
             const init_register,
             const load_memory,
@@ -88,16 +91,27 @@ namespace michaelcc {
 
         // Arithmetic "A" instructions (includes comparison)
         enum a_instruction_type {
-            MICHAELCC_LINEAR_A_ADD, MICHAELCC_LINEAR_A_SUBTRACT, MICHAELCC_LINEAR_A_MULTIPLY, MICHAELCC_LINEAR_A_DIVIDE, MICHAELCC_LINEAR_A_MODULO,
+            MICHAELCC_LINEAR_A_ADD, MICHAELCC_LINEAR_A_SUBTRACT, MICHAELCC_LINEAR_A_MULTIPLY, 
+            MICHAELCC_LINEAR_A_SIGNED_DIVIDE, MICHAELCC_LINEAR_A_UNSIGNED_DIVIDE, MICHAELCC_LINEAR_A_SIGNED_MODULO, MICHAELCC_LINEAR_A_UNSIGNED_MODULO,
 
-            MICHAELCC_LINEAR_A_SHIFT_LEFT, MICHAELCC_LINEAR_A_SHIFT_RIGHT, 
+            MICHAELCC_LINEAR_A_FLOAT_ADD, MICHAELCC_LINEAR_A_FLOAT_SUBTRACT, MICHAELCC_LINEAR_A_FLOAT_MULTIPLY, MICHAELCC_LINEAR_A_FLOAT_DIVIDE, MICHAELCC_LINEAR_A_FLOAT_MODULO,
+
+            MICHAELCC_LINEAR_A_SHIFT_LEFT, MICHAELCC_LINEAR_A_SIGNED_SHIFT_RIGHT, MICHAELCC_LINEAR_A_UNSIGNED_SHIFT_RIGHT, 
             MICHAELCC_LINEAR_A_BITWISE_AND, MICHAELCC_LINEAR_A_BITWISE_OR, MICHAELCC_LINEAR_A_BITWISE_XOR, MICHAELCC_LINEAR_A_BITWISE_NOT,
             
             MICHAELCC_LINEAR_A_AND, MICHAELCC_LINEAR_A_OR, MICHAELCC_LINEAR_A_XOR, MICHAELCC_LINEAR_A_NOT,
 
             MICHAELCC_LINEAR_A_COMPARE_EQUAL, MICHAELCC_LINEAR_A_COMPARE_NOT_EQUAL, 
-            MICHAELCC_LINEAR_A_COMPARE_LESS_THAN, MICHAELCC_LINEAR_A_COMPARE_LESS_THAN_OR_EQUAL, 
-            MICHAELCC_LINEAR_A_COMPARE_GREATER_THAN, MICHAELCC_LINEAR_A_COMPARE_GREATER_THAN_OR_EQUAL,
+            
+            MICHAELCC_LINEAR_A_COMPARE_SIGNED_LESS_THAN, MICHAELCC_LINEAR_A_COMPARE_SIGNED_LESS_THAN_OR_EQUAL, 
+            MICHAELCC_LINEAR_A_COMPARE_UNSIGNED_LESS_THAN, MICHAELCC_LINEAR_A_COMPARE_UNSIGNED_LESS_THAN_OR_EQUAL, 
+
+            MICHAELCC_LINEAR_A_COMPARE_SIGNED_GREATER_THAN, MICHAELCC_LINEAR_A_COMPARE_SIGNED_GREATER_THAN_OR_EQUAL,
+            MICHAELCC_LINEAR_A_COMPARE_UNSIGNED_GREATER_THAN, MICHAELCC_LINEAR_A_COMPARE_UNSIGNED_GREATER_THAN_OR_EQUAL,
+
+            MICHAELCC_LINEAR_A_FLOAT_COMPARE_EQUAL, MICHAELCC_LINEAR_A_FLOAT_COMPARE_NOT_EQUAL, 
+            MICHAELCC_LINEAR_A_FLOAT_COMPARE_LESS_THAN, MICHAELCC_LINEAR_A_FLOAT_COMPARE_LESS_THAN_OR_EQUAL, 
+            MICHAELCC_LINEAR_A_FLOAT_COMPARE_GREATER_THAN, MICHAELCC_LINEAR_A_FLOAT_COMPARE_GREATER_THAN_OR_EQUAL,
         };
 
         class a_instruction : public instruction {
@@ -147,6 +161,7 @@ namespace michaelcc {
         // Unary "U" instructions
         enum u_instruction_type {
             MICHAELCC_LINEAR_U_NEGATE,
+            MICHAELCC_LINEAR_U_FLOAT_NEGATE,
             MICHAELCC_LINEAR_U_NOT,
             MICHAELCC_LINEAR_U_BITWISE_NOT,
         };
@@ -163,6 +178,39 @@ namespace michaelcc {
             u_instruction_type type() const noexcept { return m_type; }
             virtual_register destination() const noexcept { return m_destination; }
             virtual_register operand() const noexcept { return m_operand; }
+
+            std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_operand }; }
+        };
+
+        // Case "C" instructions
+        enum c_instruction_type {
+            MICHAELCC_LINEAR_C_FLOAT64_TO_INT64,
+            MICHAELCC_LINEAR_C_FLOAT32_TO_INT32,
+            MICHAELCC_LINEAR_C_INT64_TO_FLOAT64,
+            MICHAELCC_LINEAR_C_INT32_TO_FLOAT32,
+            MICHAELCC_LINEAR_C_FLOAT32_TO_INT64,
+            MICHAELCC_LINEAR_C_FLOAT64_TO_INT32,
+
+            MICHAELCC_LINEAR_C_SEXT_OR_TRUNC,
+            MICHAELCC_LINEAR_C_ZEXT_OR_TRUNC
+        };
+
+        class c_instruction : public instruction {
+        private:
+            c_instruction_type m_type;
+            virtual_register m_destination;
+            virtual_register m_operand;
+        public:
+            c_instruction(c_instruction_type type, virtual_register destination, virtual_register operand) 
+            : m_type(type), m_destination(destination), m_operand(operand) {}
+
+            c_instruction_type type() const noexcept { return m_type; }
+            virtual_register destination() const noexcept { return m_destination; }
+            virtual_register operand() const noexcept { return m_operand; }
+
+            bool is_extension() const noexcept { return m_destination.reg_size > m_operand.reg_size; }
+            bool is_truncation() const noexcept { return m_destination.reg_size < m_operand.reg_size; }
 
             std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
             std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_operand }; }
@@ -309,7 +357,7 @@ namespace michaelcc {
             std::optional<size_t> immediate_dominator_block_id() const noexcept { return m_immediate_dominator_block_id; }
 
             std::vector<std::unique_ptr<instruction>>&& release_instructions() noexcept { return std::move(m_instructions); }   
-            
+
             void add_predecessor_block_id(size_t block_id) {
                 m_predecessor_block_ids.push_back(block_id);
             }
@@ -366,6 +414,7 @@ namespace michaelcc {
             std::string name;
 
             type_layout_info layout;
+            register_class register_class;
             bool pass_as_alloca;
         };
 

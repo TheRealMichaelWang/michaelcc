@@ -3,8 +3,10 @@
 
 #include "linear/ir.hpp"
 #include "logic/ir.hpp"
+#include "logic/typing.hpp"
 #include "platform.hpp"
 #include "linear/registers.hpp"
+#include "registers.hpp"
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -207,6 +209,11 @@ namespace michaelcc {
             auto lowerer = std::make_unique<lvalue_lowerer>(*this);
             return (*lowerer)(expr);
         }
+
+        linear::register_class get_register_class(const typing::qual_type type) {
+            return type.is_same_type<typing::float_type>() ? linear::register_class::MICHAELCC_REGISTER_CLASS_FLOATING_POINT : linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER;
+        }
+
 
         void lower_function(const logic::function_definition& function);
         void lower_static_variable_declaration(const logic::variable_declaration& declaration);
