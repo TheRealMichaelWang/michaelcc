@@ -41,13 +41,14 @@ namespace michaelcc {
         std::shared_ptr<typing::union_type> union_type = std::dynamic_pointer_cast<typing::union_type>(type.type());
         if (union_type) {
             for (auto& member : union_type->members()) {
-                if (must_alloca(member.member_type)) {
+                if (must_alloca(member.member_type) || member.member_type.is_same_type<typing::float_type>()) {
                     return true;
                 }
             }
             return false;
         }
-        return type.is_same_type<typing::struct_type>() || (*this)(*type.type()).size * 8 > static_cast<size_t>(m_platform_info.max_register_size());
+        size_t byte_size = (*this)(*type.type()).size;
+        return type.is_same_type<typing::struct_type>() || (byte_size * 8) > static_cast<size_t>(m_platform_info.max_register_size());
     }
 
     bool typing::int_type::is_assignable_from(const typing::base_type& other, const platform_info& platform) const {
