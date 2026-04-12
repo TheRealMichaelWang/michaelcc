@@ -3,6 +3,7 @@
 
 #include "linear/ir.hpp"
 #include <unordered_map>
+#include <utility>
 
 namespace michaelcc::linear::passes {
     // Converts all alloca instructions into actual references to memory locations on the stack
@@ -10,17 +11,14 @@ namespace michaelcc::linear::passes {
     class frame_allocator final {
     private:
         linear::translation_unit& translation_unit;
-        size_t function_id;
 
-        // map of block id to current stack offset
-        std::unordered_map<size_t, size_t> block_to_stack_offset;
+        // map of block id to current stack offset and frame pointer virtual register
+        // NOTE: offset is SUBRACTED from the frame pointer
+        std::unordered_map<linear::function_definition*, std::pair<size_t, linear::virtual_register>> function_to_frame_pointer;
 
-        void allocate_block(size_t block_id);
+        void allocate_block(linear::function_definition* function, size_t block_id);
     public:
-        frame_allocator(linear::translation_unit& translation_unit, size_t function_id) 
-            : translation_unit(translation_unit), function_id(function_id) { 
-                block_to_stack_offset.emplace(translation_unit.function_definitions.at(function_id)->entry_block_id(), 0);
-            }
+        frame_allocator(linear::translation_unit& translation_unit);
 
         void allocate();
     };

@@ -35,5 +35,6 @@ add_executable(michaelcc
     linear/const_prop.cpp
     linear/copy_prop.cpp
     linear/gvn.cpp
+    linear/frame_allocator.cpp
     isa/x64.cpp
 )
