@@ -1,5 +1,5 @@
 #include "linear/ir.hpp"
-#include "linear/optimization.hpp"
+#include "linear/pass.hpp"
 #include "linear/registers.hpp"
 #include <optional>
 

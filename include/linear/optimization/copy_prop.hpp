@@ -1,4 +1,4 @@
-#include "linear/optimization.hpp"
+#include "linear/pass.hpp"
 #include "linear/registers.hpp"
 #include <memory>
 #include <unordered_map>

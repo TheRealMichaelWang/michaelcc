@@ -30,7 +30,7 @@ add_executable(michaelcc
     linear/registers.cpp
     linear/static.cpp
     linear/dominators.cpp
-    linear/optimization.cpp
+    linear/pass.cpp
     linear/dead_code.cpp
     linear/const_prop.cpp
     linear/copy_prop.cpp

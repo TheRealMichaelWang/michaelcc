@@ -2,7 +2,7 @@
 #define MICHAELCC_LINEAR_OPTIMIZATION_GVN_HPP
 
 #include "linear/ir.hpp"
-#include "linear/optimization.hpp"
+#include "linear/pass.hpp"
 #include <optional>
 #include <unordered_map>
 #include <utility>

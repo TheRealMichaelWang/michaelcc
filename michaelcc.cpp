@@ -11,7 +11,7 @@
 #include "logic/optimization/pointer_propagation.hpp"
 #include "logic/optimization/const_propagation.hpp"	
 #include "linear/flatten.hpp"
-#include "linear/optimization.hpp"
+#include "linear/pass.hpp"
 #include "linear/optimization/dead_code.hpp"
 #include "linear/optimization/const_prop.hpp"
 #include "linear/optimization/copy_prop.hpp"
@@ -30,7 +30,7 @@ struct CompilerOptions {
 	std::string platform = "x64";
 
 	// can be from 0 to 2
-	int optimization_level = 0;
+	int optimization_level = 2;
 };
 
 std::unordered_map<std::string, michaelcc::platform_info> platform_infos = {
@@ -39,7 +39,7 @@ std::unordered_map<std::string, michaelcc::platform_info> platform_infos = {
 
 int main(int argc, char* argv[])
 {
-	CLI::App app("The Michael C Compiler, an basic optimizing C compiler.", "michaelcc");
+	CLI::App app("The Michael C Compiler, a basic optimizing C compiler.", "michaelcc");
 	argv = app.ensure_utf8(argv);
 
 	CompilerOptions options;
@@ -99,12 +99,12 @@ int main(int argc, char* argv[])
 		auto linear_translation_unit = linear_lowerer.release_translation_unit();
 
 		if (options.optimization_level >= 1) {
-			auto linear_passes = std::vector<std::unique_ptr<michaelcc::linear::optimization::pass>>();
+			auto linear_passes = std::vector<std::unique_ptr<michaelcc::linear::pass>>();
 			linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_instruction_pass>());
 			linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_block_pass>());
 			linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::const_prop_pass>());
 			linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::copy_prop_pass>());
-			michaelcc::linear::optimization::transform(linear_translation_unit, linear_passes);
+			michaelcc::linear::transform(linear_translation_unit, linear_passes);
 		}
 
 		cout << michaelcc::linear::print_linear_ir(linear_translation_unit) << endl;
