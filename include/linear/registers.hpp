@@ -42,20 +42,22 @@ namespace michaelcc {
             bool operator==(const virtual_register& reg) const { return reg.id == id; }
         };
 
+        using register_t = uint8_t;
+
         struct register_info {
-            uint8_t id;
+            register_t id;
             
             std::string name;
             std::string description;
 
-            std::vector<uint8_t> mutually_exclusive_registers;
+            std::vector<register_t> mutually_exclusive_registers;
             word_size size;
             register_class reg_class;
         };
 
         struct alloc_information {
             bool must_use_register = false;
-            std::optional<uint8_t> register_id = std::nullopt;
+            std::optional<register_t> register_id = std::nullopt;
         };
 
         class register_allocator {

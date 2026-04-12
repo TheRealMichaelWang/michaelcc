@@ -2,7 +2,6 @@
 #include "linear/dominators.hpp"
 #include "linear/ir.hpp"
 #include "linear/registers.hpp"
-#include <cstdint>
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -93,37 +92,6 @@ std::optional<size_t> michaelcc::linear::optimization::gvn_pass::instruction_has
     return h;
 }
 
-std::optional<size_t> michaelcc::linear::optimization::gvn_pass::instruction_hasher::dispatch(const load_memory& node) {
-    if (node.has_side_effects()) {
-        return std::nullopt;
-    }
-    size_t h = tag(6);
-    hash_combine(h, hash_virtual_register(node.source_address()));
-    hash_combine(h, static_cast<size_t>(static_cast<uint64_t>(node.offset())));
-    hash_combine(h, node.size_bytes());
-    return h;
-}
-
-std::optional<size_t> michaelcc::linear::optimization::gvn_pass::instruction_hasher::dispatch(const alloca_instruction& node) {
-    if (node.has_side_effects()) {
-        return std::nullopt;
-    }
-    size_t h = tag(7);
-    hash_combine(h, node.size_bytes());
-    hash_combine(h, node.alignment());
-    return h;
-}
-
-std::optional<size_t> michaelcc::linear::optimization::gvn_pass::instruction_hasher::dispatch(const valloca_instruction& node) {
-    if (node.has_side_effects()) {
-        return std::nullopt;
-    }
-    size_t h = tag(8);
-    hash_combine(h, hash_virtual_register(node.size()));
-    hash_combine(h, node.alignment());
-    return h;
-}
-
 std::optional<size_t> michaelcc::linear::optimization::gvn_pass::instruction_hasher::dispatch(const load_parameter& node) {
     if (node.has_side_effects()) {
         return std::nullopt;
@@ -178,28 +146,6 @@ bool michaelcc::linear::optimization::gvn_pass::instruction_comparator::dispatch
     return node.value().uint64 == other->value().uint64;
 }
 
-bool michaelcc::linear::optimization::gvn_pass::instruction_comparator::dispatch(const load_memory& node) {
-    auto* other = dynamic_cast<const load_memory*>(m_compare_to);
-    if (!other) return false;
-    return node.source_address() == other->source_address()
-        && node.offset() == other->offset()
-        && node.size_bytes() == other->size_bytes();
-}
-
-bool michaelcc::linear::optimization::gvn_pass::instruction_comparator::dispatch(const alloca_instruction& node) {
-    auto* other = dynamic_cast<const alloca_instruction*>(m_compare_to);
-    if (!other) return false;
-    return node.size_bytes() == other->size_bytes()
-        && node.alignment() == other->alignment();
-}
-
-bool michaelcc::linear::optimization::gvn_pass::instruction_comparator::dispatch(const valloca_instruction& node) {
-    auto* other = dynamic_cast<const valloca_instruction*>(m_compare_to);
-    if (!other) return false;
-    return node.size() == other->size()
-        && node.alignment() == other->alignment();
-}
-
 bool michaelcc::linear::optimization::gvn_pass::instruction_comparator::dispatch(const load_parameter& node) {
     auto* other = dynamic_cast<const load_parameter*>(m_compare_to);
     if (!other) return false;
@@ -249,7 +195,11 @@ bool michaelcc::linear::optimization::gvn_pass::optimize(translation_unit& unit)
 
             auto [existing_instruction, existing_block_id] = m_instruction_cache.at(hash.value());
 
-            //check for hash collision (not likely but just in case) and if the existing instruction does not dominate the current code block
+            if (existing_instruction == instruction.get()) {
+                new_instructions.emplace_back(std::move(instruction));
+                continue;
+            }
+
             instruction_comparator comparator(existing_instruction);
             if (!comparator(*instruction.get()) || !linear::is_dominated_by(unit, existing_block_id, block_id)) {
                 new_instructions.emplace_back(std::move(instruction));

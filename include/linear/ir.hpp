@@ -306,6 +306,8 @@ namespace michaelcc {
             size_t size_bytes() const noexcept { return m_size_bytes; }
             size_t alignment() const noexcept { return m_alignment; }
 
+            bool has_side_effects() const noexcept override { return true; }
+
             std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
             std::vector<linear::virtual_register> operand_registers() const noexcept override { return {}; }
         };
@@ -323,6 +325,8 @@ namespace michaelcc {
             virtual_register destination() const noexcept { return m_destination; }
             virtual_register size() const noexcept { return m_size; }
             size_t alignment() const noexcept { return m_alignment; }
+
+            bool has_side_effects() const noexcept override { return true; }
 
             std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
             std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_size }; }

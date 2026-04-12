@@ -35,9 +35,6 @@ namespace michaelcc {
                     std::optional<size_t> dispatch(const u_instruction& node) override;
                     std::optional<size_t> dispatch(const c_instruction& node) override;
                     std::optional<size_t> dispatch(const init_register& node) override;
-                    std::optional<size_t> dispatch(const load_memory& node) override;
-                    std::optional<size_t> dispatch(const alloca_instruction& node) override;
-                    std::optional<size_t> dispatch(const valloca_instruction& node) override;
                     std::optional<size_t> dispatch(const load_parameter& node) override;
                     std::optional<size_t> dispatch(const load_effective_address& node) override;
                 };
@@ -60,9 +57,6 @@ namespace michaelcc {
                     bool dispatch(const u_instruction& node) override;
                     bool dispatch(const c_instruction& node) override;
                     bool dispatch(const init_register& node) override;
-                    bool dispatch(const load_memory& node) override;
-                    bool dispatch(const alloca_instruction& node) override;
-                    bool dispatch(const valloca_instruction& node) override;
                     bool dispatch(const load_parameter& node) override;
                     bool dispatch(const load_effective_address& node) override;
                 };
@@ -72,7 +66,7 @@ namespace michaelcc {
             public:
                 void prescan(const translation_unit& unit) override;
                 bool optimize(translation_unit& unit) override;
-                void reset() override {}
+                void reset() override { m_instruction_cache.clear(); }
             };
         }
     }

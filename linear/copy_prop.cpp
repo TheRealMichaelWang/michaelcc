@@ -1,10 +1,10 @@
 #include "linear/optimization/copy_prop.hpp"
+#include "linear/dominators.hpp"
 #include "linear/ir.hpp"
 #include <utility>
 
 void michaelcc::linear::optimization::copy_prop_pass::prescan(const translation_unit& unit) {
     // prowl through the IR to find all the definitions of virtual registers
-    std::unordered_map<virtual_register, std::pair<instruction*, size_t>> m_instruction_map;
     for (const auto& [block_id, block] : unit.blocks) {
         for (const auto& instruction : block.instructions()) {
             if (instruction->destination_register().has_value()) {
@@ -30,7 +30,6 @@ bool michaelcc::linear::optimization::copy_prop_pass::optimize(translation_unit&
             auto new_instruction = transform(*instruction.get());
             if (new_instruction) {
                 new_instructions.emplace_back(std::move(new_instruction));
-                made_changes = true;
             } else {
                 new_instructions.emplace_back(std::move(instruction));
             }
@@ -47,6 +46,11 @@ bool michaelcc::linear::optimization::copy_prop_pass::optimize(translation_unit&
                 assert(source_instruction.first->destination_register().has_value());
                 assert(source_instruction.first->destination_register().value().reg_size == copy->destination().reg_size);
                 assert(source_instruction.first->destination_register().value().reg_class == copy->destination().reg_class);
+
+                if (!linear::is_dominated_by(unit, source_instruction.second, block_id)) {
+                    push_instruction(std::move(instruction));
+                    continue;
+                }
 
                 auto reg_alloc_info = unit.register_allocator.get_alloc_information(copy->destination());
                 // if the destination is a physical register, we must keep that vreg

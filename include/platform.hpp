@@ -25,12 +25,12 @@ namespace michaelcc {
 
         uint8_t return_register_int_id;
         uint8_t return_register_float_id;
+        
+        std::vector<linear::register_info> registers;
 
         uint8_t get_return_register_id(linear::register_class reg_class) const {
             return reg_class == linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER ? return_register_int_id : return_register_float_id;
         }
-
-        std::vector<linear::register_info> registers;
 
         const linear::register_info& get_register_info(uint8_t id) const {
             return registers.at(id);

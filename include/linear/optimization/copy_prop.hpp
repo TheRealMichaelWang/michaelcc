@@ -3,6 +3,7 @@
 #include <memory>
 #include <unordered_map>
 #include <vector>
+#include <variant>
 
 namespace michaelcc {
     namespace linear {
@@ -85,6 +86,44 @@ namespace michaelcc {
                     std::unique_ptr<instruction> handle_default(const instruction&) override {
                         return nullptr;
                     }
+
+                    std::unique_ptr<instruction> dispatch(const push_function_argument& node) override {
+                        return std::make_unique<push_function_argument>(
+                            node.argument(), 
+                            get_replacement(node.value())
+                        );
+                    }
+
+                    std::unique_ptr<instruction> dispatch(const function_call& node) override {
+                        auto new_callee = std::visit(overloaded{
+                            [this](const std::string& label) -> function_call::callable { return label; },
+                            [this](const virtual_register& vreg) -> function_call::callable { return get_replacement(vreg); }
+                        }, node.callee());
+                        return std::make_unique<function_call>(
+                            node.destination(), 
+                            std::move(new_callee), 
+                            node.argument_count()
+                        );
+                    }
+                    
+                    std::unique_ptr<instruction> dispatch(const branch_condition& node) override {
+                        return std::make_unique<branch_condition>(
+                            get_replacement(node.condition()), 
+                            node.if_true_block_id(), 
+                            node.if_false_block_id(), 
+                            node.is_loop()
+                        );
+                    }
+
+                    std::unique_ptr<instruction> dispatch(const store_memory& node) override {
+                        return std::make_unique<store_memory>(
+                            get_replacement(node.source_address()), 
+                            get_replacement(node.value()), 
+                            node.offset(), 
+                            node.size_bytes()
+                        );
+                    }
+
                 };
                 std::unordered_map<virtual_register, std::pair<instruction*, size_t>> m_instruction_map;
 
