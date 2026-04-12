@@ -28,6 +28,9 @@ namespace michaelcc {
         linear::register_t return_register_int64_id;
         linear::register_t return_register_float32_id;
         linear::register_t return_register_float64_id;
+
+        linear::register_t stack_pointer_register_id;
+        linear::register_t frame_pointer_register_id;
         
         std::vector<linear::register_info> registers;
 

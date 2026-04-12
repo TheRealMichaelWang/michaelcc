@@ -13,13 +13,14 @@ namespace michaelcc::linear {
             for (auto& pass : passes) {
                 pass->prescan(unit);
 
-                any_pass_mutated |= pass->optimize(unit);
+                bool mutated_stuff = pass->optimize(unit);
+                if (mutated_stuff) {
+                    compute_dominators(unit);
+                }
+                any_pass_mutated |= mutated_stuff;
+
 
                 pass->reset();
-            }
-
-            if (any_pass_mutated) {
-                compute_dominators(unit);
             }
             passes_run++;
         } while (any_pass_mutated);
