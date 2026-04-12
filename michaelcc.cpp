@@ -16,19 +16,47 @@
 #include "linear/optimization/const_prop.hpp"
 #include "linear/optimization/copy_prop.hpp"
 #include "isa/x64.hpp"
+#include "CLI11.hpp"
 #include <fstream>
 #include <iostream>
+#include <unordered_map>
 #include <vector>
 
 using namespace std;
 
+struct CompilerOptions {
+	std::string input_file;
+	std::string output_file;
+	std::string platform = "x64";
+
+	// can be from 0 to 2
+	int optimization_level = 0;
+};
+
+std::unordered_map<std::string, michaelcc::platform_info> platform_infos = {
+	{ "x64", michaelcc::isa::x64::platform_info },
+};
+
 int main(int argc, char* argv[])
 {
-	std::vector<std::string_view> args(argv, argv + argc);
+	CLI::App app("The Michael C Compiler, an basic optimizing C compiler.", "michaelcc");
+	argv = app.ensure_utf8(argv);
 
-    cout << "Michael C Compiler" << endl;
-	auto path = args.size() > 1 ? args.at(1) : "../../tests/loops.c";
-	ifstream infile = std::ifstream(std::string(path));
+	CompilerOptions options;
+	app.add_option("-i, --input", options.input_file, "The input file to compile")
+		->check(CLI::ExistingFile)
+		->required();
+	app.add_option("-o, --output", options.output_file, "The output file to compile to")
+		->required();
+	app.add_option("-p, --platform", options.platform, "The platform to compile for")
+		->check(CLI::IsMember(platform_infos))
+		->required();
+	app.add_option("-O, --optimization", options.optimization_level, "The optimization level to compile with")
+		->check(CLI::Range(0, 2));
+
+	CLI11_PARSE(app, argc, argv);
+
+	ifstream infile = std::ifstream(options.input_file);
 	
 	if (!infile.is_open()) {
 		cerr << "Failed to open file!" << endl;
@@ -39,44 +67,45 @@ int main(int argc, char* argv[])
 	ss << infile.rdbuf();
 
 	try {
-		michaelcc::preprocessor preprocessor(ss.str(), path);
+		// preprocess the input file
+		michaelcc::preprocessor preprocessor(ss.str(), options.input_file);
 		preprocessor.preprocess();
 		vector<michaelcc::token> tokens = preprocessor.result();
 
+		// parse the tokens into an AST
 		michaelcc::parser parser(std::move(tokens));
 		std::vector<std::unique_ptr<michaelcc::ast::ast_element>> ast = parser.parse_all();
-		
-		// Print all top-level elements
-		for (const auto& element : ast) {
-			cout << michaelcc::ast::to_c_string(*element) << endl;
-		}
 
+		// lower AST to logical IR
 		michaelcc::semantic_lowerer lowerer(michaelcc::isa::x64::platform_info);
 
 		lowerer.lower(ast);
 		auto logic_translation_unit = lowerer.release_translation_unit();
 
 		auto passes = std::vector<std::unique_ptr<michaelcc::logic::optimization::pass>>();
-		//passes.emplace_back(michaelcc::logic::optimization::make_constant_folding_pass(x64_platform_info));
+		passes.emplace_back(michaelcc::logic::optimization::make_constant_folding_pass(michaelcc::isa::x64::platform_info));
 		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::ir_simplify_pass>(michaelcc::isa::x64::platform_info));
-		//passes.emplace_back(std::make_unique<michaelcc::logic::optimization::dead_code_pass>());
-		//passes.emplace_back(std::make_unique<michaelcc::logic::optimization::inline_functions_pass>());
-		//passes.emplace_back(std::make_unique<michaelcc::logic::optimization::pointer_propagation_pass>());
-		//passes.emplace_back(std::make_unique<michaelcc::logic::optimization::const_propagation_pass>(x64_platform_info));
+		if (options.optimization_level >= 2) {
+			passes.emplace_back(std::make_unique<michaelcc::logic::optimization::dead_code_pass>());
+			passes.emplace_back(std::make_unique<michaelcc::logic::optimization::pointer_propagation_pass>());
+			passes.emplace_back(std::make_unique<michaelcc::logic::optimization::const_propagation_pass>(michaelcc::isa::x64::platform_info));
+		}
+		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::inline_functions_pass>());
 		michaelcc::logic::optimization::transform(logic_translation_unit, passes);
 		
-		cout << michaelcc::logic::to_tree_string(logic_translation_unit) << endl;
-
+		// lower logical IR to linear SSA IR
 		michaelcc::logic_lowerer linear_lowerer(michaelcc::isa::x64::platform_info);
 		linear_lowerer.lower(logic_translation_unit);
 		auto linear_translation_unit = linear_lowerer.release_translation_unit();
 
-		auto linear_passes = std::vector<std::unique_ptr<michaelcc::linear::optimization::pass>>();
-		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_instruction_pass>());
-		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_block_pass>());
-		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::const_prop_pass>());
-		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::copy_prop_pass>());
-		michaelcc::linear::optimization::transform(linear_translation_unit, linear_passes);
+		if (options.optimization_level >= 1) {
+			auto linear_passes = std::vector<std::unique_ptr<michaelcc::linear::optimization::pass>>();
+			linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_instruction_pass>());
+			linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_block_pass>());
+			linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::const_prop_pass>());
+			linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::copy_prop_pass>());
+			michaelcc::linear::optimization::transform(linear_translation_unit, linear_passes);
+		}
 
 		cout << michaelcc::linear::print_linear_ir(linear_translation_unit) << endl;
 	}

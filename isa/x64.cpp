@@ -2,6 +2,7 @@
 #include "linear/registers.hpp"
 
 // x86-64 (System V AMD64 ABI) platform information
+// Note this targets System V, not Win64
 //
 // Register ID layout (= vector index):
 //   GPRs with 8-bit high sub-register (rax, rbx, rcx, rdx):
