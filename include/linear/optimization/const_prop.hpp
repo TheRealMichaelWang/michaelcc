@@ -22,6 +22,8 @@ namespace michaelcc::linear::optimization {
             std::unique_ptr<instruction> dispatch(const valloca_instruction& node) override;
             std::unique_ptr<instruction> dispatch(const branch_condition& node) override;
             std::unique_ptr<instruction> dispatch(const phi_instruction& node) override;
+            std::unique_ptr<instruction> dispatch(const load_memory& node) override;
+            std::unique_ptr<instruction> dispatch(const store_memory& node) override;
 
             std::unique_ptr<instruction> handle_default(const instruction& node) override {
                 return nullptr;

@@ -456,6 +456,44 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
     }
 }
 
+std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization::const_prop_pass::instruction_pass::dispatch(const michaelcc::linear::load_memory& node) {
+    auto a2_definition = m_pass.m_a2_definitions.find(node.source_address());
+    if (a2_definition == m_pass.m_a2_definitions.end()) {
+        return nullptr;
+    }
+
+    auto& inner = a2_definition->second;
+
+    auto make_load_memory = [&](auto compute) -> std::unique_ptr<instruction> {
+        return std::make_unique<load_memory>(node.destination(), inner.operand_a(), compute(node.offset(), inner.constant()), node.size_bytes());
+    };
+
+    switch(inner.type()) {
+    case MICHAELCC_LINEAR_A_ADD: return make_load_memory([](auto a, auto b) { return a + b; });
+    case MICHAELCC_LINEAR_A_SUBTRACT: return make_load_memory([](auto a, auto b) { return a - b; });
+    default: return nullptr;
+    }
+}
+
+std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization::const_prop_pass::instruction_pass::dispatch(const michaelcc::linear::store_memory& node) {
+    auto a2_definition = m_pass.m_a2_definitions.find(node.source_address());
+    if (a2_definition == m_pass.m_a2_definitions.end()) {
+        return nullptr;
+    }
+    
+    auto& inner = a2_definition->second;
+    auto make_store_memory = [&](auto compute) -> std::unique_ptr<instruction> {
+        return std::make_unique<store_memory>(inner.operand_a(), node.value(), compute(node.offset(), inner.constant()), node.size_bytes());
+    };
+    
+    switch(inner.type()) {
+    case MICHAELCC_LINEAR_A_ADD: return make_store_memory([](auto a, auto b) { return a + b; });
+    case MICHAELCC_LINEAR_A_SUBTRACT: return make_store_memory([](auto a, auto b) { return a - b; });
+    default: return nullptr;
+    }
+}
+
+
 std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization::const_prop_pass::instruction_pass::dispatch(const michaelcc::linear::valloca_instruction& node) {
     auto length_const = m_pass.get_const_value(node.size());
     if (!length_const.has_value()) {
