@@ -1263,7 +1263,7 @@ protected:
         print_virtual_register(node.destination(), true, true);
         m_out << " = *(";
         print_virtual_register(node.source_address());
-        m_out << " + " << node.offset() << ") ;(" << node.size_bytes() << " bytes)\n";
+        m_out << " + " << node.offset() << ")\n";
     }
 
     void dispatch(const linear::store_memory& node) override {
@@ -1271,7 +1271,7 @@ protected:
         print_virtual_register(node.source_address(), true, true);
         m_out << " = *(";
         print_virtual_register(node.value());
-        m_out << " + " << node.offset() << ") ;(" << node.size_bytes() << " bytes)\n";
+        m_out << " + " << node.offset() << ")\n";
     }
 
     void dispatch(const linear::alloca_instruction& node) override {

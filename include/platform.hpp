@@ -11,7 +11,6 @@ namespace michaelcc {
     struct platform_info {
         linear::word_size pointer_size;
 
-        linear::word_size char_size = linear::word_size::MICHAELCC_WORD_SIZE_BYTE;
         linear::word_size short_size;
         linear::word_size int_size;
         linear::word_size long_size;

@@ -6,7 +6,7 @@ namespace michaelcc {
     linear::word_size type_layout_calculator::get_int_type_size(const typing::int_type& type, const platform_info& info) {
         switch (type.type_class()) {
             case typing::CHAR_INT_CLASS:
-                return info.char_size;
+                return linear::word_size::MICHAELCC_WORD_SIZE_BYTE;
             case typing::SHORT_INT_CLASS:
                 return info.short_size;
             case typing::INT_INT_CLASS:
@@ -29,12 +29,12 @@ namespace michaelcc {
         };
 
         for (linear::word_size size : sizes_to_fit) {
-            if (size_bytes * 8 <= static_cast<size_t>(size)) {
+            if (size_bytes * 8 == static_cast<size_t>(size)) {
                 return size;
             }
         }
 
-        throw std::runtime_error("Size of " + std::to_string(size_bytes) + " bytes is too large for any register size");
+        throw std::runtime_error(std::format("Size of {} bytes is does not fit into any register size", size_bytes));
     }
 
     bool type_layout_calculator::must_alloca(const typing::qual_type type) noexcept {

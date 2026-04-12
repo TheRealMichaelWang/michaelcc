@@ -465,7 +465,7 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
     auto& inner = a2_definition->second;
 
     auto make_load_memory = [&](auto compute) -> std::unique_ptr<instruction> {
-        return std::make_unique<load_memory>(node.destination(), inner.operand_a(), compute(node.offset(), inner.constant()), node.size_bytes());
+        return std::make_unique<load_memory>(node.destination(), inner.operand_a(), compute(node.offset(), inner.constant()));
     };
 
     switch(inner.type()) {
@@ -483,7 +483,7 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
     
     auto& inner = a2_definition->second;
     auto make_store_memory = [&](auto compute) -> std::unique_ptr<instruction> {
-        return std::make_unique<store_memory>(inner.operand_a(), node.value(), compute(node.offset(), inner.constant()), node.size_bytes());
+        return std::make_unique<store_memory>(inner.operand_a(), node.value(), compute(node.offset(), inner.constant()));
     };
     
     switch(inner.type()) {

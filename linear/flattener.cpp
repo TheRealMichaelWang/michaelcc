@@ -189,37 +189,38 @@ void logic_lowerer::emit_iloop(linear::virtual_register count, std::function<voi
     begin_block(finish_block_id, { loop1_block_id });
 }
 
-void logic_lowerer::emit_memset(linear::virtual_register dest, linear::virtual_register value, linear::virtual_register count, size_t element_size) {
-    emit_iloop(count, [this, dest, value, element_size](linear::virtual_register iterator_state) {
+void logic_lowerer::emit_memset(linear::virtual_register dest, linear::virtual_register value, linear::virtual_register count) {
+    emit_iloop(count, [this, dest, value](linear::virtual_register iterator_state) {
         auto offset_reg = m_translation_unit.register_allocator.new_vreg(get_platform_info().int_size, linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER);
         emit(std::make_unique<linear::a2_instruction>(
             linear::MICHAELCC_LINEAR_A_MULTIPLY, 
             offset_reg, 
             iterator_state, 
-            element_size
+            static_cast<size_t>(value.reg_size) / 8
         ));
         auto address_reg = m_translation_unit.register_allocator.new_vreg(get_platform_info().pointer_size, linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER);
         emit(std::make_unique<linear::a_instruction>(
             linear::MICHAELCC_LINEAR_A_ADD, address_reg, dest, offset_reg
         ));
-        emit(std::make_unique<linear::store_memory>(address_reg, value, 0, element_size));
+        emit(std::make_unique<linear::store_memory>(address_reg, value, 0));
     });
 }
 
 void logic_lowerer::emit_memcpy(linear::virtual_register dest, linear::virtual_register src, size_t size_bytes, size_t offset) {
     for (size_t i = 0; i < size_bytes; i += 1) {
-        auto elem_reg = m_translation_unit.register_allocator.new_vreg(get_platform_info().char_size, linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER);    
+        auto elem_reg = m_translation_unit.register_allocator.new_vreg(
+            linear::word_size::MICHAELCC_WORD_SIZE_BYTE, 
+            linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
+        );    
         emit(std::make_unique<linear::load_memory>(
             elem_reg, 
             src, 
-            i + offset, 
-            1
+            i + offset
         ));
         emit(std::make_unique<linear::store_memory>(
             dest, 
             elem_reg, 
-            i + offset, 
-            1
+            i + offset
         ));
     }
 }
@@ -287,11 +288,11 @@ linear::virtual_register logic_lowerer::lower_at_address(linear::virtual_registe
     }
     else {
         auto evaled_src_reg = lower_expression(*initializer);
+        assert(static_cast<size_t>(evaled_src_reg.reg_size) / 8 == layout.size);
         emit(std::make_unique<linear::store_memory>(
             dest_address, 
             evaled_src_reg, 
-            offset,
-            layout.size
+            offset
         ));
         return evaled_src_reg;
     }
@@ -368,11 +369,11 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
                 type_layout_info::get_register_size(layout.size),
                 m_lowerer.get_register_class(variable->get_type())
             );
+            assert(static_cast<size_t>(var_reg.reg_size) / 8 == layout.size);
             m_lowerer.emit(std::make_unique<linear::load_memory>(
                 dest_reg, 
                 var_reg, 
-                0,
-                layout.size
+                0
             ));
 
             return dest_reg;
@@ -526,8 +527,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     m_lowerer.emit(std::make_unique<linear::load_memory>(
         current_value_reg, 
         value_addr, 
-        0, // offset
-        layout.size
+        0
     ));
     auto incremented_reg = m_lowerer.m_translation_unit.register_allocator.new_vreg(
         type_layout_info::get_register_size(layout.size),
@@ -553,8 +553,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     m_lowerer.emit(std::make_unique<linear::store_memory>(
         value_addr, 
         incremented_reg, 
-        0, // offset
-        layout.size
+        0
     ));
     return current_value_reg;
 }
@@ -849,8 +848,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     m_lowerer.emit(std::make_unique<linear::load_memory>(
         dest_reg, 
         source_address_reg, 
-        0, // offset
-        layout.size
+        0
     ));
     return dest_reg;
 }
@@ -890,8 +888,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         m_lowerer.emit(std::make_unique<linear::load_memory>(
             dest_reg, 
             base_addr, 
-            node.member().offset,
-            layout.size
+            node.member().offset
         ));
         return dest_reg;
     }
@@ -914,8 +911,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
             m_lowerer.emit(std::make_unique<linear::load_memory>(
                 dest_reg, 
                 base_addr, 
-                node.member().offset,
-                layout.size
+                node.member().offset
             ));
             return dest_reg;
         }
@@ -933,8 +929,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
             m_lowerer.emit(std::make_unique<linear::load_memory>(
                 dest_reg, 
                 base_addr, 
-                node.member().offset,
-                layout.size
+                node.member().offset
             ));
             return dest_reg;
         }
@@ -983,8 +978,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         m_lowerer.emit(std::make_unique<linear::load_memory>(
             dest_reg, 
             base_addr_reg, 
-            integer_constant->value() * layout.size,
-            layout.size
+            integer_constant->value() * layout.size
         ));
         return dest_reg;
     } else {
@@ -1010,8 +1004,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         m_lowerer.emit(std::make_unique<linear::load_memory>(
             dest_reg, 
             address_reg, 
-            0,
-            layout.size
+            0
         ));
         return dest_reg;
     }
@@ -1053,12 +1046,12 @@ void logic_lowerer::lower_allocate_array(linear::virtual_register dest_reg, cons
             ));
 
             auto fill_value_reg = lower_expression(*node.fill_value());
+            assert(static_cast<size_t>(fill_value_reg.reg_size) / 8 == layout.size);
             for (size_t i = 0; i < integer_constant->value(); i++) {
                 emit(std::make_unique<linear::store_memory>(
                     dest_reg, 
                     fill_value_reg, 
-                    i * layout.size,
-                    layout.size
+                    i * layout.size
                 ));
             }
         }
@@ -1069,11 +1062,11 @@ void logic_lowerer::lower_allocate_array(linear::virtual_register dest_reg, cons
                 layout.alignment
             ));
 
+            // not necessarily correct for types that need to be alloca'd
             emit_memset(
                 dest_reg, 
                 lower_expression(*node.fill_value()), 
-                lower_expression(*node.dimensions()[current_dimension]),
-                layout.size
+                lower_expression(*node.dimensions()[current_dimension])
             );
         }
     }
@@ -1100,8 +1093,7 @@ void logic_lowerer::lower_allocate_array(linear::virtual_register dest_reg, cons
             emit(std::make_unique<linear::store_memory>(
                 array_addr_reg, 
                 elem_reg, 
-                i * static_cast<size_t>(get_platform_info().pointer_size) / 8,
-                static_cast<size_t>(get_platform_info().pointer_size) / 8
+                i * static_cast<size_t>(get_platform_info().pointer_size) / 8
             ));
         }
     }

@@ -252,15 +252,15 @@ namespace michaelcc {
             virtual_register m_source_address;
 
             int64_t m_offset;
-            size_t m_size_bytes;
         public:
-            load_memory(virtual_register destination, virtual_register source_address, int64_t offset, size_t size_bytes) 
-                : m_destination(destination), m_source_address(source_address), m_offset(offset), m_size_bytes(size_bytes) {}
+            load_memory(virtual_register destination, virtual_register source_address, int64_t offset) 
+                : m_destination(destination), m_source_address(source_address), m_offset(offset) {}
         
             virtual_register destination() const noexcept { return m_destination; }
             virtual_register source_address() const noexcept { return m_source_address; }
             int64_t offset() const noexcept { return m_offset; }
-            size_t size_bytes() const noexcept { return m_size_bytes; }
+
+            word_size size_to_read() const noexcept { return m_destination.reg_size; }
 
             std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
             std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_source_address }; }
@@ -274,15 +274,14 @@ namespace michaelcc {
             virtual_register m_value;
 
             int64_t m_offset;
-            size_t m_size_bytes;
         public:
-            store_memory(virtual_register source_address, virtual_register value, int64_t offset, size_t size_bytes) 
-                : m_source_address(source_address), m_value(value), m_offset(offset), m_size_bytes(size_bytes) {}
+            store_memory(virtual_register source_address, virtual_register value, int64_t offset) 
+                : m_source_address(source_address), m_value(value), m_offset(offset) {}
         
             virtual_register source_address() const noexcept { return m_source_address; }
             virtual_register value() const noexcept { return m_value; }
             int64_t offset() const noexcept { return m_offset; }
-            size_t size_bytes() const noexcept { return m_size_bytes; }
+            word_size size_to_write() const noexcept { return m_value.reg_size; }
 
             std::optional<linear::virtual_register> destination_register() const noexcept override { return std::nullopt; }
             std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_source_address, m_value }; }

@@ -62,8 +62,7 @@ namespace michaelcc {
                         return std::make_unique<load_memory>(
                             node.destination(), 
                             get_replacement(node.source_address()), 
-                            node.offset(), 
-                            node.size_bytes()
+                            node.offset()
                         );
                     }
 
@@ -119,8 +118,7 @@ namespace michaelcc {
                         return std::make_unique<store_memory>(
                             get_replacement(node.source_address()), 
                             get_replacement(node.value()), 
-                            node.offset(), 
-                            node.size_bytes()
+                            node.offset()
                         );
                     }
 
