@@ -143,7 +143,20 @@ bool michaelcc::linear::optimization::gvn_pass::instruction_comparator::dispatch
 bool michaelcc::linear::optimization::gvn_pass::instruction_comparator::dispatch(const init_register& node) {
     auto* other = dynamic_cast<const init_register*>(m_compare_to);
     if (!other) return false;
-    return node.value().uint64 == other->value().uint64;
+
+    switch (node.destination().reg_size) {
+        case linear::word_size::MICHAELCC_WORD_SIZE_BYTE:
+            return node.value().ubyte == other->value().ubyte;
+        case linear::word_size::MICHAELCC_WORD_SIZE_UINT16:
+            return node.value().uint16 == other->value().uint16;
+        case linear::word_size::MICHAELCC_WORD_SIZE_UINT32:
+            return node.value().uint32 == other->value().uint32;
+        case linear::word_size::MICHAELCC_WORD_SIZE_UINT64:
+            return node.value().uint64 == other->value().uint64;
+        default:
+            return false;
+    }
+    return false;
 }
 
 bool michaelcc::linear::optimization::gvn_pass::instruction_comparator::dispatch(const load_parameter& node) {

@@ -23,17 +23,35 @@ namespace michaelcc {
         size_t max_alignment;
         bool optimize_struct_layout = true;
 
-        uint8_t return_register_int_id;
-        uint8_t return_register_float_id;
+        linear::register_t return_register_int8_id;
+        linear::register_t return_register_int16_id;
+        linear::register_t return_register_int32_id;
+        linear::register_t return_register_int64_id;
+        linear::register_t return_register_float32_id;
+        linear::register_t return_register_float64_id;
         
         std::vector<linear::register_info> registers;
 
-        uint8_t get_return_register_id(linear::register_class reg_class) const {
-            return reg_class == linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER ? return_register_int_id : return_register_float_id;
+        linear::register_t get_return_register_id(linear::register_class reg_class, linear::word_size size) const {
+            if (reg_class == linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER) {
+                switch (size) {
+                    case linear::word_size::MICHAELCC_WORD_SIZE_BYTE: return return_register_int8_id;
+                    case linear::word_size::MICHAELCC_WORD_SIZE_UINT16: return return_register_int16_id;
+                    case linear::word_size::MICHAELCC_WORD_SIZE_UINT32: return return_register_int32_id;
+                    case linear::word_size::MICHAELCC_WORD_SIZE_UINT64: return return_register_int64_id;
+                    default: return return_register_int64_id;
+                }
+            } else {
+                switch (size) {
+                    case linear::word_size::MICHAELCC_WORD_SIZE_UINT32: return return_register_float32_id;
+                    case linear::word_size::MICHAELCC_WORD_SIZE_UINT64: return return_register_float64_id;
+                    default: return return_register_float64_id;
+                }
+            }
         }
 
-        const linear::register_info& get_register_info(uint8_t id) const {
-            return registers.at(id);
+        const linear::register_info& get_register_info(linear::register_t id) const {
+            return registers.at(static_cast<int>(id));
         }
 
         linear::word_size max_register_size() const {

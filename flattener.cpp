@@ -1376,7 +1376,7 @@ void logic_lowerer::statement_lowerer::dispatch(const logic::return_statement& n
         if (node.value()) {
             auto virtual_reg = m_lowerer.lower_expression(*node.value());
 
-            uint8_t return_register_id = m_lowerer.get_platform_info().get_return_register_id(virtual_reg.reg_class);
+            linear::register_t return_register_id = m_lowerer.get_platform_info().get_return_register_id(virtual_reg.reg_class, virtual_reg.reg_size);
             auto return_physical_reg = m_lowerer.get_platform_info().get_register_info(return_register_id);
             auto return_vreg = m_lowerer.m_translation_unit.register_allocator.new_vreg(return_physical_reg.size, virtual_reg.reg_class);
             m_lowerer.m_translation_unit.register_allocator.set_alloc_information(return_vreg, std::make_shared<linear::alloc_information>(linear::alloc_information{

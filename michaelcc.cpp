@@ -60,8 +60,12 @@ int main(int argc, char* argv[])
 			.double_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64,
 			.max_alignment = 8,
 
-			.return_register_int_id = 0,
-			.return_register_float_id = 0,
+			.return_register_int8_id = 0,
+			.return_register_int16_id = 1,
+			.return_register_int32_id = 2,
+			.return_register_int64_id = 3,
+			.return_register_float32_id = 4,
+			.return_register_float64_id = 0,
 
 			.registers = {
 				{
