@@ -125,7 +125,7 @@ namespace michaelcc {
                     }
 
                 };
-                std::unordered_map<virtual_register, std::pair<instruction*, size_t>> m_instruction_map;
+                std::unordered_map<virtual_register, size_t> m_instruction_map;
 
             public:
                 void prescan(const translation_unit& unit) override;

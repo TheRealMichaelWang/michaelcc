@@ -10,7 +10,7 @@ void michaelcc::linear::optimization::copy_prop_pass::prescan(const translation_
             if (instruction->destination_register().has_value()) {
                 m_instruction_map.insert({
                     instruction->destination_register().value(),
-                    std::make_pair(instruction.get(), block_id)
+                    block_id
                 });
             }
         }
@@ -42,12 +42,11 @@ bool michaelcc::linear::optimization::copy_prop_pass::optimize(translation_unit&
                     continue;
                 }
                 
-                auto source_instruction = m_instruction_map.at(copy->source());
-                assert(source_instruction.first->destination_register().has_value());
-                assert(source_instruction.first->destination_register().value().reg_size == copy->destination().reg_size);
-                assert(source_instruction.first->destination_register().value().reg_class == copy->destination().reg_class);
+                size_t source_block_id = m_instruction_map.at(copy->source());
+                assert(copy->source().reg_size == copy->destination().reg_size);
+                assert(copy->source().reg_class == copy->destination().reg_class);
 
-                if (!linear::is_dominated_by(unit, source_instruction.second, block_id)) {
+                if (!linear::is_dominated_by(unit, source_block_id, block_id)) {
                     push_instruction(std::move(instruction));
                     continue;
                 }
@@ -56,7 +55,7 @@ bool michaelcc::linear::optimization::copy_prop_pass::optimize(translation_unit&
                 // if the destination is a physical register, we must keep that vreg
                 if (reg_alloc_info.register_id.has_value()) {
                     // source instruction must be from the same block
-                    if (source_instruction.second != block_id) {
+                    if (source_block_id != block_id) {
                         push_instruction(std::move(instruction));
                         continue;
                     }

@@ -14,15 +14,19 @@ include_directories(include)
 # Source files
 add_executable(michaelcc
     michaelcc.cpp
-    scanner.cpp
-    errors.cpp
-    preprocessor.cpp
     print.cpp
-    parser.cpp
-    semantic.cpp
-    linker.cpp
-    flattener.cpp
-    type_info.cpp
+    errors.cpp
+    syntax/scanner.cpp
+    syntax/preprocessor.cpp
+    syntax/parser.cpp
+    logic/semantic.cpp
+    logic/linker.cpp
+    logic/type_info.cpp
+    logic/optimization.cpp
+    logic/constant_folding.cpp
+    logic/dead_code.cpp
+    logic/ir_simplify.cpp
+    linear/flattener.cpp
     linear/registers.cpp
     linear/static.cpp
     linear/dominators.cpp
@@ -31,8 +35,5 @@ add_executable(michaelcc
     linear/const_prop.cpp
     linear/copy_prop.cpp
     linear/gvn.cpp
-    logic/optimization.cpp
-    logic/constant_folding.cpp
-    logic/dead_code.cpp
-    logic/ir_simplify.cpp
+    isa/x64.cpp
 )

@@ -1,4 +1,4 @@
-#include "include/linear/registers.hpp"
+#include "linear/registers.hpp"
 #include "linear/flatten.hpp"
 #include "linear/ir.hpp"
 #include "linear/dominators.hpp"
