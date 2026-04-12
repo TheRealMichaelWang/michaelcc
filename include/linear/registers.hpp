@@ -62,11 +62,23 @@ namespace michaelcc {
         private:
             size_t m_next_vreg_id = 0;
             std::unordered_map<size_t, std::shared_ptr<linear::alloc_information>> m_vreg_alloc_information;
+            std::vector<size_t> m_free_vreg_ids;
             
         public:
             linear::virtual_register new_vreg(word_size reg_size, register_class reg_class) {
-                size_t id = m_next_vreg_id++;
+                size_t id;
+                if (m_free_vreg_ids.empty()) {
+                    id = m_next_vreg_id++;
+                } else {
+                    id = m_free_vreg_ids.back();
+                    m_free_vreg_ids.pop_back();
+                }
                 return { id, reg_size, reg_class };
+            }
+
+            void free_vreg(linear::virtual_register vreg) {
+                m_free_vreg_ids.push_back(vreg.id);
+                m_vreg_alloc_information.erase(vreg.id);
             }
 
             linear::alloc_information get_alloc_information(linear::virtual_register vreg) const {
