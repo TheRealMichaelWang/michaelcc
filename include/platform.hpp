@@ -31,6 +31,9 @@ namespace michaelcc {
 
         linear::register_t stack_pointer_register_id;
         linear::register_t frame_pointer_register_id;
+
+        std::vector<linear::register_t> caller_saved_registers;
+        std::vector<linear::register_t> callee_saved_registers;
         
         std::vector<linear::register_info> registers;
 

@@ -1,26 +1,8 @@
 #include "isa/x64.hpp"
 #include "linear/registers.hpp"
 
-// x86-64 (System V AMD64 ABI) platform information
-// Note this targets System V, not Win64
-//
-// Register ID layout (= vector index):
-//   GPRs with 8-bit high sub-register (rax, rbx, rcx, rdx):
-//     base+0 = 64-bit, base+1 = 32-bit, base+2 = 16-bit, base+3 = 8-bit low, base+4 = 8-bit high
-//     stride = 5
-//   GPRs without high sub-register (rsi, rdi, rbp, rsp, r8-r15):
-//     base+0 = 64-bit, base+1 = 32-bit, base+2 = 16-bit, base+3 = 8-bit low
-//     stride = 4
-//   XMM registers:
-//     one entry each (used for both float32 and float64)
-//
-// ID assignment:
-//   rax family:  0-4     rbx family:  5-9     rcx family: 10-14    rdx family: 15-19
-//   rsi family: 20-23    rdi family: 24-27    rbp family: 28-31    rsp family: 32-35
-//   r8  family: 36-39    r9  family: 40-43    r10 family: 44-47    r11 family: 48-51
-//   r12 family: 52-55    r13 family: 56-59    r14 family: 60-63    r15 family: 64-67
-//   xmm0: 68   xmm1: 69   xmm2: 70   xmm3: 71   xmm4: 72   xmm5: 73   xmm6: 74   xmm7: 75
-//   xmm8: 76   xmm9: 77   xmm10: 78  xmm11: 79  xmm12: 80  xmm13: 81  xmm14: 82  xmm15: 83
+// x86-64 platform information
+// Note this targets System V AMD 64 ABI, not Win64
 
 michaelcc::platform_info michaelcc::isa::x64::platform_info{
     .pointer_size   = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64,
