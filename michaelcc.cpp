@@ -16,6 +16,7 @@
 #include "linear/optimization/dead_code.hpp"
 #include "linear/optimization/const_prop.hpp"
 #include "linear/optimization/copy_prop.hpp"
+#include "linear/optimization/phi.hpp"
 #include "isa/x64.hpp"
 #include "CLI11.hpp"
 #include <fstream>
@@ -110,7 +111,7 @@ int main(int argc, char* argv[])
 		michaelcc::linear::allocators::remove_phi_nodes(linear_translation_unit);
 
 		// register allocation (one pass)
-		michaelcc::linear::register_allocation(linear_translation_unit, frame_allocator);
+		michaelcc::linear::optimization::postphi::register_allocation(linear_translation_unit, frame_allocator);
 
 		cout << michaelcc::linear::print_linear_ir(linear_translation_unit) << endl;
 	}

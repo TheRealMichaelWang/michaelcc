@@ -37,5 +37,6 @@ add_executable(michaelcc
     linear/frame_allocator.cpp
     linear/register_allocator.cpp
     linear/register_spiller.cpp
+    linear/phi.cpp
     isa/x64.cpp
 )
