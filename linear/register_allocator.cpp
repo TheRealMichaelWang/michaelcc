@@ -105,10 +105,12 @@ void michaelcc::linear::allocators::register_allocator::build_inference_graph(si
     std::unordered_set<virtual_register> live_set(m_block_liveliness.at(block_id).live_out);
     for (auto it = block.instructions().rbegin(); it != block.instructions().rend(); ++it) {
         if (it->get()->destination_register().has_value()) {
+            auto destination_register = it->get()->destination_register().value();
+            ensure_node(destination_register);
             for (auto vreg : live_set) {
-                add_edge(it->get()->destination_register().value(), vreg);
+                add_edge(destination_register, vreg);
             }
-            live_set.erase(it->get()->destination_register().value());
+            live_set.erase(destination_register);
         }
 
 

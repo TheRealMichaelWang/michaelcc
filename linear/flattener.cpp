@@ -51,8 +51,10 @@ logic_lowerer::block_var_ctx logic_lowerer::reconcile_var_regs(const std::vector
                 type_layout_info::get_register_size(layout.size), 
                 get_register_class(variable->get_type())
             );
-            m_translation_unit.cannot_spill_vregs.insert(dest_reg);
-            
+            if (variable->must_use_register()) {
+                m_translation_unit.cannot_spill_vregs.insert(dest_reg);
+            }
+
             emit(std::make_unique<linear::phi_instruction>(dest_reg, std::vector<linear::var_info>(vregs)));
 
             result.m_variable_to_vreg[variable] = linear::var_info{ .vreg = dest_reg, .block_id = current_block_id() };
@@ -70,7 +72,9 @@ void logic_lowerer::emit_phi_all() {
             type_layout_info::get_register_size(var_layout.size),
             get_register_class(variable->get_type())
         );
-        m_translation_unit.cannot_spill_vregs.insert(dest_reg);
+        if (variable->must_use_register()) {
+            m_translation_unit.cannot_spill_vregs.insert(dest_reg);
+        }
         auto phi_node = std::make_unique<linear::phi_instruction>(dest_reg, std::vector<linear::var_info>({ var_info }));
         init_phi_nodes[variable] = phi_node.get();
         emit(std::move(phi_node));
