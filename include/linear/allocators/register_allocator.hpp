@@ -3,23 +3,13 @@
 
 #include "linear/ir.hpp"
 #include "linear/registers.hpp"
-#include <cstdint>
-#include <optional>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 namespace michaelcc::linear::allocators {
     class register_allocator {
     private:
-        // we do graph coloring; 1 color = 1 register family
-        struct register_family {
-            uint8_t family_id;
-            word_size size;
-            register_class reg_class;
-
-            std::optional<register_t> register_id = std::nullopt;
-        };
-
         struct block_info {
             std::unordered_set<virtual_register> defined_vregs;
             std::unordered_set<virtual_register> used_vregs;
@@ -37,19 +27,14 @@ namespace michaelcc::linear::allocators {
             std::unordered_set<virtual_register> adjacent_vregs;
             size_t degree;
 
-            std::optional<register_t> precolored_family_id = std::nullopt;
-
-            bool prefer_caller_saved = false;
+            bool must_avoid_caller_saved = false;
         };
 
         translation_unit& m_translation_unit;
         
         // the inference graph
         std::unordered_map<virtual_register, inference_graph_node> m_inference_graph;
-
-        // list of register families
-        std::vector<register_family> m_register_families;
-        std::unordered_map<register_t, uint8_t> m_physical_to_family;
+        //std::unordered_map<virtual_register, register_t> m_coloring;
 
         // the block liveliness information
         std::unordered_map<size_t, block_liveliness> m_block_liveliness;
@@ -92,9 +77,15 @@ namespace michaelcc::linear::allocators {
         void build_inference_graph(size_t block_id);
         void build_inference_graph();
 
+        // counts the number of available registers of a given class and size
         size_t count_available_registers(register_class reg_class, word_size word_size);
-    
+
+        // returns the select stack... which then needs to be passed into select for register selection
         std::vector<virtual_register> simplify();
+
+        // assigns the registers to each vreg in the select stack; returns a list of spilled vregs
+        std::vector<virtual_register> select(const std::vector<virtual_register>& select_stack);
+
     public:
         register_allocator(translation_unit& translation_unit) : m_translation_unit(translation_unit) {}
     };

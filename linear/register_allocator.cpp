@@ -1,5 +1,6 @@
 #include "linear/allocators/register_allocator.hpp"
 #include "linear/ir.hpp"
+#include <algorithm>
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
@@ -80,7 +81,7 @@ michaelcc::linear::allocators::register_allocator::inference_graph_node& michael
 }
 
 void michaelcc::linear::allocators::register_allocator::add_edge(virtual_register vreg_a, virtual_register vreg_b) {
-    if (vreg_a.reg_class != vreg_b.reg_class) {
+    if (vreg_a == vreg_b || vreg_a.reg_class != vreg_b.reg_class) {
         return; // cannot connect registers of different classes (float will never interact with int and vice versa)
     }
 
@@ -108,30 +109,13 @@ void michaelcc::linear::allocators::register_allocator::build_inference_graph(si
                 add_edge(it->get()->destination_register().value(), vreg);
             }
             live_set.erase(it->get()->destination_register().value());
-
-            auto dest_alloc_info = m_translation_unit.register_allocator.get_alloc_information(it->get()->destination_register().value());
-            if (dest_alloc_info.register_id.has_value()) {
-                auto& node = ensure_node(it->get()->destination_register().value());
-
-                if (!m_physical_to_family.contains(dest_alloc_info.register_id.value())) {
-                    uint8_t family_id = static_cast<uint8_t>(m_register_families.size());
-                    m_register_families.push_back(register_family{ 
-                        family_id,
-                        it->get()->destination_register().value().reg_size, 
-                        it->get()->destination_register().value().reg_class, 
-                        dest_alloc_info.register_id.value()
-                    });
-                    m_physical_to_family.insert({ dest_alloc_info.register_id.value(), family_id });
-                }
-                node.precolored_family_id = m_physical_to_family.at(dest_alloc_info.register_id.value());
-            }
         }
 
 
         // marked clobbered registers as must use caller saved
         if (auto* call = dynamic_cast<const function_call*>(it->get())) {
             for (auto live_vreg : live_set) {
-                ensure_node(live_vreg).prefer_caller_saved = true;
+                ensure_node(live_vreg).must_avoid_caller_saved = true;
             }
         }
 
@@ -150,44 +134,52 @@ void michaelcc::linear::allocators::register_allocator::build_inference_graph() 
 
 size_t michaelcc::linear::allocators::register_allocator::count_available_registers(michaelcc::linear::register_class reg_class, michaelcc::linear::word_size size){
     size_t count = 0;
+
+    std::vector<register_t> potential_registers;
     for (auto& physical_reg : m_translation_unit.platform_info.registers) {
-        if (physical_reg.reg_class != reg_class || physical_reg.size != size || physical_reg.is_protected) { continue; }
+        if (physical_reg.reg_class != reg_class || physical_reg.size < size || physical_reg.is_protected) { continue; }
+        potential_registers.push_back(physical_reg.id);
+    }
 
-        bool cannot_use = false;
-        for (auto& mutually_exclusive_reg : physical_reg.mutually_exclusive_registers) {
-            if (m_physical_to_family.contains(mutually_exclusive_reg)) {
-                cannot_use = true;
-                break;
-            }
-        }
+    std::sort(potential_registers.begin(), potential_registers.end(), [&](register_t a, register_t b) {
+        size_t a_size_diff = m_translation_unit.platform_info.get_register_info(a).size - size;
+        size_t b_size_diff = m_translation_unit.platform_info.get_register_info(b).size - size;
+        return a_size_diff < b_size_diff;
+    });
 
-        if (!cannot_use) {
-            count++;
+    // first count exact fits
+    std::unordered_set<register_t> disallowed_registers;
+    for (auto& potential_register : potential_registers) {
+        if (disallowed_registers.contains(potential_register)) { continue; }
+        for (auto& mutually_exclusive_reg : m_translation_unit.platform_info.get_register_info(potential_register).mutually_exclusive_registers) {
+            disallowed_registers.insert(mutually_exclusive_reg);
         }
+        count++;
     }
 
     return count;
 }
 
 std::vector<michaelcc::linear::virtual_register> michaelcc::linear::allocators::register_allocator::simplify() {
-    // build the remaining nodes graph (without precolored nodes)
-    // also remove precolored adjacent nodes where applicable
+    // build the remaining nodes graph (exclude already precolored/fixed nodes)
     std::unordered_map<virtual_register, inference_graph_node> remaining_nodes;
     for (const auto& [vreg, node] : m_inference_graph) {
-        if (!node.precolored_family_id.has_value()) {
-            inference_graph_node new_node(node); //copy node
-            for (auto it = new_node.adjacent_vregs.begin(); it != new_node.adjacent_vregs.end();) {
-                if (m_inference_graph.at(*it).precolored_family_id.has_value()) {
-                    it = new_node.adjacent_vregs.erase(it);
-                    new_node.degree--;
-                }
-                else {
-                    ++it;
-                }
-            }
-
-            remaining_nodes.insert({ vreg, node });
+        auto alloc_info = m_translation_unit.register_allocator.get_alloc_information(vreg);
+        if (alloc_info.register_id.has_value()) {
+            continue;
         }
+
+        inference_graph_node new_node(node);
+        for (auto it = new_node.adjacent_vregs.begin(); it != new_node.adjacent_vregs.end();) {
+            auto alloc_info_adjacent = m_translation_unit.register_allocator.get_alloc_information(*it);
+            if (alloc_info_adjacent.register_id.has_value()) {
+                it = new_node.adjacent_vregs.erase(it);
+            }
+            else {
+                ++it;
+            }
+        }
+        remaining_nodes.insert({ vreg, new_node });
     }
 
     std::deque<virtual_register> low_queue;
@@ -224,11 +216,27 @@ std::vector<michaelcc::linear::virtual_register> michaelcc::linear::allocators::
         }
     };
 
+    // first drain all trivially colorable nodes
+    process_low_queue();
+
     // handle all the spill candidates
     while (!remaining_nodes.empty()) {
         // pick the highest degree node as the spill candidate
         virtual_register spill_candidate = std::max_element(remaining_nodes.begin(), remaining_nodes.end(), 
-        [](const auto& a, const auto& b) { return a.second.degree < b.second.degree; }
+        [this](const auto& a, const auto& b) { 
+            const auto& na = a.second;
+            const auto& nb = b.second;
+            // Prefer choosing spillable nodes as spill candidates.
+            // if a is must_use_register and b is not, a is "worse candidate".
+            auto alloc_info_a = m_translation_unit.register_allocator.get_alloc_information(a.first);
+            auto alloc_info_b = m_translation_unit.register_allocator.get_alloc_information(b.first);
+            if (alloc_info_a.must_use_register != alloc_info_b.must_use_register) {
+                return alloc_info_a.must_use_register; // true => lower priority
+            }
+
+            // Otherwise, prefer nodes with lower degree.
+            return na.degree < nb.degree;
+         }
         )->first;
 
         inference_graph_node spill_node = remaining_nodes.at(spill_candidate);
@@ -245,4 +253,77 @@ std::vector<michaelcc::linear::virtual_register> michaelcc::linear::allocators::
     }
 
     return select_stack;
+}
+
+std::vector<michaelcc::linear::virtual_register> michaelcc::linear::allocators::register_allocator::select(const std::vector<virtual_register>& select_stack) {
+    std::vector<virtual_register> spilled_vregs;
+
+    for (auto it = select_stack.rbegin(); it != select_stack.rend(); ++it) {
+        auto& node = m_inference_graph.at(*it);
+        virtual_register vreg = node.vreg;
+
+        // build a list of forbidden families
+        std::unordered_set<register_t> forbidden_families;
+        for (auto adjacent_vreg : node.adjacent_vregs) {
+            auto alloc_info_adjacent = m_translation_unit.register_allocator.get_alloc_information(adjacent_vreg);
+            if (!alloc_info_adjacent.register_id.has_value()) { continue; }
+
+            register_t forbidden_family = alloc_info_adjacent.register_id.value();
+            forbidden_families.insert(forbidden_family);
+
+            // remeber to mark all the mutually exclusive registers as forbidden
+            auto register_info = m_translation_unit.platform_info.get_register_info(forbidden_family);
+            for (auto mutually_exclusive_reg : register_info.mutually_exclusive_registers) {
+                forbidden_families.insert(mutually_exclusive_reg);
+            }
+        }
+
+        // compare two physical registers by their suitability for the given vreg (specifically if a family is better than b)
+        auto better_fit = [&](size_t physical_reg_id_a, size_t physical_reg_id_b) -> bool {
+            auto a_register_info = m_translation_unit.platform_info.get_register_info(physical_reg_id_a);
+            auto b_register_info = m_translation_unit.platform_info.get_register_info(physical_reg_id_b);
+
+            bool a_fits_exactly = a_register_info.size == vreg.reg_size;
+            bool b_fits_exactly = b_register_info.size == vreg.reg_size;
+            
+            // prioritize exact fits over partial fits
+            if (a_fits_exactly != b_fits_exactly) { return a_fits_exactly; }
+
+
+            if (node.must_avoid_caller_saved) {
+                if (a_register_info.is_caller_saved != b_register_info.is_caller_saved) { return !a_register_info.is_caller_saved; }
+            }
+
+            // prioritize the smallest register that fits better
+            if (a_register_info.size != b_register_info.size) { return a_register_info.size < b_register_info.size; }
+
+            // prioritize registers with fewer mutually exclusive registers
+            return a_register_info.mutually_exclusive_registers.size() < b_register_info.mutually_exclusive_registers.size(); 
+        };
+        
+
+        // find if any existing families can accomodate this vreg
+        std::optional<register_t> best_fit = std::nullopt;
+        for (auto physical_reg : m_translation_unit.platform_info.registers) {
+            if (forbidden_families.contains(physical_reg.id)) { continue; }
+            if (physical_reg.reg_class != vreg.reg_class || physical_reg.size < vreg.reg_size || physical_reg.is_protected) { continue; } // families must be of the same class
+
+            if (!best_fit.has_value() || better_fit(physical_reg.id, best_fit.value())) {
+                best_fit = physical_reg.id;
+            }
+        }
+
+        if (best_fit.has_value()) { //we succesfully color the vreg
+            m_translation_unit.register_allocator.set_alloc_information(vreg, std::make_shared<alloc_information>(alloc_information{
+                .register_id = best_fit.value()
+            }));
+        } else {
+            auto alloc_info = m_translation_unit.register_allocator.get_alloc_information(vreg);
+            if (alloc_info.must_use_register) {
+                throw std::runtime_error("Register allocation failed: Cannot spill a must use register.");
+            }
+            spilled_vregs.push_back(vreg);
+        }
+    }
+    return spilled_vregs;
 }
