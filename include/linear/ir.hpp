@@ -354,6 +354,7 @@ namespace michaelcc {
             size_t id() const noexcept { return m_id; }
 
             const std::vector<std::unique_ptr<instruction>>& instructions() const noexcept { return m_instructions; }
+            std::vector<std::unique_ptr<instruction>>& mutable_instructions() noexcept { return m_instructions; }   
             const std::vector<size_t>& successor_block_ids() const noexcept { return m_successor_block_ids; }
             const std::vector<size_t>& predecessor_block_ids() const noexcept { return m_predecessor_block_ids; }
             const std::vector<size_t>& immediately_dominated_block_ids() const noexcept { return m_immediately_dominated_block_ids; }
@@ -478,6 +479,8 @@ namespace michaelcc {
             using callable = std::variant<std::string, virtual_register>;
         
         private:
+            std::vector<virtual_register> m_caller_saved_registers;
+
             virtual_register m_destination;
             callable m_callee;
             size_t m_argument_count;
@@ -493,7 +496,13 @@ namespace michaelcc {
             std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
             std::vector<linear::virtual_register> operand_registers() const noexcept override { return {}; }
 
+            const std::vector<virtual_register>& caller_saved_registers() const noexcept { return m_caller_saved_registers; }
+
             bool has_side_effects() const noexcept override { return true; }
+
+            void set_caller_saved_registers(std::vector<virtual_register>&& caller_saved_registers) {
+                m_caller_saved_registers = std::move(caller_saved_registers);
+            }
         };
 
         class function_return : public instruction {

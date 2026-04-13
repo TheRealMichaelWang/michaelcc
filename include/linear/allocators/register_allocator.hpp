@@ -27,7 +27,7 @@ namespace michaelcc::linear::allocators {
             std::unordered_set<virtual_register> adjacent_vregs;
             size_t degree;
 
-            bool must_avoid_caller_saved = false;
+            bool prefer_callee_saved = false;
         };
 
         translation_unit& m_translation_unit;

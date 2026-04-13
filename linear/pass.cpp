@@ -1,7 +1,5 @@
 #include "linear/pass.hpp"
 #include "linear/dominators.hpp"
-#include "linear/allocators/remove_phi.hpp"
-#include <algorithm>
 
 namespace michaelcc::linear {
     bool transform(translation_unit& unit, std::vector<std::unique_ptr<pass>>& passes, int max_passes) {

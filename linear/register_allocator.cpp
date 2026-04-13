@@ -1,5 +1,6 @@
 #include "linear/allocators/register_allocator.hpp"
 #include "linear/ir.hpp"
+#include "linear/registers.hpp"
 #include <algorithm>
 #include <optional>
 #include <unordered_map>
@@ -115,10 +116,13 @@ void michaelcc::linear::allocators::register_allocator::build_inference_graph(si
 
 
         // marked clobbered registers as must use caller saved
-        if (auto* call = dynamic_cast<const function_call*>(it->get())) {
+        if (auto* call = dynamic_cast<function_call*>(it->get())) {
+            std::vector<virtual_register> caller_saved_registers;
             for (auto live_vreg : live_set) {
-                ensure_node(live_vreg).must_avoid_caller_saved = true;
+                ensure_node(live_vreg).prefer_callee_saved = true;
+                caller_saved_registers.push_back(live_vreg);
             }
+            call->set_caller_saved_registers(std::move(caller_saved_registers));
         }
 
         for (auto operand : it->get()->operand_registers()) {
@@ -284,8 +288,8 @@ std::vector<michaelcc::linear::virtual_register> michaelcc::linear::allocators::
             if (a_fits_exactly != b_fits_exactly) { return a_fits_exactly; }
 
 
-            if (node.must_avoid_caller_saved) {
-                if (a_register_info.is_caller_saved != b_register_info.is_caller_saved) { return !a_register_info.is_caller_saved; }
+            if (node.prefer_callee_saved) {
+                if (a_register_info.is_callee_saved != b_register_info.is_callee_saved) { return a_register_info.is_callee_saved; }
             }
 
             // prioritize the smallest register that fits better
@@ -323,5 +327,25 @@ std::vector<michaelcc::linear::virtual_register> michaelcc::linear::allocators::
     compute_all_block_liveliness();
     build_inference_graph();
     auto select_stack = simplify();
-    return select(select_stack);
+    auto spilled_vregs = select(select_stack);
+
+    for (auto& [block_id, block] : m_translation_unit.blocks) {
+        for (auto& instruction : block.instructions()) {
+            if (auto* call = dynamic_cast<function_call*>(instruction.get())) {
+                auto caller_saved_registers = call->caller_saved_registers();
+                std::vector<virtual_register> new_caller_saved_registers;
+                new_caller_saved_registers.reserve(caller_saved_registers.size());
+                for (auto& caller_saved_register : caller_saved_registers) {
+                    register_t register_id = m_translation_unit.vreg_colors.at(caller_saved_register);
+                    auto register_info = m_translation_unit.platform_info.get_register_info(register_id);
+                    if (!register_info.is_caller_saved) {
+                        new_caller_saved_registers.push_back(caller_saved_register);
+                    }
+                }
+                call->set_caller_saved_registers(std::move(new_caller_saved_registers));
+            }
+        }
+    }
+
+    return spilled_vregs;
 }
