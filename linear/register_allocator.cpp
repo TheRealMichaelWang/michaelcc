@@ -76,8 +76,8 @@ michaelcc::linear::allocators::register_allocator::inference_graph_node& michael
 }
 
 void michaelcc::linear::allocators::register_allocator::add_edge(virtual_register vreg_a, virtual_register vreg_b) {
-    if (vreg_a.reg_class != vreg_b.reg_class || vreg_a.reg_size != vreg_b.reg_size) {
-        return; // cannot connect registers of different classes or sizes (float will never interact with int and vice versa)
+    if (vreg_a.reg_class != vreg_b.reg_class) {
+        return; // cannot connect registers of different classes (float will never interact with int and vice versa)
     }
 
     auto& node_a = ensure_node(vreg_a);

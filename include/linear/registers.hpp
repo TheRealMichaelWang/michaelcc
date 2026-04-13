@@ -53,6 +53,10 @@ namespace michaelcc {
             std::vector<register_t> mutually_exclusive_registers;
             word_size size;
             register_class reg_class;
+
+            bool is_caller_saved;
+            bool is_callee_saved;
+            bool is_protected = false;
         };
 
         struct alloc_information {
