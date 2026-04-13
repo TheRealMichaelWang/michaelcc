@@ -38,10 +38,6 @@ void michaelcc::linear::allocators::frame_allocator::allocate_block(linear::func
 
     block.replace_instructions(std::move(new_instructions));
     function_to_frame_pointer.at(function) = std::make_pair(current_offset, frame_pointer_vreg);
-
-    for (size_t successor : block.successor_block_ids()) {
-        allocate_block(function, successor);
-    }
 }
 
 void michaelcc::linear::allocators::frame_allocator::allocate() {

@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include "linear/ir.hpp"
+#include "linear/allocators/frame_allocator.hpp"
 
 namespace michaelcc {
     namespace linear {
@@ -22,6 +23,8 @@ namespace michaelcc {
         };
 
         bool transform(translation_unit& unit, std::vector<std::unique_ptr<pass>>& passes, int max_passes=1000);
+
+        void register_allocation(translation_unit& unit, allocators::frame_allocator& frame_allocator);
     }
 }
 

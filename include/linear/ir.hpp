@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <cassert>
 
+
 namespace michaelcc {
 	namespace linear {
         struct var_info {

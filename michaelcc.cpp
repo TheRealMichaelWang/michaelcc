@@ -101,8 +101,16 @@ int main(int argc, char* argv[])
 		
 		michaelcc::linear::transform(linear_translation_unit, linear_passes);
 
-		// remove phi nodes
+		// allocate stack frame (remove alloca)
+		michaelcc::linear::allocators::frame_allocator frame_allocator(linear_translation_unit);
+		frame_allocator.allocate(); // allocate stack frames (one pass)
+		michaelcc::linear::transform(linear_translation_unit, linear_passes); // try to const prop as much as possible
+
+		// remove phi nodes (no optimization passes can be run after this)
 		michaelcc::linear::allocators::remove_phi_nodes(linear_translation_unit);
+
+		// register allocation (one pass)
+		michaelcc::linear::register_allocation(linear_translation_unit, frame_allocator);
 
 		cout << michaelcc::linear::print_linear_ir(linear_translation_unit) << endl;
 	}

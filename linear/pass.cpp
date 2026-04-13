@@ -2,6 +2,11 @@
 #include "linear/dominators.hpp"
 #include "linear/allocators/remove_phi.hpp"
 #include <algorithm>
+
+#include "linear/allocators/register_allocator.hpp"
+#include "linear/allocators/register_spiller.hpp"
+#include "linear/allocators/frame_allocator.hpp"
+
 namespace michaelcc::linear {
     bool transform(translation_unit& unit, std::vector<std::unique_ptr<pass>>& passes, int max_passes) {
         bool any_pass_mutated = false;
@@ -28,6 +33,22 @@ namespace michaelcc::linear {
         } while (any_pass_mutated);
 
         return true;
+    }
+
+    void register_allocation(translation_unit& unit, allocators::frame_allocator& frame_allocator) {
+        for (;;) {
+            allocators::register_allocator register_allocator(unit);
+
+            auto spilled_vregs = register_allocator.allocate();
+            if (spilled_vregs.empty()) {
+                break;
+            }
+
+            allocators::register_spiller register_spiller(unit, spilled_vregs);
+            register_spiller.spill();
+
+            frame_allocator.allocate();
+        }
     }
 }
 
