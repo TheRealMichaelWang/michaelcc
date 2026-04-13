@@ -68,18 +68,26 @@ void michaelcc::linear::allocators::register_allocator::compute_all_block_liveli
     } while (changed);
 }
 
-void michaelcc::linear::allocators::register_allocator::add_edge(virtual_register vreg_a, virtual_register vreg_b) {
-    auto ensure_edge = [this](virtual_register vreg) {
-        if (!m_inference_graph.contains(vreg)) {
-            m_inference_graph.insert({ vreg, inference_graph_node{.vreg = vreg, .degree = 0 } });
-        }
-        return m_inference_graph.at(vreg);
-    };
+michaelcc::linear::allocators::register_allocator::inference_graph_node& michaelcc::linear::allocators::register_allocator::ensure_node(virtual_register vreg) {
+    if (!m_inference_graph.contains(vreg)) {
+        m_inference_graph.insert({ vreg, inference_graph_node{.vreg = vreg, .degree = 0 } });
+    }
+    return m_inference_graph.at(vreg);
+}
 
-    auto node_a = ensure_edge(vreg_a);
-    auto node_b = ensure_edge(vreg_b);
-    node_a.adjacent_node_ids.push_back(vreg_b);
-    node_b.adjacent_node_ids.push_back(vreg_a);
+void michaelcc::linear::allocators::register_allocator::add_edge(virtual_register vreg_a, virtual_register vreg_b) {
+    if (vreg_a.reg_class != vreg_b.reg_class || vreg_a.reg_size != vreg_b.reg_size) {
+        return; // cannot connect registers of different classes or sizes (float will never interact with int and vice versa)
+    }
+
+    auto& node_a = ensure_node(vreg_a);
+    if (node_a.adjacent_vregs.contains(vreg_b)) {
+        return; // no duplicate edges
+    }
+
+    auto& node_b = ensure_node(vreg_b);
+    node_a.adjacent_vregs.insert(vreg_b);
+    node_b.adjacent_vregs.insert(vreg_a);
     node_a.degree++;
     node_b.degree++;
 }
@@ -96,7 +104,24 @@ void michaelcc::linear::allocators::register_allocator::build_inference_graph(si
                 add_edge(it->get()->destination_register().value(), vreg);
             }
             live_set.erase(it->get()->destination_register().value());
+
+            auto dest_alloc_info = m_translation_unit.register_allocator.get_alloc_information(it->get()->destination_register().value());
+            if (dest_alloc_info.register_id.has_value() || dest_alloc_info.must_use_register) {
+                auto node = ensure_node(it->get()->destination_register().value());
+                node.must_use_register = true;
+                node.must_use_register_id = dest_alloc_info.register_id;
+            }
         }
+
+
+        // marked clobbered registers as must use caller saved
+        if (auto* call = dynamic_cast<const function_call*>(it->get())) {
+            for (auto live_vreg : live_set) {
+                ensure_node(live_vreg).must_use_caller_saved = true;
+            }
+        }
+
+
         for (auto operand : it->get()->operand_registers()) {
             live_set.insert(operand);
         }

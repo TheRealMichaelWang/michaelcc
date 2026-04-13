@@ -30,9 +30,13 @@ namespace michaelcc::linear::allocators {
         //inference graph node for graph coloring
         struct inference_graph_node {
             virtual_register vreg;
-            std::optional<uint8_t> precolored_family;
-            std::vector<virtual_register> adjacent_node_ids;
+            std::unordered_set<virtual_register> adjacent_vregs;
             size_t degree;
+
+            bool must_use_caller_saved = false;
+            
+            bool must_use_register = false;
+            std::optional<register_t> must_use_register_id = std::nullopt;
         };
 
         translation_unit& m_translation_unit;
@@ -46,6 +50,7 @@ namespace michaelcc::linear::allocators {
 
         std::unordered_set<virtual_register> compute_defined_vregs(size_t block_id);
         std::unordered_set<virtual_register> compute_used_vregs(size_t block_id, const std::unordered_set<virtual_register>& defined_vregs);
+
         block_info& compute_block_info(size_t block_id) {
             if (m_block_info.contains(block_id)) {
                 return m_block_info.at(block_id);
@@ -74,10 +79,12 @@ namespace michaelcc::linear::allocators {
         bool compute_block_liveliness(size_t block_id);
         void compute_all_block_liveliness();
 
+        inference_graph_node& ensure_node(virtual_register vreg);
         void add_edge(virtual_register vreg_a, virtual_register vreg_b);
 
         void build_inference_graph(size_t block_id);
         void build_inference_graph();
+    
     public:
         register_allocator(translation_unit& translation_unit) : m_translation_unit(translation_unit) {}
     };
