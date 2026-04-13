@@ -68,6 +68,15 @@ void michaelcc::linear::allocators::register_allocator::compute_all_block_liveli
     } while (changed);
 }
 
+michaelcc::linear::register_t michaelcc::linear::allocators::register_allocator::canonical_register_id(register_t reg_id) const {
+    const auto& info = m_translation_unit.platform_info.get_register_info(reg_id);
+    register_t min_id = reg_id;
+    for (register_t excl : info.mutually_exclusive_registers) {
+        min_id = std::min(min_id, excl);
+    }
+    return min_id;
+}
+
 michaelcc::linear::allocators::register_allocator::inference_graph_node& michaelcc::linear::allocators::register_allocator::ensure_node(virtual_register vreg) {
     if (!m_inference_graph.contains(vreg)) {
         m_inference_graph.insert({ vreg, inference_graph_node{.vreg = vreg, .degree = 0 } });
@@ -107,9 +116,25 @@ void michaelcc::linear::allocators::register_allocator::build_inference_graph(si
 
             auto dest_alloc_info = m_translation_unit.register_allocator.get_alloc_information(it->get()->destination_register().value());
             if (dest_alloc_info.register_id.has_value() || dest_alloc_info.must_use_register) {
-                auto node = ensure_node(it->get()->destination_register().value());
+                auto& node = ensure_node(it->get()->destination_register().value());
                 node.must_use_register = true;
-                node.must_use_register_id = dest_alloc_info.register_id;
+            }
+            if (dest_alloc_info.register_id.has_value()) {
+                auto& node = ensure_node(it->get()->destination_register().value());
+                register_t canon = canonical_register_id(dest_alloc_info.register_id.value());
+                
+                if (!m_register_to_family_id.contains(canon)) {
+                    uint8_t family_id = static_cast<uint8_t>(m_register_families.size());
+                    m_register_families.push_back({ 
+                        family_id, 
+                        it->get()->destination_register().value().reg_size, 
+                        it->get()->destination_register().value().reg_class, 
+                        canon
+                    });
+                    m_register_to_family_id.insert({ canon, family_id });
+                }
+                node.precolored_family_id = m_register_to_family_id.at(canon);
+                node.precolored_register_id = dest_alloc_info.register_id.value();
             }
         }
 

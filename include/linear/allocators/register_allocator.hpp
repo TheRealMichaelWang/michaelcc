@@ -13,7 +13,10 @@ namespace michaelcc::linear::allocators {
         // we do graph coloring; 1 color = 1 register family
         struct register_family {
             uint8_t family_id;
+            word_size size;
             register_class reg_class;
+
+            std::optional<register_t> canonical_register_id = std::nullopt;
         };
 
         struct block_info {
@@ -33,16 +36,21 @@ namespace michaelcc::linear::allocators {
             std::unordered_set<virtual_register> adjacent_vregs;
             size_t degree;
 
+            std::optional<uint8_t> precolored_family_id = std::nullopt;
+            std::optional<register_t> precolored_register_id = std::nullopt;
+
             bool must_use_caller_saved = false;
-            
             bool must_use_register = false;
-            std::optional<register_t> must_use_register_id = std::nullopt;
         };
 
         translation_unit& m_translation_unit;
         
         // the inference graph
         std::unordered_map<virtual_register, inference_graph_node> m_inference_graph;
+
+        // list of register families
+        std::vector<register_family> m_register_families;
+        std::unordered_map<register_t, uint8_t> m_register_to_family_id;
 
         // the block liveliness information
         std::unordered_map<size_t, block_liveliness> m_block_liveliness;
@@ -78,6 +86,8 @@ namespace michaelcc::linear::allocators {
 
         bool compute_block_liveliness(size_t block_id);
         void compute_all_block_liveliness();
+
+        register_t canonical_register_id(register_t reg_id) const;
 
         inference_graph_node& ensure_node(virtual_register vreg);
         void add_edge(virtual_register vreg_a, virtual_register vreg_b);
