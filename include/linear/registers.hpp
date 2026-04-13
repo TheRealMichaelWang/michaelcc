@@ -3,10 +3,7 @@
 
 #include <cstdint>
 #include <string>
-#include <optional>
 #include <vector>
-#include <unordered_map>
-#include <memory>
 #include <cstdint>
 
 namespace michaelcc {
@@ -57,47 +54,6 @@ namespace michaelcc {
             bool is_caller_saved;
             bool is_callee_saved;
             bool is_protected = false;
-        };
-
-        struct alloc_information {
-            bool must_use_register = false;
-            std::optional<register_t> register_id = std::nullopt;
-        };
-
-        class register_allocator {
-        private:
-            size_t m_next_vreg_id = 0;
-            std::unordered_map<size_t, std::shared_ptr<linear::alloc_information>> m_vreg_alloc_information;
-            std::vector<size_t> m_free_vreg_ids;
-            
-        public:
-            linear::virtual_register new_vreg(word_size reg_size, register_class reg_class) {
-                size_t id;
-                if (m_free_vreg_ids.empty()) {
-                    id = m_next_vreg_id++;
-                } else {
-                    id = m_free_vreg_ids.back();
-                    m_free_vreg_ids.pop_back();
-                }
-                return { id, reg_size, reg_class };
-            }
-
-            void free_vreg(linear::virtual_register vreg) {
-                m_free_vreg_ids.push_back(vreg.id);
-                m_vreg_alloc_information.erase(vreg.id);
-            }
-
-            linear::alloc_information get_alloc_information(linear::virtual_register vreg) const {
-                if (m_vreg_alloc_information.find(vreg.id) == m_vreg_alloc_information.end()) {
-                    return linear::alloc_information{
-                        .must_use_register = false,
-                        .register_id = std::nullopt
-                    };
-                }
-                return *m_vreg_alloc_information.at(vreg.id);
-            }
-
-            void set_alloc_information(linear::virtual_register vreg, std::shared_ptr<linear::alloc_information> alloc_information);
         };
     }
 }

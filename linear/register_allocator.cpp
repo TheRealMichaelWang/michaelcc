@@ -164,20 +164,16 @@ std::vector<michaelcc::linear::virtual_register> michaelcc::linear::allocators::
     // build the remaining nodes graph (exclude already precolored/fixed nodes)
     std::unordered_map<virtual_register, inference_graph_node> remaining_nodes;
     for (const auto& [vreg, node] : m_inference_graph) {
-        auto alloc_info = m_translation_unit.register_allocator.get_alloc_information(vreg);
-        if (alloc_info.register_id.has_value()) {
+        if (m_translation_unit.vreg_colors.contains(vreg)) {
             continue;
         }
 
         inference_graph_node new_node(node);
         for (auto it = new_node.adjacent_vregs.begin(); it != new_node.adjacent_vregs.end();) {
-            auto alloc_info_adjacent = m_translation_unit.register_allocator.get_alloc_information(*it);
-            if (alloc_info_adjacent.register_id.has_value()) {
+            if (m_translation_unit.vreg_colors.contains(*it)) {
                 it = new_node.adjacent_vregs.erase(it);
             }
-            else {
-                ++it;
-            }
+            else { ++it; }
         }
         remaining_nodes.insert({ vreg, new_node });
     }
@@ -228,10 +224,8 @@ std::vector<michaelcc::linear::virtual_register> michaelcc::linear::allocators::
             const auto& nb = b.second;
             // Prefer choosing spillable nodes as spill candidates.
             // if a is must_use_register and b is not, a is "worse candidate".
-            auto alloc_info_a = m_translation_unit.register_allocator.get_alloc_information(a.first);
-            auto alloc_info_b = m_translation_unit.register_allocator.get_alloc_information(b.first);
-            if (alloc_info_a.must_use_register != alloc_info_b.must_use_register) {
-                return alloc_info_a.must_use_register; // true => lower priority
+            if (m_translation_unit.cannot_spill_vregs.contains(a.first) != m_translation_unit.cannot_spill_vregs.contains(b.first)) {
+                return m_translation_unit.cannot_spill_vregs.contains(a.first); // true => lower priority
             }
 
             // Otherwise, prefer nodes with lower degree.
@@ -265,10 +259,9 @@ std::vector<michaelcc::linear::virtual_register> michaelcc::linear::allocators::
         // build a list of forbidden families
         std::unordered_set<register_t> forbidden_families;
         for (auto adjacent_vreg : node.adjacent_vregs) {
-            auto alloc_info_adjacent = m_translation_unit.register_allocator.get_alloc_information(adjacent_vreg);
-            if (!alloc_info_adjacent.register_id.has_value()) { continue; }
+            if (!m_translation_unit.vreg_colors.contains(adjacent_vreg)) { continue; }
 
-            register_t forbidden_family = alloc_info_adjacent.register_id.value();
+            register_t forbidden_family = m_translation_unit.vreg_colors.at(adjacent_vreg);
             forbidden_families.insert(forbidden_family);
 
             // remeber to mark all the mutually exclusive registers as forbidden
@@ -314,12 +307,9 @@ std::vector<michaelcc::linear::virtual_register> michaelcc::linear::allocators::
         }
 
         if (best_fit.has_value()) { //we succesfully color the vreg
-            m_translation_unit.register_allocator.set_alloc_information(vreg, std::make_shared<alloc_information>(alloc_information{
-                .register_id = best_fit.value()
-            }));
+            m_translation_unit.vreg_colors[vreg] = best_fit.value();
         } else {
-            auto alloc_info = m_translation_unit.register_allocator.get_alloc_information(vreg);
-            if (alloc_info.must_use_register) {
+            if (m_translation_unit.cannot_spill_vregs.contains(vreg)) {
                 throw std::runtime_error("Register allocation failed: Cannot spill a must use register.");
             }
             spilled_vregs.push_back(vreg);

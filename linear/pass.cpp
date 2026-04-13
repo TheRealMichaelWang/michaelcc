@@ -43,7 +43,7 @@ namespace michaelcc::linear::allocators {
     // are broken by introducing a temporary vreg.
     static std::vector<phi_copy> sequentialize_parallel_copies(
         std::vector<phi_copy> copies,
-        linear::register_allocator& reg_alloc
+        linear::translation_unit& unit
     ) {
         std::vector<phi_copy> result;
 
@@ -61,7 +61,7 @@ namespace michaelcc::linear::allocators {
             } else {
                 // All remaining copies form cycles -- break one with a temp
                 auto& first = copies.front();
-                auto temp = reg_alloc.new_vreg(first.source.reg_size, first.source.reg_class);
+                auto temp = unit.new_vreg(first.source.reg_size, first.source.reg_class);
                 result.push_back({ temp, first.source });
                 first.source = temp;
             }
@@ -98,7 +98,7 @@ namespace michaelcc::linear::allocators {
         // Phase 2: sequentialize each predecessor's copies and insert before terminator
         for (auto& [pred_block_id, copies] : pending_copies) {
             auto sequentialized = sequentialize_parallel_copies(
-                std::move(copies), unit.register_allocator
+                std::move(copies), unit
             );
             auto& pred_block = unit.blocks.at(pred_block_id);
             for (auto& copy : sequentialized) {

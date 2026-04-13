@@ -1090,7 +1090,7 @@ private:
     std::ostream& m_out;
     size_t m_indent;
     std::vector<size_t> subsequent_block_ids;
-    const linear::register_allocator& m_register_allocator;
+    const linear::translation_unit& m_unit;
     const platform_info& m_platform_info;
     
     void print_virtual_register(const linear::virtual_register& reg, bool include_size=false, bool is_setting=false) {
@@ -1105,13 +1105,12 @@ private:
             m_out << static_cast<size_t>(reg.reg_size) << " bits";
 
             if (is_setting) {
-                auto alloc_info = m_register_allocator.get_alloc_information(reg);
                 
-                if (alloc_info.register_id) {
-                    auto register_info = m_platform_info.get_register_info(alloc_info.register_id.value());
+                if (m_unit.vreg_colors.contains(reg)) {
+                    auto register_info = m_platform_info.get_register_info(m_unit.vreg_colors.at(reg));
                     m_out << ", register " << register_info.name;
                 }
-                else if (alloc_info.must_use_register) {
+                if (m_unit.cannot_spill_vregs.contains(reg)) {
                     m_out << ", register required";
                 }
             }
@@ -1141,8 +1140,8 @@ private:
     }
 
 public:
-    linear_print_visitor(std::ostream& out, const linear::register_allocator& register_allocator, const platform_info& platform_info, int indent = 0) 
-    : m_out(out), m_register_allocator(register_allocator), m_platform_info(platform_info), m_indent(indent) {}
+    linear_print_visitor(std::ostream& out, const linear::translation_unit& unit, const platform_info& platform_info, int indent = 0) 
+    : m_out(out), m_unit(unit), m_platform_info(platform_info), m_indent(indent) {}
 
     std::vector<size_t> print_basic_block(const linear::basic_block& node, std::optional<std::string> label = std::nullopt) {
         print_indent(m_out, m_indent);
@@ -1426,7 +1425,7 @@ namespace linear {
                 if (printed_block_ids.contains(block_id)) continue;
                 
                 printed_block_ids.insert(block_id);
-                linear_print_visitor visitor(ss, unit.register_allocator, unit.platform_info, 0);
+                linear_print_visitor visitor(ss, unit, unit.platform_info, 0);
                 auto subsequent_block_ids = visitor.print_basic_block(unit.blocks.at(block_id), label);
                 if (label.has_value()) {
                     label = std::nullopt;

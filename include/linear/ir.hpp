@@ -11,6 +11,8 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <unordered_set>
+#include <unordered_map>
 #include <cassert>
 
 namespace michaelcc {
@@ -597,9 +599,34 @@ namespace michaelcc {
             std::vector<std::unique_ptr<function_definition>> function_definitions;
             std::unordered_map<size_t, linear::basic_block> blocks;
 
-            register_allocator register_allocator;
+            std::unordered_map<virtual_register, register_t> vreg_colors;
+            std::unordered_set<virtual_register> cannot_spill_vregs;
+            size_t next_vreg_id = 0;
+            std::vector<size_t> free_vreg_ids;
+
             static_storage::static_sections static_sections;
             const platform_info& platform_info;
+
+            virtual_register new_vreg(word_size reg_size, register_class reg_class) {
+                size_t id;
+                if (free_vreg_ids.empty()) {
+                    id = next_vreg_id++;
+                } else {
+                    id = free_vreg_ids.back();
+                    free_vreg_ids.pop_back();
+                }
+                return virtual_register{ .id = id, .reg_size = reg_size, .reg_class = reg_class };
+            }
+
+            void free_vreg(virtual_register vreg) {
+                free_vreg_ids.push_back(vreg.id);
+                if (vreg_colors.contains(vreg)) {
+                    vreg_colors.erase(vreg);
+                }
+                if (cannot_spill_vregs.contains(vreg)) {
+                    cannot_spill_vregs.erase(vreg);
+                }
+            }
         };
 
         std::string print_linear_ir(const translation_unit& unit);

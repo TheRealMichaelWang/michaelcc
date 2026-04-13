@@ -51,9 +51,8 @@ bool michaelcc::linear::optimization::copy_prop_pass::optimize(translation_unit&
                     continue;
                 }
 
-                auto reg_alloc_info = unit.register_allocator.get_alloc_information(copy->destination());
                 // if the destination is a physical register, we must keep that vreg
-                if (reg_alloc_info.register_id.has_value()) {
+                if (unit.vreg_colors.contains(copy->destination())) {
                     // source instruction must be from the same block
                     if (source_block_id != block_id) {
                         push_instruction(std::move(instruction));
@@ -61,10 +60,8 @@ bool michaelcc::linear::optimization::copy_prop_pass::optimize(translation_unit&
                     }
 
                     // add the register allocation information
-                    unit.register_allocator.set_alloc_information(copy->source(), std::make_shared<alloc_information>(alloc_information{
-                        .register_id = reg_alloc_info.register_id.value()
-                    }));
-                    unit.register_allocator.free_vreg(copy->destination());
+                    unit.vreg_colors[copy->source()] = unit.vreg_colors.at(copy->destination());
+                    unit.free_vreg(copy->destination());
                 }
 
                 // insert the substitution into the map

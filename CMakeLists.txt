@@ -27,7 +27,6 @@ add_executable(michaelcc
     logic/dead_code.cpp
     logic/ir_simplify.cpp
     linear/flattener.cpp
-    linear/registers.cpp
     linear/static.cpp
     linear/dominators.cpp
     linear/pass.cpp
@@ -36,5 +35,6 @@ add_executable(michaelcc
     linear/copy_prop.cpp
     linear/gvn.cpp
     linear/frame_allocator.cpp
+    linear/register_allocator.cpp
     isa/x64.cpp
 )

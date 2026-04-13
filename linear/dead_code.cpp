@@ -13,8 +13,7 @@ void michaelcc::linear::optimization::dead_instruction_pass::prescan(const trans
             if (instruction->destination_register().has_value()) {
                 m_vreg_defintions[instruction->destination_register().value()] = instruction.get();
 
-                auto alloc_info = unit.register_allocator.get_alloc_information(instruction->destination_register().value());
-                if (alloc_info.register_id.has_value()) {
+                if (unit.vreg_colors.contains(instruction->destination_register().value())) {
                     instructions_to_traverse.push(instruction.get());
                 }
             }

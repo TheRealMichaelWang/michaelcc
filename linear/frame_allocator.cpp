@@ -3,13 +3,11 @@
 
 michaelcc::linear::allocators::frame_allocator::frame_allocator(linear::translation_unit& translation_unit)  : translation_unit(translation_unit) { 
     for (const auto& function : translation_unit.function_definitions) {
-        auto frame_pointer_vreg = translation_unit.register_allocator.new_vreg(
+        auto frame_pointer_vreg = translation_unit.new_vreg(
             translation_unit.platform_info.pointer_size, 
             linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
         );
-        translation_unit.register_allocator.set_alloc_information(frame_pointer_vreg, std::make_shared<linear::alloc_information>(linear::alloc_information{
-            .register_id = translation_unit.platform_info.frame_pointer_register_id
-        }));
+        translation_unit.vreg_colors[frame_pointer_vreg] = translation_unit.platform_info.frame_pointer_register_id;
         function_to_frame_pointer.emplace(function.get(), std::make_pair(0, frame_pointer_vreg));
     }
 }
