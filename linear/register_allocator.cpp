@@ -119,7 +119,6 @@ void michaelcc::linear::allocators::register_allocator::build_inference_graph(si
             }
         }
 
-
         for (auto operand : it->get()->operand_registers()) {
             live_set.insert(operand);
         }
@@ -316,4 +315,11 @@ std::vector<michaelcc::linear::virtual_register> michaelcc::linear::allocators::
         }
     }
     return spilled_vregs;
+}
+
+std::vector<michaelcc::linear::virtual_register> michaelcc::linear::allocators::register_allocator::allocate() {
+    compute_all_block_liveliness();
+    build_inference_graph();
+    auto select_stack = simplify();
+    return select(select_stack);
 }

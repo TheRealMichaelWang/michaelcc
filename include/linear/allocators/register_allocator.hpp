@@ -88,6 +88,9 @@ namespace michaelcc::linear::allocators {
 
     public:
         register_allocator(translation_unit& translation_unit) : m_translation_unit(translation_unit) {}
+
+        // returns a list of spilled vregs
+        std::vector<virtual_register> allocate();
     };
 }
 #endif
