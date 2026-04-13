@@ -1,23 +1,21 @@
-#include "linear/passes/frame_allocator.hpp"
+#include "linear/allocators/frame_allocator.hpp"
 #include "linear/ir.hpp"
 
-using namespace michaelcc::linear::passes;
-
-frame_allocator::frame_allocator(linear::translation_unit& translation_unit)  : translation_unit(translation_unit) { 
+michaelcc::linear::allocators::frame_allocator::frame_allocator(linear::translation_unit& translation_unit)  : translation_unit(translation_unit) { 
     for (const auto& function : translation_unit.function_definitions) {
         auto frame_pointer_vreg = translation_unit.register_allocator.new_vreg(
             translation_unit.platform_info.pointer_size, 
             linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
         );
         translation_unit.register_allocator.set_alloc_information(frame_pointer_vreg, std::make_shared<linear::alloc_information>(linear::alloc_information{
-            .register_id = frame_pointer_vreg.id
+            .register_id = translation_unit.platform_info.frame_pointer_register_id
         }));
         function_to_frame_pointer.emplace(function.get(), std::make_pair(0, frame_pointer_vreg));
     }
 }
 
-void frame_allocator::allocate_block(linear::function_definition* function, size_t block_id) {
-    auto block = translation_unit.blocks.at(block_id);
+void michaelcc::linear::allocators::frame_allocator::allocate_block(linear::function_definition* function, size_t block_id) {
+    auto& block = translation_unit.blocks.at(block_id);
     
     auto [current_offset, frame_pointer_vreg] = function_to_frame_pointer.at(function);
 
@@ -48,7 +46,7 @@ void frame_allocator::allocate_block(linear::function_definition* function, size
     }
 }
 
-void frame_allocator::allocate() {
+void michaelcc::linear::allocators::frame_allocator::allocate() {
     for (const auto& function : translation_unit.function_definitions) {
         allocate_block(function.get(), function->entry_block_id());
     }

@@ -1,11 +1,11 @@
-#ifndef MICHAELCC_LINEAR_PASSES_STACK_ALLOCATOR_HPP
-#define MICHAELCC_LINEAR_PASSES_STACK_ALLOCATOR_HPP
+#ifndef MICHAELCC_LINEAR_ALLOCATORS_FRAME_ALLOCATOR_HPP
+#define MICHAELCC_LINEAR_ALLOCATORS_FRAME_ALLOCATOR_HPP
 
 #include "linear/ir.hpp"
 #include <unordered_map>
 #include <utility>
 
-namespace michaelcc::linear::passes {
+namespace michaelcc::linear::allocators {
     // Converts all alloca instructions into actual references to memory locations on the stack
     // Aparently not all platforms have stacks grow downwards (strange?)
     class frame_allocator final {

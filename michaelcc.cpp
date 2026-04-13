@@ -12,6 +12,7 @@
 #include "logic/optimization/const_propagation.hpp"	
 #include "linear/flatten.hpp"
 #include "linear/pass.hpp"
+#include "linear/allocators/remove_phi.hpp"
 #include "linear/optimization/dead_code.hpp"
 #include "linear/optimization/const_prop.hpp"
 #include "linear/optimization/copy_prop.hpp"
@@ -28,9 +29,6 @@ struct CompilerOptions {
 	std::string input_file;
 	std::string output_file;
 	std::string platform = "x64";
-
-	// can be from 0 to 2
-	int optimization_level = 2;
 };
 
 std::unordered_map<std::string, michaelcc::platform_info> platform_infos = {
@@ -51,8 +49,6 @@ int main(int argc, char* argv[])
 	app.add_option("-p, --platform", options.platform, "The platform to compile for")
 		->check(CLI::IsMember(platform_infos))
 		->required();
-	app.add_option("-O, --optimization", options.optimization_level, "The optimization level to compile with")
-		->check(CLI::Range(0, 2));
 
 	CLI11_PARSE(app, argc, argv);
 
@@ -85,12 +81,10 @@ int main(int argc, char* argv[])
 		auto passes = std::vector<std::unique_ptr<michaelcc::logic::optimization::pass>>();
 		passes.emplace_back(michaelcc::logic::optimization::make_constant_folding_pass(michaelcc::isa::x64::platform_info));
 		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::ir_simplify_pass>(michaelcc::isa::x64::platform_info));
-		if (options.optimization_level >= 2) {
-			passes.emplace_back(std::make_unique<michaelcc::logic::optimization::dead_code_pass>());
-			passes.emplace_back(std::make_unique<michaelcc::logic::optimization::pointer_propagation_pass>());
-			passes.emplace_back(std::make_unique<michaelcc::logic::optimization::const_propagation_pass>(michaelcc::isa::x64::platform_info));
-		}
+		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::dead_code_pass>());
 		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::inline_functions_pass>());
+		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::pointer_propagation_pass>());
+		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::const_propagation_pass>(michaelcc::isa::x64::platform_info));
 		michaelcc::logic::optimization::transform(logic_translation_unit, passes);
 		
 		// lower logical IR to linear SSA IR
@@ -98,14 +92,17 @@ int main(int argc, char* argv[])
 		linear_lowerer.lower(logic_translation_unit);
 		auto linear_translation_unit = linear_lowerer.release_translation_unit();
 
-		if (options.optimization_level >= 1) {
-			auto linear_passes = std::vector<std::unique_ptr<michaelcc::linear::pass>>();
-			linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_instruction_pass>());
-			linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_block_pass>());
-			linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::const_prop_pass>());
-			linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::copy_prop_pass>());
-			michaelcc::linear::transform(linear_translation_unit, linear_passes);
-		}
+		// optimize the linear IR
+		auto linear_passes = std::vector<std::unique_ptr<michaelcc::linear::pass>>();
+		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_instruction_pass>());
+		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::dead_block_pass>());
+		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::const_prop_pass>());
+		linear_passes.emplace_back(std::make_unique<michaelcc::linear::optimization::copy_prop_pass>());
+		
+		michaelcc::linear::transform(linear_translation_unit, linear_passes);
+
+		// remove phi nodes
+		michaelcc::linear::allocators::remove_phi_nodes(linear_translation_unit);
 
 		cout << michaelcc::linear::print_linear_ir(linear_translation_unit) << endl;
 	}

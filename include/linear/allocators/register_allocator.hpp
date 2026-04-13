@@ -7,40 +7,38 @@
 #include <optional>
 #include <unordered_set>
 
-
 namespace michaelcc::linear::allocators {
-    // we do graph coloring; 1 color = 1 register family
-    struct register_family {
-        uint8_t family_id;
-        register_class reg_class;
-    };
-
-    struct block_info {
-        std::unordered_set<virtual_register> defined_vregs;
-        std::unordered_set<virtual_register> used_vregs;
-        std::vector<const phi_instruction*> phi_instructions;
-    };
-
-    //liveliness information is stored per block
-    struct block_liveliness {
-        std::unordered_set<virtual_register> live_in;
-        std::unordered_set<virtual_register> live_out;
-    };
-
-    //inference graph node for graph coloring
-    struct inference_graph_node {
-        virtual_register vreg;
-        std::optional<uint8_t> precolored_family;
-        std::vector<uint8_t> adjacent_node_ids;
-        size_t degree;
-    };
-
     class register_allocator {
     private:
+        // we do graph coloring; 1 color = 1 register family
+        struct register_family {
+            uint8_t family_id;
+            register_class reg_class;
+        };
+
+        struct block_info {
+            std::unordered_set<virtual_register> defined_vregs;
+            std::unordered_set<virtual_register> used_vregs;
+        };
+
+        //liveliness information is stored per block
+        struct block_liveliness {
+            std::unordered_set<virtual_register> live_in;
+            std::unordered_set<virtual_register> live_out;
+        };
+
+        //inference graph node for graph coloring
+        struct inference_graph_node {
+            virtual_register vreg;
+            std::optional<uint8_t> precolored_family;
+            std::vector<virtual_register> adjacent_node_ids;
+            size_t degree;
+        };
+
         translation_unit& m_translation_unit;
         
         // the inference graph
-        std::unordered_map<size_t, inference_graph_node> m_inference_graph;
+        std::unordered_map<virtual_register, inference_graph_node> m_inference_graph;
 
         // the block liveliness information
         std::unordered_map<size_t, block_liveliness> m_block_liveliness;
@@ -48,19 +46,15 @@ namespace michaelcc::linear::allocators {
 
         std::unordered_set<virtual_register> compute_defined_vregs(size_t block_id);
         std::unordered_set<virtual_register> compute_used_vregs(size_t block_id, const std::unordered_set<virtual_register>& defined_vregs);
-        std::vector<const phi_instruction*> compute_phi_instructions(size_t block_id);
-
         block_info& compute_block_info(size_t block_id) {
             if (m_block_info.contains(block_id)) {
                 return m_block_info.at(block_id);
             }
             auto defined_vregs = compute_defined_vregs(block_id);
             auto used_vregs = compute_used_vregs(block_id, defined_vregs);
-            auto phi_instructions = compute_phi_instructions(block_id);
             m_block_info.insert({ block_id, block_info{ 
                 std::move(defined_vregs), 
-                std::move(used_vregs), 
-                std::move(phi_instructions) 
+                std::move(used_vregs),
             } });
             return m_block_info.at(block_id);
         }
@@ -80,6 +74,9 @@ namespace michaelcc::linear::allocators {
         bool compute_block_liveliness(size_t block_id);
         void compute_all_block_liveliness();
 
+        void add_edge(virtual_register vreg_a, virtual_register vreg_b);
+
+        void build_inference_graph(size_t block_id);
         void build_inference_graph();
     public:
         register_allocator(translation_unit& translation_unit) : m_translation_unit(translation_unit) {}

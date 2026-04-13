@@ -379,6 +379,10 @@ namespace michaelcc {
             void remove_predecessor_block_id(size_t block_id) {
                 m_predecessor_block_ids.erase(std::remove(m_predecessor_block_ids.begin(), m_predecessor_block_ids.end(), block_id), m_predecessor_block_ids.end());
             }
+
+            void phi_add_instruction(std::unique_ptr<instruction>&& instruction) {
+                m_instructions.insert(m_instructions.end() - 1, std::move(instruction));
+            }
         };
 
         class branch : public instruction {

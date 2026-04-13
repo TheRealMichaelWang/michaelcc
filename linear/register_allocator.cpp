@@ -14,10 +14,6 @@ std::unordered_set<michaelcc::linear::virtual_register> michaelcc::linear::alloc
 std::unordered_set<michaelcc::linear::virtual_register> michaelcc::linear::allocators::register_allocator::compute_used_vregs(size_t block_id, const std::unordered_set<virtual_register>& defined_vregs) {
     std::unordered_set<michaelcc::linear::virtual_register> used_vregs;
     for (const auto& instruction : m_translation_unit.blocks.at(block_id).instructions()) {
-        if (dynamic_cast<const phi_instruction*>(instruction.get())) {
-            continue;
-        }
-        
         for (const auto& operand : instruction->operand_registers()) {
             if (!defined_vregs.contains(operand)) {
                 used_vregs.insert(operand);
@@ -25,16 +21,6 @@ std::unordered_set<michaelcc::linear::virtual_register> michaelcc::linear::alloc
         }
     }
     return used_vregs;
-}
-
-std::vector<const michaelcc::linear::phi_instruction*> michaelcc::linear::allocators::register_allocator::compute_phi_instructions(size_t block_id) {
-    std::vector<const phi_instruction*> phi_instructions;
-    for (const auto& instruction : m_translation_unit.blocks.at(block_id).instructions()) {
-        if (auto* phi = dynamic_cast<const phi_instruction*>(instruction.get())) {
-            phi_instructions.push_back(phi);
-        }
-    }
-    return phi_instructions;
 }
 
 bool michaelcc::linear::allocators::register_allocator::compute_block_liveliness(size_t block_id) {
@@ -49,16 +35,6 @@ bool michaelcc::linear::allocators::register_allocator::compute_block_liveliness
                 m_block_liveliness.at(succ_id).live_in.begin(),
                 m_block_liveliness.at(succ_id).live_in.end()
             );
-        }
-
-        auto& succ_block_info = compute_block_info(succ_id);
-        // add phi operands from this specific edge
-        for (const auto& phi : succ_block_info.phi_instructions) {
-            for (const auto& val : phi->values()) {
-                if (val.block_id == block_id) {
-                    computed_live_out.insert(val.vreg);
-                }
-            }
         }
     }
 
@@ -90,4 +66,45 @@ void michaelcc::linear::allocators::register_allocator::compute_all_block_liveli
             changed |= compute_block_liveliness(block_id);
         }
     } while (changed);
+}
+
+void michaelcc::linear::allocators::register_allocator::add_edge(virtual_register vreg_a, virtual_register vreg_b) {
+    auto ensure_edge = [this](virtual_register vreg) {
+        if (!m_inference_graph.contains(vreg)) {
+            m_inference_graph.insert({ vreg, inference_graph_node{.vreg = vreg, .degree = 0 } });
+        }
+        return m_inference_graph.at(vreg);
+    };
+
+    auto node_a = ensure_edge(vreg_a);
+    auto node_b = ensure_edge(vreg_b);
+    node_a.adjacent_node_ids.push_back(vreg_b);
+    node_b.adjacent_node_ids.push_back(vreg_a);
+    node_a.degree++;
+    node_b.degree++;
+}
+
+void michaelcc::linear::allocators::register_allocator::build_inference_graph(size_t block_id) {
+    auto& block_info = compute_block_info(block_id);
+    auto& block = m_translation_unit.blocks.at(block_id);
+
+    // live set starts as live out
+    std::unordered_set<virtual_register> live_set(m_block_liveliness.at(block_id).live_out);
+    for (auto it = block.instructions().rbegin(); it != block.instructions().rend(); ++it) {
+        if (it->get()->destination_register().has_value()) {
+            for (auto vreg : live_set) {
+                add_edge(it->get()->destination_register().value(), vreg);
+            }
+            live_set.erase(it->get()->destination_register().value());
+        }
+        for (auto operand : it->get()->operand_registers()) {
+            live_set.insert(operand);
+        }
+    }
+}
+
+void michaelcc::linear::allocators::register_allocator::build_inference_graph() {
+    for (const auto& [block_id, _] : m_translation_unit.blocks) {
+        build_inference_graph(block_id);
+    }
 }
