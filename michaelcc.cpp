@@ -17,7 +17,6 @@
 #include "linear/optimization/const_prop.hpp"
 #include "linear/optimization/copy_prop.hpp"
 #include "linear/optimization/phi.hpp"
-#include "isa/x64.hpp"
 #include "isa/isa.hpp"
 #include "CLI11.hpp"
 #include <fstream>
