@@ -2,8 +2,9 @@
 #include "linear/ir.hpp"
 #include <unordered_map>
 #include <unordered_set>
+#include <queue>
 
-void michaelcc::assembly::assembler::assemble_block(const linear::translation_unit& unit, size_t block_id) {
+void michaelcc::assembly::assembler::assemble_block(const linear::translation_unit& unit, size_t block_id, bool emit_label) {
     std::unordered_map<size_t, const linear::function_call*> function_id_to_call;
 
     auto& block = unit.blocks.at(block_id);
@@ -13,12 +14,16 @@ void michaelcc::assembly::assembler::assemble_block(const linear::translation_un
         }
     }
 
+    if (emit_label) {
+        m_output << "block" << block_id << ":\n";
+    }
+
     std::unordered_set<size_t> begun_function_calls;
     for (const auto& instruction : block.instructions()) {
         if (auto* push_arg = dynamic_cast<const linear::push_function_argument*>(instruction.get())) {
             if (!begun_function_calls.contains(push_arg->function_call_id())) {
                 auto* call = function_id_to_call.at(push_arg->function_call_id());
-                begin_function_call(*call, m_output);
+                begin_function_call(*call);
                 begun_function_calls.insert(push_arg->function_call_id());
             }
         }
@@ -28,8 +33,41 @@ void michaelcc::assembly::assembler::assemble_block(const linear::translation_un
     }
 }
 
+void michaelcc::assembly::assembler::assemble_function(const linear::translation_unit& unit, size_t function_id) {
+    auto& function = unit.function_definitions.at(function_id);
+    std::queue<size_t> blocks_to_assemble;
+
+    blocks_to_assemble.push(function->entry_block_id());
+
+    std::unordered_set<size_t> assembled_blocks;
+    while (!blocks_to_assemble.empty()) {
+        size_t block_id = blocks_to_assemble.front();
+        blocks_to_assemble.pop();
+
+        if (assembled_blocks.contains(block_id)) {
+            continue;
+        }
+        assembled_blocks.insert(block_id);
+
+        if (block_id == function->entry_block_id()) {
+            m_output << function->name() << ":";
+            begin_function_preamble(*function);
+            assemble_block(unit, block_id, false);
+        } else {
+            assemble_block(unit, block_id, true);
+        }
+
+        auto& block = unit.blocks.at(block_id);
+        for (size_t successor : block.successor_block_ids()) {
+            if (!assembled_blocks.contains(successor)) {
+                blocks_to_assemble.push(successor);
+            }
+        }
+    }
+}
+
 void michaelcc::assembly::assembler::assemble(const linear::translation_unit& unit) {
-    for (const auto& [block_id, _] : unit.blocks) {
-        assemble_block(unit, block_id);
+    for (size_t i = 0; i < unit.function_definitions.size(); i++) {
+        assemble_function(unit, i);
     }
 }

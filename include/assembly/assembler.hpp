@@ -2,7 +2,9 @@
 #define MICHAELCC_ASSEMBLY_ASSEMBLER_HPP
 
 #include "linear/ir.hpp"
+#include <optional>
 #include <stdexcept>
+#include <string>
 
 namespace michaelcc::assembly {
     class assembler: public linear::instruction_dispatcher<void> {
@@ -16,11 +18,19 @@ namespace michaelcc::assembly {
         virtual ~assembler() = default;
 
     private:
-        void assemble_block(const linear::translation_unit& unit, size_t block_id);
+        void assemble_block(const linear::translation_unit& unit, size_t block_id, bool emit_label);
+        void assemble_function(const linear::translation_unit& unit, size_t function_id);
 
     protected:
+        void begin_new_line() {
+            m_output << "\n\t";
+        }
+
+        // use this to emit pre-amble for function
+        virtual void begin_function_preamble(const linear::function_definition& definition);
+
         // use this to potentially save caller-saved registers for a function call
-        virtual void begin_function_call(const linear::function_call& instruction, std::ostream& output) = 0;
+        virtual void begin_function_call(const linear::function_call& instruction) = 0;
 
         void dispatch(const linear::a_instruction& instruction) override = 0;
         void dispatch(const linear::a2_instruction& instruction) override = 0;
