@@ -74,7 +74,7 @@ namespace michaelcc::isa::x64 {
     public:
         const platform_info& get_platform_info() const noexcept override;
         std::unique_ptr<assembly::assembler> create_assembler(std::ostream& output) const override { return std::make_unique<x64_assembler>(output); }
-        void legalize(linear::translation_unit& unit) const override;
+        void legalize(linear::translation_unit& unit) const override { }
     };
 }
 
