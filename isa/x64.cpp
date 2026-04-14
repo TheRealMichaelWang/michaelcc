@@ -5,7 +5,7 @@
 // Note this targets System V AMD 64 ABI, not Win64
 // Caller-saved: rax, rcx, rdx, rsi, rdi, r8–r11, xmm0–xmm15
 // Callee-saved: rbx, rbp, r12–r15
-// rsp / rbp register entries: is_protected (not for general allocation)
+// rsp / rbp register entries: is_protected (not for general allocation) but are for stack and frame pointers
 
 michaelcc::platform_info michaelcc::isa::x64::platform_info{
     .pointer_size   = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64,
@@ -28,7 +28,7 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
     .frame_pointer_register_id = 28,  // rbp
 
     .registers = {
-        // ===== rax family (ids 0-4) =====
+        // rax family for integers
         { .id = 0,  .name = "rax", .description = "RAX",
           .mutually_exclusive_registers = {1, 2, 3, 4},
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64, .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
@@ -50,7 +50,7 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE,   .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
           .is_caller_saved = true, .is_callee_saved = false, .is_protected = false },
 
-        // ===== rbx family (ids 5-9) =====
+        // rbx family for integers
         { .id = 5,  .name = "rbx", .description = "RBX",
           .mutually_exclusive_registers = {6, 7, 8, 9},
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64, .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
@@ -72,7 +72,7 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE,   .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
           .is_caller_saved = false, .is_callee_saved = true, .is_protected = false },
 
-        // ===== rcx family (ids 10-14) =====
+        // rcx family for integers
         { .id = 10, .name = "rcx", .description = "RCX",
           .mutually_exclusive_registers = {11, 12, 13, 14},
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64, .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
@@ -94,7 +94,7 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE,   .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
           .is_caller_saved = true, .is_callee_saved = false, .is_protected = false },
 
-        // ===== rdx family (ids 15-19) =====
+        // rdx family for integers
         { .id = 15, .name = "rdx", .description = "RDX",
           .mutually_exclusive_registers = {16, 17, 18, 19},
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64, .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
@@ -116,7 +116,7 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE,   .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
           .is_caller_saved = true, .is_callee_saved = false, .is_protected = false },
 
-        // ===== rsi family (ids 20-23) =====
+        // rsi family for integers
         { .id = 20, .name = "rsi", .description = "RSI",
           .mutually_exclusive_registers = {21, 22, 23},
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64, .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
@@ -134,7 +134,7 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE,   .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
           .is_caller_saved = true, .is_callee_saved = false, .is_protected = false },
 
-        // ===== rdi family (ids 24-27) =====
+        // rdi family for integers
         { .id = 24, .name = "rdi", .description = "RDI",
           .mutually_exclusive_registers = {25, 26, 27},
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64, .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
@@ -152,7 +152,7 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE,   .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
           .is_caller_saved = true, .is_callee_saved = false, .is_protected = false },
 
-        // ===== rbp family (ids 28-31) =====
+        // rbp family for frame pointer
         { .id = 28, .name = "rbp", .description = "RBP",
           .mutually_exclusive_registers = {29, 30, 31},
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64, .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
@@ -170,7 +170,7 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE,   .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
           .is_caller_saved = false, .is_callee_saved = true, .is_protected = true },
 
-        // ===== rsp family (ids 32-35) — not general-purpose; reserved for stack =====
+        // rsp family for stack pointer
         { .id = 32, .name = "rsp", .description = "RSP",
           .mutually_exclusive_registers = {33, 34, 35},
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64, .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
@@ -188,7 +188,7 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE,   .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
           .is_caller_saved = false, .is_callee_saved = false, .is_protected = true },
 
-        // ===== r8 family (ids 36-39) =====
+          // r8 family for integers
         { .id = 36, .name = "r8",   .description = "R8",
           .mutually_exclusive_registers = {37, 38, 39},
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64, .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
@@ -206,7 +206,7 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE,   .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
           .is_caller_saved = true, .is_callee_saved = false, .is_protected = false },
 
-        // ===== r9 family (ids 40-43) =====
+        // r9 family for integers
         { .id = 40, .name = "r9",   .description = "R9",
           .mutually_exclusive_registers = {41, 42, 43},
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64, .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
@@ -224,7 +224,7 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE,   .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
           .is_caller_saved = true, .is_callee_saved = false, .is_protected = false },
 
-        // ===== r10 family (ids 44-47) =====
+        // r10 family for integers
         { .id = 44, .name = "r10",  .description = "R10",
           .mutually_exclusive_registers = {45, 46, 47},
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64, .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
@@ -242,7 +242,7 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE,   .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
           .is_caller_saved = true, .is_callee_saved = false, .is_protected = false },
 
-        // ===== r11 family (ids 48-51) =====
+        // r11 family for integers
         { .id = 48, .name = "r11",  .description = "R11",
           .mutually_exclusive_registers = {49, 50, 51},
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64, .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
@@ -260,7 +260,7 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE,   .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
           .is_caller_saved = true, .is_callee_saved = false, .is_protected = false },
 
-        // ===== r12 family (ids 52-55) =====
+        // r12 family for integers
         { .id = 52, .name = "r12",  .description = "R12",
           .mutually_exclusive_registers = {53, 54, 55},
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64, .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
@@ -278,7 +278,7 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE,   .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
           .is_caller_saved = false, .is_callee_saved = true, .is_protected = false },
 
-        // ===== r13 family (ids 56-59) =====
+        // r13 family for integers
         { .id = 56, .name = "r13",  .description = "R13",
           .mutually_exclusive_registers = {57, 58, 59},
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64, .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
@@ -296,7 +296,7 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE,   .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
           .is_caller_saved = false, .is_callee_saved = true, .is_protected = false },
 
-        // ===== r14 family (ids 60-63) =====
+        // r14 family for integers
         { .id = 60, .name = "r14",  .description = "R14",
           .mutually_exclusive_registers = {61, 62, 63},
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64, .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
@@ -314,7 +314,7 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE,   .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
           .is_caller_saved = false, .is_callee_saved = true, .is_protected = false },
 
-        // ===== r15 family (ids 64-67) =====
+        // r15 family for integers
         { .id = 64, .name = "r15",  .description = "R15",
           .mutually_exclusive_registers = {65, 66, 67},
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64, .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
@@ -332,7 +332,7 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_BYTE,   .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
           .is_caller_saved = false, .is_callee_saved = true, .is_protected = false },
 
-        // ===== XMM registers (ids 68-83); all caller-saved under System V AMD64 =====
+        // xmm registers for floats
         { .id = 68, .name = "xmm0",  .description = "XMM0",
           .mutually_exclusive_registers = {},
           .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64, .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_FLOATING_POINT,

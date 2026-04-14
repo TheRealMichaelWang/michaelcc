@@ -2,6 +2,7 @@
 #define MICHAELCC_ASSEMBLY_ASSEMBLER_HPP
 
 #include "linear/ir.hpp"
+#include <stdexcept>
 
 namespace michaelcc::assembly {
     class assembler: public linear::instruction_dispatcher<void> {
@@ -37,7 +38,7 @@ namespace michaelcc::assembly {
         void dispatch(const linear::push_function_argument& instruction) override = 0;
         void dispatch(const linear::function_call& instruction) override = 0;
         void dispatch(const linear::function_return& instruction) override = 0;
-        void dispatch(const linear::phi_instruction& instruction) override = 0;
+        void dispatch(const linear::phi_instruction& instruction) override { throw std::runtime_error("phi instructions are not supported by the assembler"); }
 
     public:
         void assemble(const linear::translation_unit& unit);
