@@ -94,7 +94,7 @@ namespace michaelcc::linear::allocators {
             std::unique_ptr<instruction> dispatch(const store_memory& node) override {
                 return std::make_unique<store_memory>(
                     node.value(),
-                    m_spiller.get_value(node.source_address(), m_new_instructions),
+                    m_spiller.get_value(node.destination_address(), m_new_instructions),
                     node.offset());
             }
 

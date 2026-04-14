@@ -18,6 +18,7 @@
 #include "linear/optimization/copy_prop.hpp"
 #include "linear/optimization/phi.hpp"
 #include "isa/isa.hpp"
+#include "isa/lc2200.hpp"
 #include "CLI11.hpp"
 #include <fstream>
 #include <iostream>
@@ -34,7 +35,7 @@ struct CompilerOptions {
 
 std::unordered_map<std::string, std::unique_ptr<michaelcc::isa::isa>> make_platforms() {
 	std::unordered_map<std::string, std::unique_ptr<michaelcc::isa::isa>> map;
-	//map.emplace("x64", std::make_unique<michaelcc::isa::x64::x64_isa>());
+	map.emplace("lc2200", std::make_unique<michaelcc::isa::lc2200::lc2200_isa>());
 	return map;
 }
 

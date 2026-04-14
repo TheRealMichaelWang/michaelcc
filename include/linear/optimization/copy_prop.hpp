@@ -128,9 +128,9 @@ namespace michaelcc {
                 }
 
                 std::unique_ptr<instruction> dispatch(const store_memory& node) override {
-                    auto a = get_replacement(node.source_address());
+                    auto a = get_replacement(node.destination_address());
                     auto v = get_replacement(node.value());
-                    if (a != node.source_address() || v != node.value()) {
+                    if (a != node.destination_address() || v != node.value()) {
                         return std::make_unique<store_memory>(a, v, node.offset());
                     }
                     return nullptr;

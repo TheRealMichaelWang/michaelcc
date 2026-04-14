@@ -497,7 +497,7 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
 }
 
 std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization::const_prop_pass::instruction_pass::dispatch(const michaelcc::linear::store_memory& node) {
-    auto a2_definition = m_pass.m_a2_definitions.find(node.source_address());
+    auto a2_definition = m_pass.m_a2_definitions.find(node.destination_address());
     if (a2_definition == m_pass.m_a2_definitions.end()) {
         return nullptr;
     }

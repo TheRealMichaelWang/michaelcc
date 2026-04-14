@@ -308,7 +308,7 @@ bool frame_arithmetic_pass::optimize(translation_unit& unit) {
             }
 
             if (auto* store = dynamic_cast<const store_memory*>(inst.get())) {
-                auto it = m_a2_defs.find(store->source_address());
+                auto it = m_a2_defs.find(store->destination_address());
                 if (it != m_a2_defs.end()) {
                     if (auto delta = get_additive_offset(it->second)) {
                         out.emplace_back(std::make_unique<store_memory>(
