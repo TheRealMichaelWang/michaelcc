@@ -1245,7 +1245,7 @@ protected:
 
         m_out << ' ';
 
-        print_virtual_register(node.source());
+        print_virtual_register(node.source(), (node.type() == linear::MICHAELCC_LINEAR_C_SEXT_OR_TRUNC || node.type() == linear::MICHAELCC_LINEAR_C_ZEXT_OR_TRUNC));
         m_out << "\n";
     }
 
