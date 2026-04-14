@@ -69,7 +69,7 @@ void michaelcc::assembly::assembler::assemble_function(const linear::translation
         assembled_blocks.insert(block_id);
 
         if (block_id == function->entry_block_id()) {
-            m_output << function->name() << ":";
+            emit_label(function->name());
             m_current_unit = std::make_optional(&unit);
             begin_function_preamble(*function);
             m_current_unit = std::nullopt;
