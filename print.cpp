@@ -1268,7 +1268,7 @@ protected:
     void dispatch(const linear::store_memory& node) override {
         print_indent(m_out, m_indent);
         m_out << "*(";
-        print_virtual_register(node.source_address());
+        print_virtual_register(node.source_address(), true, true);
         m_out << " + " << node.offset() << ") = ";
         print_virtual_register(node.value(), true);
         m_out << "\n";
