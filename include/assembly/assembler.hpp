@@ -10,6 +10,7 @@ namespace michaelcc::assembly {
     private:
         bool m_skip_next_instruction;
         std::optional<const linear::instruction*> m_next_instruction;
+        size_t m_symbol_counter;
 
     protected:
         std::ostream& m_output;
@@ -18,7 +19,7 @@ namespace michaelcc::assembly {
     public:
 
         assembler(std::ostream& output) 
-            : m_output(output), m_current_unit(std::nullopt), m_skip_next_instruction(false), m_next_instruction(std::nullopt) {}
+            : m_output(output), m_current_unit(std::nullopt), m_skip_next_instruction(false), m_next_instruction(std::nullopt), m_symbol_counter(0) {}
 
         virtual ~assembler() = default;
 
@@ -31,12 +32,25 @@ namespace michaelcc::assembly {
             m_output << "\n\t";
         }
 
+        std::string generate_symbol() {
+            m_symbol_counter++;
+            return "sym" + std::to_string(m_symbol_counter);
+        }
+
+        void emit_label(std::string label) {
+            m_output << '\n' <<label << ":";
+        }
+
         linear::register_info get_physical_register(const linear::virtual_register& vreg) const {
             return m_current_unit.value()->platform_info.get_register_info(m_current_unit.value()->vreg_colors.at(vreg));
         }
 
         std::optional<const linear::instruction*> next_instruction() const {
             return m_next_instruction;
+        }
+
+        void skip_next_instruction() {
+            m_skip_next_instruction = true;
         }
 
         bool in_physical_family(linear::register_t id_a, std::string family_register_name) const {
@@ -63,8 +77,11 @@ namespace michaelcc::assembly {
             throw std::runtime_error("No physical register of size " + std::to_string(size) + " found");
         }
 
+        // use this to emit pre-amble for a block
+        virtual void begin_block_preamble(const linear::basic_block& block) = 0;
+
         // use this to emit pre-amble for function
-        virtual void begin_function_preamble(const linear::function_definition& definition);
+        virtual void begin_function_preamble(const linear::function_definition& definition) = 0;
 
         // use this to potentially save caller-saved registers for a function call
         virtual void begin_function_call(const linear::function_call& instruction) = 0;

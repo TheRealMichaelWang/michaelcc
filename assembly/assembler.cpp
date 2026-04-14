@@ -15,8 +15,9 @@ void michaelcc::assembly::assembler::assemble_block(const linear::translation_un
     }
 
     if (emit_label) {
-        m_output << "block" << block_id << ":\n";
+        m_output << "block" << block_id << ":";
     }
+    begin_block_preamble(block);
 
     std::unordered_set<size_t> begun_function_calls;
     for (auto it = block.instructions().begin(); it != block.instructions().end(); it++) {

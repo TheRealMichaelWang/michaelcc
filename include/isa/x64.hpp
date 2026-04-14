@@ -3,15 +3,42 @@
 
 #include "platform.hpp"
 #include "assembly/assembler.hpp"
+#include <vector>
 
 namespace michaelcc::isa::x64 {
     extern michaelcc::platform_info platform_info;
 
     class x64_assembler : public michaelcc::assembly::assembler {
+    private:
+        struct block_preamble_info {
+            std::vector<linear::virtual_register> set_to_true;
+            std::vector<linear::virtual_register> set_to_false;
+        };
+
+        std::unordered_map<size_t, block_preamble_info> m_block_preamble_info;
+
+        void add_set_true_to_block_preamble(size_t block_id, linear::virtual_register vreg) {
+            auto it = m_block_preamble_info.find(block_id);
+            if (it != m_block_preamble_info.end()) {
+                it->second.set_to_true.push_back(vreg);
+            } else {
+                m_block_preamble_info.insert({ block_id, block_preamble_info{ { vreg }, {} } });
+            }
+        }
+
+        void add_set_false_to_block_preamble(size_t block_id, linear::virtual_register vreg) {
+            auto it = m_block_preamble_info.find(block_id);
+            if (it != m_block_preamble_info.end()) {
+                it->second.set_to_false.push_back(vreg);
+            } else {
+                m_block_preamble_info.insert({ block_id, block_preamble_info{ {}, { vreg } } });
+            }
+        }
     public:
         x64_assembler(std::ostream& output) : michaelcc::assembly::assembler(output) {}
 
     protected:
+        void begin_block_preamble(const linear::basic_block& block) override;
         void begin_function_preamble(const linear::function_definition& definition) override;
         void begin_function_call(const linear::function_call& instruction) override;
 

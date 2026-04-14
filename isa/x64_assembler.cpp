@@ -4,6 +4,20 @@
 
 using namespace michaelcc::isa::x64;
 
+void x64_assembler::begin_block_preamble(const linear::basic_block& block) {
+    auto it = m_block_preamble_info.find(block.id());
+    if (it != m_block_preamble_info.end()) {
+        for (auto& vreg : it->second.set_to_true) {
+            begin_new_line();
+            m_output << "mov " << get_physical_register(vreg).name << ", 1";
+        }
+        for (auto& vreg : it->second.set_to_false) {
+            begin_new_line();
+            m_output << "mov " << get_physical_register(vreg).name << ", 0";
+        }
+    }
+}
+
 void x64_assembler::emit_unsigned_multiply(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b) {
     throw std::runtime_error("Unsigned multiply is not supported yet for x64");
 }
@@ -26,6 +40,106 @@ void x64_assembler::emit_unsigned_divide(linear::virtual_register dest, linear::
 
 void x64_assembler::emit_unsigned_remainder(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b) {
     throw std::runtime_error("Unsigned remainder is not supported yet for x64");
+}
+
+void x64_assembler::emit_logical_and(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b) {
+    auto physical_reg_dest = get_physical_register(dest);
+    auto physical_reg_a = get_physical_register(operand_a);
+    auto physical_reg_b = get_physical_register(operand_b);
+    
+    if (auto branch_condition = dynamic_cast<const linear::branch_condition*>(next_instruction().value())) {
+        if (branch_condition->condition() == dest) {
+            begin_new_line();
+            m_output << "test " << physical_reg_a.name << ", " << physical_reg_a.name;
+            begin_new_line();
+            m_output << "jz block" << branch_condition->if_false_block_id();
+            begin_new_line();
+            m_output << "test " << physical_reg_b.name << ", " << physical_reg_b.name;
+            begin_new_line();
+            m_output << "jz block" << branch_condition->if_false_block_id();
+            begin_new_line();
+            m_output << "jmp block" << branch_condition->if_true_block_id();
+
+            skip_next_instruction();
+
+            // in case dest is used elsewhere, we need to set it to true or false
+            add_set_true_to_block_preamble(branch_condition->if_true_block_id(), dest);
+            add_set_false_to_block_preamble(branch_condition->if_false_block_id(), dest);
+        }
+    }
+
+    throw std::runtime_error("Logical AND as a value is not supported yet for x64");
+}
+
+void x64_assembler::emit_logical_or(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b) {
+    auto physical_reg_dest = get_physical_register(dest);
+    auto physical_reg_a = get_physical_register(operand_a);
+    auto physical_reg_b = get_physical_register(operand_b);
+    
+    if (auto branch_condition = dynamic_cast<const linear::branch_condition*>(next_instruction().value())) {
+        if (branch_condition->condition() == dest) {
+            begin_new_line();
+            m_output << "test " << physical_reg_a.name << ", " << physical_reg_a.name;
+            begin_new_line();
+            m_output << "jnz block" << branch_condition->if_true_block_id();
+            begin_new_line();
+            m_output << "test " << physical_reg_b.name << ", " << physical_reg_b.name;
+            begin_new_line();
+            m_output << "jnz block" << branch_condition->if_true_block_id();
+            begin_new_line();
+            m_output << "jmp block" << branch_condition->if_false_block_id();
+
+            skip_next_instruction();
+
+            // in case dest is used elsewhere, we need to set it to true or false
+            add_set_true_to_block_preamble(branch_condition->if_true_block_id(), dest);
+            add_set_false_to_block_preamble(branch_condition->if_false_block_id(), dest);
+            return;
+        }
+    }
+
+    throw std::runtime_error("Logical OR as a value is not supported yet for x64");
+}
+
+void x64_assembler::emit_logical_xor(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b) {
+    auto physical_reg_dest = get_physical_register(dest);
+    auto physical_reg_a = get_physical_register(operand_a);
+    auto physical_reg_b = get_physical_register(operand_b);
+
+    if (auto branch_condition = dynamic_cast<const linear::branch_condition*>(next_instruction().value())) {
+        if (branch_condition->condition() == dest) {
+            begin_new_line();
+            m_output << "test " << physical_reg_a.name << ", " << physical_reg_a.name;
+            
+            std::string a_false_label = generate_symbol();
+            begin_new_line();
+            m_output << "jz " << a_false_label;
+
+            begin_new_line();
+            m_output << "test " << physical_reg_b.name << ", " << physical_reg_b.name;
+            begin_new_line();
+            m_output << "jz block" << branch_condition->if_true_block_id();
+            begin_new_line();
+            m_output << "jmp " << branch_condition->if_false_block_id();
+            
+            emit_label(a_false_label);
+            begin_new_line();
+            m_output << "test " << physical_reg_b.name << ", " << physical_reg_b.name;
+            begin_new_line();
+            m_output << "jnz block" << branch_condition->if_true_block_id();
+            begin_new_line();
+            m_output << "jmp block" << branch_condition->if_false_block_id();
+
+            skip_next_instruction();
+
+            // in case dest is used elsewhere, we need to set it to true or false
+            add_set_true_to_block_preamble(branch_condition->if_true_block_id(), dest);
+            add_set_false_to_block_preamble(branch_condition->if_false_block_id(), dest);
+            return;
+        }
+    }
+
+    throw std::runtime_error("Logical XOR as a value is not supported yet for x64");
 }
 
 void x64_assembler::dispatch(const linear::a_instruction& instruction) {
@@ -55,6 +169,16 @@ void x64_assembler::dispatch(const linear::a_instruction& instruction) {
         emit_unsigned_remainder(instruction.destination(), instruction.operand_a(), instruction.operand_b());
         break;
         
+    // boolean arithmetic handlers
+    case linear::MICHAELCC_LINEAR_A_AND:
+        emit_logical_and(instruction.destination(), instruction.operand_a(), instruction.operand_b());
+        break;
+    case linear::MICHAELCC_LINEAR_A_OR:
+        emit_logical_or(instruction.destination(), instruction.operand_a(), instruction.operand_b());
+        break;
+    case linear::MICHAELCC_LINEAR_A_XOR:
+        emit_logical_xor(instruction.destination(), instruction.operand_a(), instruction.operand_b());
+        break;
     default:
         break;
     }
@@ -110,10 +234,6 @@ void x64_assembler::dispatch(const linear::a_instruction& instruction) {
             m_output << "xor " << physical_reg_dest.name << ", " << physical_reg_b.name;
         }
         break;
-    
-    // boolean arithmetic
-    
-        
 
     // float arithmetic
     case linear::MICHAELCC_LINEAR_A_FLOAT_ADD:
