@@ -7,13 +7,18 @@
 
 namespace michaelcc::assembly {
     class assembler: public linear::instruction_dispatcher<void> {
+    private:
+        bool m_skip_next_instruction;
+        std::optional<const linear::instruction*> m_next_instruction;
+
     protected:
         std::ostream& m_output;
         std::optional<const linear::translation_unit*> m_current_unit;
     
     public:
 
-        assembler(std::ostream& output) : m_output(output), m_current_unit(std::nullopt) {}
+        assembler(std::ostream& output) 
+            : m_output(output), m_current_unit(std::nullopt), m_skip_next_instruction(false), m_next_instruction(std::nullopt) {}
 
         virtual ~assembler() = default;
 
@@ -28,6 +33,10 @@ namespace michaelcc::assembly {
 
         linear::register_info get_physical_register(const linear::virtual_register& vreg) const {
             return m_current_unit.value()->platform_info.get_register_info(m_current_unit.value()->vreg_colors.at(vreg));
+        }
+
+        std::optional<const linear::instruction*> next_instruction() const {
+            return m_next_instruction;
         }
 
         bool in_physical_family(linear::register_t id_a, std::string family_register_name) const {

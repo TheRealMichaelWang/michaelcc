@@ -19,7 +19,20 @@ void michaelcc::assembly::assembler::assemble_block(const linear::translation_un
     }
 
     std::unordered_set<size_t> begun_function_calls;
-    for (const auto& instruction : block.instructions()) {
+    for (auto it = block.instructions().begin(); it != block.instructions().end(); it++) {
+        auto& instruction = *it;
+
+        if (m_skip_next_instruction) {
+            m_skip_next_instruction = false;
+            continue;
+        }
+
+        if ((it + 1) != block.instructions().end()) {
+            m_next_instruction = (it + 1)->get();
+        } else {
+            m_next_instruction = std::nullopt;
+        }
+
         if (auto* push_arg = dynamic_cast<const linear::push_function_argument*>(instruction.get())) {
             if (!begun_function_calls.contains(push_arg->function_call_id())) {
                 auto* call = function_id_to_call.at(push_arg->function_call_id());
@@ -34,6 +47,7 @@ void michaelcc::assembly::assembler::assemble_block(const linear::translation_un
         m_current_unit = std::make_optional(&unit);
         (*this)(*instruction);
         m_current_unit = std::nullopt;
+        m_next_instruction = std::nullopt;
     }
 }
 

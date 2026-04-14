@@ -112,6 +112,7 @@ void x64_assembler::dispatch(const linear::a_instruction& instruction) {
         break;
     
     // boolean arithmetic
+    
         
 
     // float arithmetic

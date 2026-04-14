@@ -22,6 +22,10 @@ namespace michaelcc::isa::x64 {
         void emit_unsigned_divide(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b);
         void emit_unsigned_remainder(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b);
 
+        void emit_logical_and(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b);
+        void emit_logical_or(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b);
+        void emit_logical_xor(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b);
+
         void dispatch(const linear::a_instruction& instruction) override;
         void dispatch(const linear::a2_instruction& instruction) override;
         void dispatch(const linear::u_instruction& instruction) override;
