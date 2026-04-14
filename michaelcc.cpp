@@ -35,7 +35,7 @@ struct CompilerOptions {
 
 std::unordered_map<std::string, std::unique_ptr<michaelcc::isa::isa>> make_platforms() {
 	std::unordered_map<std::string, std::unique_ptr<michaelcc::isa::isa>> map;
-	map.emplace("x64", std::make_unique<michaelcc::isa::x64::x64_isa>());
+	//map.emplace("x64", std::make_unique<michaelcc::isa::x64::x64_isa>());
 	return map;
 }
 
