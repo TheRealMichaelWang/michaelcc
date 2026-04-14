@@ -83,6 +83,7 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
         case MICHAELCC_LINEAR_A_BITWISE_AND:
         case MICHAELCC_LINEAR_A_BITWISE_OR:
         case MICHAELCC_LINEAR_A_BITWISE_XOR:
+        case MICHAELCC_LINEAR_A_BITWISE_NAND:
         case MICHAELCC_LINEAR_A_AND:
         case MICHAELCC_LINEAR_A_OR:
         case MICHAELCC_LINEAR_A_XOR:
@@ -114,6 +115,7 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
         case MICHAELCC_LINEAR_A_BITWISE_AND:
         case MICHAELCC_LINEAR_A_BITWISE_OR:
         case MICHAELCC_LINEAR_A_BITWISE_XOR:
+        case MICHAELCC_LINEAR_A_BITWISE_NAND:
         case MICHAELCC_LINEAR_A_AND:
         case MICHAELCC_LINEAR_A_OR:
         case MICHAELCC_LINEAR_A_XOR:
@@ -226,6 +228,7 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
     case MICHAELCC_LINEAR_A_BITWISE_AND:   return make_int([](auto a, auto b) { return a & b; });
     case MICHAELCC_LINEAR_A_BITWISE_OR:    return make_int([](auto a, auto b) { return a | b; });
     case MICHAELCC_LINEAR_A_BITWISE_XOR:   return make_int([](auto a, auto b) { return a ^ b; });
+    case MICHAELCC_LINEAR_A_BITWISE_NAND:  return make_int([](auto a, auto b) { return ~(a & b); });
 
     case MICHAELCC_LINEAR_A_AND: return make_int_cmp([](auto a, auto b) { return a && b; });
     case MICHAELCC_LINEAR_A_OR:  return make_int_cmp([](auto a, auto b) { return a || b; });
@@ -278,6 +281,7 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
             case MICHAELCC_LINEAR_A_BITWISE_AND: return a2_fold(node.type(), [](auto a, auto b) { return a & b; });
             case MICHAELCC_LINEAR_A_BITWISE_OR: return a2_fold(node.type(), [](auto a, auto b) { return a | b; });
             case MICHAELCC_LINEAR_A_BITWISE_XOR: return a2_fold(node.type(), [](auto a, auto b) { return a ^ b; });
+            case MICHAELCC_LINEAR_A_BITWISE_NAND: return a2_fold(node.type(), [](auto a, auto b) { return ~(a & b); });
             default: break;
             };
         }
@@ -344,6 +348,7 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
     case MICHAELCC_LINEAR_A_BITWISE_AND:     return fold_int([](auto a, auto b) { return a & b; });
     case MICHAELCC_LINEAR_A_BITWISE_OR:      return fold_int([](auto a, auto b) { return a | b; });
     case MICHAELCC_LINEAR_A_BITWISE_XOR:     return fold_int([](auto a, auto b) { return a ^ b; });
+    case MICHAELCC_LINEAR_A_BITWISE_NAND:    return fold_int([](auto a, auto b) { return ~(a & b); });
     case MICHAELCC_LINEAR_A_AND:             return fold_int([](auto a, auto b) { return a && b; });
     case MICHAELCC_LINEAR_A_OR:              return fold_int([](auto a, auto b) { return a || b; });
     case MICHAELCC_LINEAR_A_XOR:             return fold_int([](auto a, auto b) { return (bool)a ^ (bool)b; });

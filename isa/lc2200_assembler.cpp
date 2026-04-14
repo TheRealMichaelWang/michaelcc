@@ -23,6 +23,24 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::a_instruct
     case linear::a_instruction_type::MICHAELCC_LINEAR_A_ADD:
         m_output << "add " << physical_destination.name << ", " << physical_a.name << ", " << physical_b.name;
         break;
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_SUBTRACT:
+        // negate b and put in dest
+        m_output << "nand " << physical_destination.name << ", " << physical_b.name << ", " << physical_b.name;
+        begin_new_line();
+        m_output << "addi " << physical_destination.name << ", " << physical_destination.name << ", 1";
+
+        // add a and negated b (in dest) to dest
+        begin_new_line();
+        m_output << "add " << physical_destination.name << ", " << physical_destination.name << ", " << physical_a.name;
+        break;
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_BITWISE_AND:
+        m_output << "nand " << physical_destination.name << ", " << physical_a.name << ", " << physical_b.name;
+        begin_new_line();
+        m_output << "nand " << physical_destination.name << ", " << physical_destination.name << ", " << physical_destination.name;
+        break;
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_BITWISE_NAND:
+        m_output << "nand " << physical_destination.name << ", " << physical_a.name << ", " << physical_b.name;
+        break;
     default: throw std::runtime_error("Invalid a instruction type");
     }
 }
