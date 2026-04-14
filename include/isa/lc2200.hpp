@@ -18,6 +18,9 @@ namespace michaelcc::isa::lc2200 {
         void begin_function_preamble(const linear::function_definition& definition) override;
         void begin_function_call(const linear::function_call& instruction) override;
         
+        void emit_logical_and(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b);
+        void emit_logical_or(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b);
+
         void dispatch(const linear::a_instruction& instruction) override;
         void dispatch(const linear::a2_instruction& instruction) override;
         void dispatch(const linear::u_instruction& instruction) override;
