@@ -41,7 +41,11 @@ namespace michaelcc::isa::lc2200 {
     class lc2200_isa : public isa {
     public:
         const platform_info& get_platform_info() const noexcept override;
-        std::unique_ptr<assembly::assembler> create_assembler(std::ostream& output) const override { return std::make_unique<lc2200_assembler>(output); }
+        
+        std::unique_ptr<assembly::assembler> create_assembler(std::ostream& output) const override { 
+            return std::make_unique<lc2200_assembler>(output); 
+        }
+        
         void legalize(linear::translation_unit& unit) const override { }
     };
 }

@@ -1,0 +1,218 @@
+#include "isa/lc2200.hpp"
+
+const michaelcc::platform_info& michaelcc::isa::lc2200::lc2200_isa::get_platform_info() const noexcept {
+    static const michaelcc::platform_info lc2200_platform_info = {
+        .pointer_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+        .short_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT16,
+        .int_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+        .long_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+        .long_long_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+    
+        // no floats supported but just running with this for now
+        .float_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+        .double_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+    
+        // 32 bit processor so assume max alignment is 4 bytes
+        .max_alignment = 4,
+    
+        // optimize struct layout to minimize padding
+        .optimize_struct_layout = true,
+    
+        // has to be false cause LC-2200 only has 32 bit registers
+        .strict_physical_register_match = true,
+    
+        // return register ids (always $v0)
+        .return_register_int8_id = 2,
+        .return_register_int16_id = 2,
+        .return_register_int32_id = 2,
+        .return_register_int64_id = 2,
+        .return_register_float32_id = 2,
+        .return_register_float64_id = 2,
+    
+        // stack and frame pointer register ids
+        .stack_pointer_register_id = 13,
+        .frame_pointer_register_id = 14,
+    
+        // registers
+        .registers = {
+            {
+                .id = 0,
+                .name = "$zero",
+                .description = "Zero register (reading always returns zero)",
+                .mutually_exclusive_registers = {},
+                .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+                .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
+                .is_caller_saved = false,
+                .is_callee_saved = false,
+                .is_protected = true, //cannot be allocated via register allocator
+            },
+            {
+                .id = 1,
+                .name = "$at",
+                .description = "Assembler temporary register (reserved for assembler use)",
+                .mutually_exclusive_registers = {},
+                .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+                .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
+                .is_caller_saved = false,
+                .is_callee_saved = false,
+                .is_protected = true, //cannot be allocated via register allocator
+            },
+            {
+                .id = 2,
+                .name = "$v0",
+                .description = "Function return value register",
+                .mutually_exclusive_registers = {},
+                .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+                .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
+                .is_caller_saved = true,
+                .is_callee_saved = false,
+                .is_protected = false,
+            },
+            {
+                .id = 3,
+                .name = "$a0",
+                .description = "First argument register",
+                .mutually_exclusive_registers = {},
+                .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+                .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
+                .is_caller_saved = true,
+                .is_callee_saved = false,
+                .is_protected = false,
+            },
+            {
+                .id = 4,
+                .name = "$a1",
+                .description = "Second argument register",
+                .mutually_exclusive_registers = {},
+                .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+                .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
+                .is_caller_saved = true,
+                .is_callee_saved = false,
+                .is_protected = false,
+            },
+            {
+                .id = 5,
+                .name = "$a2",
+                .description = "Third argument register",
+                .mutually_exclusive_registers = {},
+                .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+                .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
+                .is_caller_saved = true,
+                .is_callee_saved = false,
+                .is_protected = false,
+            },
+            {
+                .id = 6,
+                .name = "$a3",
+                .description = "Fourth argument register",
+                .mutually_exclusive_registers = {},
+                .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+                .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
+                .is_caller_saved = true,
+                .is_callee_saved = false,
+                .is_protected = false,
+            },
+            {
+                .id = 7,
+                .name = "$a4",
+                .description = "Fifth argument register",
+                .mutually_exclusive_registers = {},
+                .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+                .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
+                .is_caller_saved = true,
+                .is_callee_saved = false,
+                .is_protected = false,
+            },
+            {
+                .id = 8,
+                .name = "$s0",
+                .description = "Saved register 0",
+                .mutually_exclusive_registers = {},
+                .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+                .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
+                .is_caller_saved = false,
+                .is_callee_saved = true,
+                .is_protected = false,
+            },
+            {
+                .id = 9,
+                .name = "$s1",
+                .description = "Saved register 1",
+                .mutually_exclusive_registers = {},
+                .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+                .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
+                .is_caller_saved = false,
+                .is_callee_saved = true,
+                .is_protected = false,
+            },
+            {
+                .id = 10,
+                .name = "$s2",
+                .description = "Saved register 2",
+                .mutually_exclusive_registers = {},
+                .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+                .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
+                .is_caller_saved = false,
+                .is_callee_saved = true,
+                .is_protected = false,
+            },
+            {
+                .id = 11,
+                .name = "$s3",
+                .description = "Saved register 3",
+                .mutually_exclusive_registers = {},
+                .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+                .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
+                .is_caller_saved = false,
+                .is_callee_saved = true,
+                .is_protected = false,
+            },
+            {
+                .id = 12,
+                .name = "$k0",
+                .description = "Kernel temporary register for OS/traps.",
+                .mutually_exclusive_registers = {},
+                .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+                .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
+                .is_caller_saved = false,
+                .is_callee_saved = false,
+                .is_protected = true,
+            },
+            {
+                .id = 13,
+                .name = "$sp",
+                .description = "Stack pointer register",
+                .mutually_exclusive_registers = {},
+                .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+                .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
+                .is_caller_saved = false,
+                .is_callee_saved = true,
+                .is_protected = true,
+            },
+            {
+                .id = 14,
+                .name = "$fp",
+                .description = "Frame pointer register",
+                .mutually_exclusive_registers = {},
+                .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+                .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
+                .is_caller_saved = false,
+                .is_callee_saved = true,
+                .is_protected = true,
+            },
+            {
+                .id = 15,
+                .name = "$ra",
+                .description = "Return address register",
+                .mutually_exclusive_registers = {},
+                .size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+                .reg_class = michaelcc::linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER,
+                .is_caller_saved = true,
+                .is_callee_saved = false,
+                .is_protected = true,
+            }
+        }
+    };
+    
+    return lc2200_platform_info;
+}
