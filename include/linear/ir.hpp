@@ -473,7 +473,7 @@ namespace michaelcc {
 
 
         
-        // Call a function and store the result in a register
+        // Call a function and optionally store the result in a register
         class function_call : public instruction {
         public:
             using callable = std::variant<std::string, virtual_register>;
@@ -481,15 +481,15 @@ namespace michaelcc {
         private:
             std::vector<virtual_register> m_caller_saved_registers;
 
-            virtual_register m_destination;
+            std::optional<virtual_register> m_destination;
             callable m_callee;
             size_t m_argument_count;
 
         public:
-            function_call(virtual_register destination, callable&& callee, size_t argument_count) 
+            function_call(std::optional<virtual_register> destination, callable&& callee, size_t argument_count) 
                 : m_destination(destination), m_callee(std::move(callee)), m_argument_count(argument_count) {}
 
-            virtual_register destination() const noexcept { return m_destination; }
+            std::optional<virtual_register> destination() const noexcept { return m_destination; }
             const callable& callee() const noexcept { return m_callee; }
             size_t argument_count() const noexcept { return m_argument_count; }
 

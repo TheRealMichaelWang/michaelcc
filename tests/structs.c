@@ -10,11 +10,9 @@ struct Rectangle {
     struct Point bottom_right;
 };
 
-struct Point make_point(int x, int y) {
-    struct Point p;
-    p.x = x;
-    p.y = y;
-    return p;
+void make_point(struct Point* p, int x, int y) {
+    p->x = x;
+    p->y = y;
 }
 
 int distance_squared(struct Point a, struct Point b) {
@@ -45,8 +43,10 @@ int main() {
     origin.x = 0;
     origin.y = 0;
     
-    struct Point p1 = make_point(3, 4);
-    struct Point p2 = make_point(6, 8);
+    struct Point p1;
+    make_point(&p1, 3, 4);
+    struct Point p2;
+    make_point(&p2, 6, 8);
     
     int dist_sq = distance_squared(origin, p1);
     

@@ -1305,8 +1305,11 @@ protected:
 
     void dispatch(const linear::function_call& node) override {
         print_indent(m_out, m_indent);
-        print_virtual_register(node.destination(), true, true);
-        m_out << " = function_call(callee=";
+        if (node.destination().has_value()) {
+            print_virtual_register(node.destination().value(), true, true);
+            m_out << " = ";
+        }
+        m_out << "function_call(callee=";
         std::visit(overloaded{
             [this](const std::string& label) { m_out << label; },
             [this](const linear::virtual_register& reg) { print_virtual_register(reg, true); }

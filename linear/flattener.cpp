@@ -1163,10 +1163,6 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
             return m_lowerer.lower_expression(*expression);
         }
     }, node.callee());
-    
-    if (calculator.must_alloca(node.get_type())) {
-        throw std::runtime_error("Function return value cannot be alloca'd on the stack.");
-    }
 
     size_t index = 0;
     for (const auto& argument : node.arguments()) {
@@ -1181,6 +1177,23 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
             argument_reg
         ));
         index++;
+    }
+
+    if (node.get_type().is_same_type<typing::void_type>()) {
+        m_lowerer.emit(std::make_unique<linear::function_call>(
+            std::nullopt,
+            std::move(callee),
+            index
+        ));
+        auto dummy = m_lowerer.m_translation_unit.new_vreg(
+            m_lowerer.get_platform_info().int_size,
+            linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
+        );
+        return dummy;
+    }
+
+    if (calculator.must_alloca(node.get_type())) {
+        throw std::runtime_error("Function return value cannot be alloca'd on the stack.");
     }
 
     auto result_layout = calculator(*node.get_type().type());
@@ -1626,8 +1639,10 @@ void logic_lowerer::lower_function(const logic::function_definition& node) {
     }
 
     auto final_block_id = lower_statements(node.statements());
-    assert(!final_block_id.has_value()); //all code paths must return and hence seal off the block
-    assert(!m_current_block.has_value());
+    if (final_block_id.has_value() && m_current_block.has_value()) {
+        emit(std::make_unique<linear::function_return>());
+        seal_block();
+    }
 
     std::vector<linear::function_parameter> parameters;
     parameters.reserve(m_current_function->parameters.size());

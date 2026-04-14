@@ -99,7 +99,7 @@ namespace michaelcc {
                             [this](const virtual_register& vreg) -> function_call::callable { return get_replacement(vreg); }
                         }, node.callee());
                         return std::make_unique<function_call>(
-                            node.destination(), 
+                            node.destination(),
                             std::move(new_callee), 
                             node.argument_count()
                         );

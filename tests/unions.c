@@ -32,9 +32,9 @@ int extract_tagged_int(struct TaggedValue tv) {
     if (tv.tag == 0) {
         return tv.value.integer;
     } else if (tv.tag == 1) {
-        return tv.value.word;
+        return (int)tv.value.word;
     } else {
-        return tv.value.byte;
+        return (int)tv.value.byte;
     }
 }
 
