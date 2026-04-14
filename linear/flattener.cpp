@@ -867,8 +867,6 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         // despite being a pass-by-value type. We always copy them via emit_memcpy when we need to
         // pass them by value, like in a set variable
 
-        assert(calculator.must_alloca(node.base()->get_type()));
-
         auto base_addr = m_lowerer.lower_expression(*node.base());
 
         if (calculator.must_alloca(node.member().member_type)) { //return a pointer to start of the struct

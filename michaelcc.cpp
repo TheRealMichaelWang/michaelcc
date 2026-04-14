@@ -105,6 +105,7 @@ int main(int argc, char* argv[])
 		// allocate stack frame (remove alloca)
 		michaelcc::linear::allocators::frame_allocator frame_allocator(linear_translation_unit);
 		frame_allocator.allocate(); // allocate stack frames (one pass)
+
 		michaelcc::linear::transform(linear_translation_unit, linear_passes); // try to const prop as much as possible
 
 		// remove phi nodes (no optimization passes can be run after this)
