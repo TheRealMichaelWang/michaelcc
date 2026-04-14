@@ -277,21 +277,21 @@ namespace michaelcc {
         // Store to memory
         class store_memory : public instruction {
         private:
-            virtual_register m_source_address;
+            virtual_register m_destination_address;
             virtual_register m_value;
 
             int64_t m_offset;
         public:
-            store_memory(virtual_register source_address, virtual_register value, int64_t offset) 
-                : m_source_address(source_address), m_value(value), m_offset(offset) {}
+            store_memory(virtual_register destination_address, virtual_register value, int64_t offset) 
+                : m_destination_address(destination_address), m_value(value), m_offset(offset) {}
         
-            virtual_register source_address() const noexcept { return m_source_address; }
+            virtual_register destination_address() const noexcept { return m_destination_address; }
             virtual_register value() const noexcept { return m_value; }
             int64_t offset() const noexcept { return m_offset; }
             word_size size_to_write() const noexcept { return m_value.reg_size; }
 
             std::optional<linear::virtual_register> destination_register() const noexcept override { return std::nullopt; }
-            std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_source_address, m_value }; }
+            std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_destination_address, m_value }; }
 
             bool has_side_effects() const noexcept override { return true; }
         };
