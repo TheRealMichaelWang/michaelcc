@@ -1609,13 +1609,13 @@ void logic_lowerer::lower_function(const logic::function_definition& node) {
     type_layout_calculator calculator(get_platform_info());
     size_t index = 0;
     for (const auto& parameter : node.parameters()) {
-        parameter_map.emplace(parameter->name(), linear::function_parameter{
+        parameter_map.insert({parameter->name(), linear::function_parameter{
             .name = parameter->name(),
             .layout = calculator(*parameter->get_type().type()),
             .index = index,
             .register_class = get_register_class(parameter->get_type()),
             .pass_via_stack = calculator.must_alloca(parameter->get_type())
-        });
+        }});
         index++;
     }
 
@@ -1691,12 +1691,12 @@ size_t logic_lowerer::seal_block() {
         successor_block_ids.push_back(branch_condition->if_false_block_id());
     }
     
-    m_translation_unit.blocks.emplace(cb.id, linear::basic_block(
+    m_translation_unit.blocks.insert({cb.id, linear::basic_block(
         cb.id, 
         std::move(cb.instructions),
         std::move(successor_block_ids)
-    ));
-    m_finished_block_var_ctx.emplace(cb.id, std::move(cb.var_info));
+    )});
+    m_finished_block_var_ctx.insert({cb.id, std::move(cb.var_info)});
     size_t return_id = cb.id;
     m_current_block.reset();
     return return_id;

@@ -89,13 +89,41 @@ void michaelcc::linear::optimization::dead_block_pass::prescan(const translation
 
 bool michaelcc::linear::optimization::dead_block_pass::optimize(translation_unit& unit) {
     bool made_changes = false;
+
+    std::unordered_set<size_t> dead_block_ids;
     for (auto it = unit.blocks.begin(); it != unit.blocks.end(); ) {
         if (!used_block_ids.contains(it->first)) {
+            dead_block_ids.insert(it->first);
             it = unit.blocks.erase(it);
             made_changes = true;
         } else {
             ++it;
         }
     }
+
+    if (!dead_block_ids.empty()) {
+        for (auto& [block_id, block] : unit.blocks) {
+            auto released = block.release_instructions();
+            std::vector<std::unique_ptr<instruction>> new_instructions;
+            new_instructions.reserve(released.size());
+            for (auto& inst : released) {
+                if (auto* phi = dynamic_cast<const phi_instruction*>(inst.get())) {
+                    std::vector<var_info> live_values;
+                    for (const auto& v : phi->values()) {
+                        if (!dead_block_ids.contains(v.block_id)) {
+                            live_values.push_back(v);
+                        }
+                    }
+                    new_instructions.emplace_back(
+                        std::make_unique<phi_instruction>(phi->destination(), std::move(live_values))
+                    );
+                } else {
+                    new_instructions.emplace_back(std::move(inst));
+                }
+            }
+            block.replace_instructions(std::move(new_instructions));
+        }
+    }
+
     return made_changes;
 }

@@ -136,7 +136,7 @@ namespace michaelcc {
         alignment = max_alignment;
 
         type.implement_field_offsets(field_offsets);
-        m_declared_info.emplace(&type, type_layout_info{.size=size, .alignment=alignment });
+        m_declared_info.insert({&type, type_layout_info{.size=size, .alignment=alignment }});
         return m_declared_info.at(&type);
     }
 
@@ -159,7 +159,7 @@ namespace michaelcc {
         // Pad size to alignment
         size_t size = max_size + (max_alignment - (max_size % max_alignment)) % max_alignment;
         
-        m_declared_info.emplace(&type, type_layout_info{.size=size, .alignment=max_alignment });
+        m_declared_info.insert({&type, type_layout_info{.size=size, .alignment=max_alignment }});
         return m_declared_info.at(&type);
     }
 }

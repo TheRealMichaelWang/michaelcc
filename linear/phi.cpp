@@ -194,6 +194,7 @@ namespace michaelcc::linear::allocators {
                 if (auto phi = dynamic_cast<const phi_instruction*>(instruction.get())) {
                     for (const auto& value : phi->values()) {
                         if (phi->destination() == value.vreg) { continue; }
+                        assert(unit.blocks.contains(value.block_id));
                         
                         pending_copies[value.block_id].push_back({
                             phi->destination(), value.vreg

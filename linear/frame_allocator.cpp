@@ -7,8 +7,8 @@ michaelcc::linear::allocators::frame_allocator::frame_allocator(linear::translat
             translation_unit.platform_info.pointer_size, 
             linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
         );
-        translation_unit.vreg_colors[frame_pointer_vreg] = translation_unit.platform_info.frame_pointer_register_id;
-        function_to_frame_pointer.emplace(function.get(), std::make_pair(0, frame_pointer_vreg));
+        translation_unit.vreg_colors.insert({frame_pointer_vreg, translation_unit.platform_info.frame_pointer_register_id});
+        function_to_frame_pointer.insert({ function.get(), std::make_pair(0, frame_pointer_vreg) });
     }
 }
 

@@ -38,20 +38,16 @@ int magnitude_squared_3d(struct Vector3D v) {
     return v.x * v.x + v.y * v.y + v.z * v.z;
 }
 
-struct Vector3D add_vectors(struct Vector3D a, struct Vector3D b) {
-    struct Vector3D result;
-    result.x = a.x + b.x;
-    result.y = a.y + b.y;
-    result.z = a.z + b.z;
-    return result;
+void add_vectors(struct Vector3D* result, struct Vector3D a, struct Vector3D b) {
+    result->x = a.x + b.x;
+    result->y = a.y + b.y;
+    result->z = a.z + b.z;
 }
 
-struct Vector3D scale_vector(struct Vector3D v, int s) {
-    struct Vector3D result;
-    result.x = v.x * s;
-    result.y = v.y * s;
-    result.z = v.z * s;
-    return result;
+void scale_vector(struct Vector3D* result, struct Vector3D v, int s) {
+    result->x = v.x * s;
+    result->y = v.y * s;
+    result->z = v.z * s;
 }
 
 int aabb_volume(struct AABB box) {
@@ -62,7 +58,7 @@ int aabb_volume(struct AABB box) {
 }
 
 void translate_transform(struct Transform* t, struct Vector3D offset) {
-    t->position = add_vectors(t->position, offset);
+    add_vectors(&t->position, t->position, offset);
 }
 
 int main() {
@@ -88,8 +84,10 @@ int main() {
     v3b.z = 6;
     
     int dot3 = dot_product_3d(v3a, v3b);
-    struct Vector3D sum = add_vectors(v3a, v3b);
-    struct Vector3D scaled = scale_vector(v3a, 2);
+    struct Vector3D sum;
+    add_vectors(&sum, v3a, v3b);
+    struct Vector3D scaled;
+    scale_vector(&scaled, v3a, 2);
     
     struct Transform transform;
     transform.position.x = 0;

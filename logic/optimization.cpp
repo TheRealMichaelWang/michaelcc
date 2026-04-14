@@ -233,7 +233,7 @@ namespace michaelcc {
 
                     std::shared_ptr<logic::variable> to_replace = std::dynamic_pointer_cast<logic::variable>(symbol);
                     if (to_replace) {
-                        variables_to_replace.emplace(to_replace);
+                        variables_to_replace.insert(to_replace);
                     }
                 }
 
