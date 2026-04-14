@@ -226,12 +226,10 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
     case MICHAELCC_LINEAR_A_BITWISE_AND:   return make_int([](auto a, auto b) { return a & b; });
     case MICHAELCC_LINEAR_A_BITWISE_OR:    return make_int([](auto a, auto b) { return a | b; });
     case MICHAELCC_LINEAR_A_BITWISE_XOR:   return make_int([](auto a, auto b) { return a ^ b; });
-    case MICHAELCC_LINEAR_A_BITWISE_NOT:   return nullptr;
 
     case MICHAELCC_LINEAR_A_AND: return make_int_cmp([](auto a, auto b) { return a && b; });
     case MICHAELCC_LINEAR_A_OR:  return make_int_cmp([](auto a, auto b) { return a || b; });
     case MICHAELCC_LINEAR_A_XOR: return make_int_cmp([](auto a, auto b) { return (bool)a ^ (bool)b; });
-    case MICHAELCC_LINEAR_A_NOT: return nullptr;
 
     case MICHAELCC_LINEAR_A_COMPARE_EQUAL:     return make_int_cmp([](auto a, auto b) { return a == b; });
     case MICHAELCC_LINEAR_A_COMPARE_NOT_EQUAL: return make_int_cmp([](auto a, auto b) { return a != b; });

@@ -82,6 +82,38 @@ void x64_assembler::dispatch(const linear::a_instruction& instruction) {
         m_output << "sub " << physical_reg_dest.name << ", " << physical_reg_b.name;
         break;
 
+    // bitwise arithmetic
+    case linear::MICHAELCC_LINEAR_A_BITWISE_AND:
+        if (instruction.operand_a() == instruction.destination()) { m_output << "and " << physical_reg_dest.name << ", " << physical_reg_b.name; }
+        else if (instruction.operand_b() == instruction.destination()) { m_output << "and " << physical_reg_dest.name << ", " << physical_reg_a.name; }
+        else { 
+            m_output << "mov " << physical_reg_dest.name << ", " << physical_reg_a.name;
+            begin_new_line();
+            m_output << "and " << physical_reg_dest.name << ", " << physical_reg_b.name;
+        }
+        break;
+    case linear::MICHAELCC_LINEAR_A_BITWISE_OR:
+        if (instruction.operand_a() == instruction.destination()) { m_output << "or " << physical_reg_dest.name << ", " << physical_reg_b.name; }
+        else if (instruction.operand_b() == instruction.destination()) { m_output << "or " << physical_reg_dest.name << ", " << physical_reg_a.name; }
+        else { 
+            m_output << "mov " << physical_reg_dest.name << ", " << physical_reg_a.name;
+            begin_new_line();
+            m_output << "or " << physical_reg_dest.name << ", " << physical_reg_b.name;
+        }
+        break;
+    case linear::MICHAELCC_LINEAR_A_BITWISE_XOR:
+        if (instruction.operand_a() == instruction.destination()) { m_output << "xor " << physical_reg_dest.name << ", " << physical_reg_b.name; }
+        else if (instruction.operand_b() == instruction.destination()) { m_output << "xor " << physical_reg_dest.name << ", " << physical_reg_a.name; }
+        else { 
+            m_output << "mov " << physical_reg_dest.name << ", " << physical_reg_a.name;
+            begin_new_line();
+            m_output << "xor " << physical_reg_dest.name << ", " << physical_reg_b.name;
+        }
+        break;
+    
+    // boolean arithmetic
+        
+
     // float arithmetic
     case linear::MICHAELCC_LINEAR_A_FLOAT_ADD:
         if (instruction.destination().reg_size == linear::word_size::MICHAELCC_WORD_SIZE_UINT64) {
