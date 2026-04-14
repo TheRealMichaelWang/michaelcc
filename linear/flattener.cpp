@@ -942,10 +942,10 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
 
 linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::array_index& node) {
     type_layout_calculator calculator(m_lowerer.get_platform_info());
- 
-    std::shared_ptr<typing::array_type> array_type = std::dynamic_pointer_cast<typing::array_type>(node.base()->get_type().type());
 
-    auto layout = calculator(*array_type->element_type().type());
+    typing::qual_type element_type = node.get_type();
+
+    auto layout = calculator(*element_type.type());
     auto offset_reg = m_lowerer.m_translation_unit.new_vreg(
         m_lowerer.get_platform_info().pointer_size,
         linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
@@ -959,7 +959,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
 
     auto base_addr_reg = m_lowerer.lower_expression(*node.base());
     if (auto integer_constant = dynamic_cast<logic::integer_constant*>(node.index().get())) {
-        if (calculator.must_alloca(array_type->element_type())) {
+        if (calculator.must_alloca(element_type)) {
             auto address_reg = m_lowerer.m_translation_unit.new_vreg(
                 m_lowerer.get_platform_info().pointer_size,
                 linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
@@ -975,7 +975,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         
         auto dest_reg = m_lowerer.m_translation_unit.new_vreg(
             type_layout_info::get_register_size(layout.size),
-            m_lowerer.get_register_class(array_type->element_type())
+            m_lowerer.get_register_class(element_type)
         );
         m_lowerer.emit(std::make_unique<linear::load_memory>(
             dest_reg, 
@@ -995,13 +995,13 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
             offset_reg
         ));
         
-        if (calculator.must_alloca(array_type->element_type())) {
+        if (calculator.must_alloca(element_type)) {
             return address_reg;
         }
 
         auto dest_reg = m_lowerer.m_translation_unit.new_vreg(
             type_layout_info::get_register_size(layout.size),
-            m_lowerer.get_register_class(array_type->element_type())
+            m_lowerer.get_register_class(element_type)
         );
         m_lowerer.emit(std::make_unique<linear::load_memory>(
             dest_reg, 
@@ -1018,9 +1018,8 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
     );
     
-    std::shared_ptr<typing::array_type> array_type = std::dynamic_pointer_cast<typing::array_type>(node.element_type().type());
     type_layout_calculator calculator(m_lowerer.get_platform_info());
-    auto elem_layout = calculator(*array_type->element_type().type());
+    auto elem_layout = calculator(*node.element_type().type());
     
     m_lowerer.emit(std::make_unique<linear::alloca_instruction>(
         address_reg, 
@@ -1291,7 +1290,7 @@ linear::virtual_register logic_lowerer::lvalue_lowerer::dispatch(const logic::va
 
 linear::virtual_register logic_lowerer::lvalue_lowerer::dispatch(const logic::array_index& node) {
     type_layout_calculator calculator(m_lowerer.get_platform_info());
-    size_t elem_size = calculator(*node.base()->get_type().type()).size;
+    size_t elem_size = calculator(*node.get_type().type()).size;
     
     auto dest_reg = m_lowerer.m_translation_unit.new_vreg(m_lowerer.get_platform_info().pointer_size, linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER);
     auto base_addr_reg = m_lowerer.lower_expression(*node.base());
