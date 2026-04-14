@@ -153,6 +153,13 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::store_memo
     m_output << "(" << physical_destination_address.name << ");";
 }
 
+void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::load_effective_address& instruction) {
+    auto physical_destination = get_physical_register(instruction.destination());
+
+    begin_new_line();
+    m_output << "lea " << physical_destination.name << ", " << instruction.label();
+}
+
 void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::valloca_instruction& instruction) {
     auto physical_destination = get_physical_register(instruction.destination());
     auto physical_size = get_physical_register(instruction.size());
