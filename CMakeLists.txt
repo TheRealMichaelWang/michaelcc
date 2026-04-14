@@ -39,4 +39,5 @@ add_executable(michaelcc
     linear/register_spiller.cpp
     linear/phi.cpp
     assembly/assembler.cpp
+    isa/lc2200_platform.cpp
 )
