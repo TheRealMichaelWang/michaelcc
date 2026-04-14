@@ -16,6 +16,15 @@ namespace michaelcc::isa::x64 {
 
         std::unordered_map<size_t, block_preamble_info> m_block_preamble_info;
 
+        struct pending_call_info {
+            size_t num_stack_arg_bytes = 0;
+            std::vector<linear::register_info> saved_int_regs;
+            std::vector<linear::register_info> saved_float_regs;
+        };
+        std::unordered_map<size_t, pending_call_info> m_pending_calls;
+
+        std::vector<linear::register_t> m_callee_saved_regs;
+
         void add_set_true_to_block_preamble(size_t block_id, linear::virtual_register vreg) {
             auto it = m_block_preamble_info.find(block_id);
             if (it != m_block_preamble_info.end()) {

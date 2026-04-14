@@ -39,6 +39,6 @@ add_executable(michaelcc
     linear/register_spiller.cpp
     linear/phi.cpp
     isa/x64_assembler.cpp
-    isa/x64_legalize.cpp
     isa/x64_platform.cpp
+    assembly/assembler.cpp
 )
