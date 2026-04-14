@@ -15,7 +15,12 @@ namespace michaelcc::isa::x64 {
         void begin_function_preamble(const linear::function_definition& definition) override;
         void begin_function_call(const linear::function_call& instruction) override;
 
-        void emit_unsigned_multiply(linear::register_info dest, linear::register_info operand_a, linear::register_info operand_b);
+        void emit_unsigned_multiply(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b);
+        void emit_signed_multiply(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b);
+        void emit_signed_divide(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b);
+        void emit_signed_remainder(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b);
+        void emit_unsigned_divide(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b);
+        void emit_unsigned_remainder(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b);
 
         void dispatch(const linear::a_instruction& instruction) override;
         void dispatch(const linear::a2_instruction& instruction) override;

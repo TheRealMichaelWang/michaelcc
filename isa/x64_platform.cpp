@@ -16,6 +16,9 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
     .float_size     = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
     .double_size    = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64,
     .max_alignment  = 16,
+    
+    .optimize_struct_layout = true,
+    .strict_physical_register_match = true,
 
     .return_register_int8_id   = 3,   // al
     .return_register_int16_id  = 2,   // ax

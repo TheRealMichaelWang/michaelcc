@@ -4,6 +4,7 @@
 #include "linear/registers.hpp"
 #include <cstddef>
 #include <linear/registers.hpp>
+#include <string>
 #include <vector>
 
 namespace michaelcc {
@@ -20,7 +21,10 @@ namespace michaelcc {
         linear::word_size double_size;
 
         size_t max_alignment;
-        bool optimize_struct_layout = true;
+        bool optimize_struct_layout;
+
+        // if true the physical register sizes must precisely match the virtual register sizes
+        bool strict_physical_register_match; 
 
         linear::register_t return_register_int8_id;
         linear::register_t return_register_int16_id;

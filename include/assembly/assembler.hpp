@@ -30,6 +30,30 @@ namespace michaelcc::assembly {
             return m_current_unit.value()->platform_info.get_register_info(m_current_unit.value()->vreg_colors.at(vreg));
         }
 
+        bool in_physical_family(linear::register_t id_a, std::string family_register_name) const {
+            auto register_info = m_current_unit.value()->platform_info.get_register_info(id_a);
+            for (auto mutually_exclusive_register : register_info.mutually_exclusive_registers) {
+                if (m_current_unit.value()->platform_info.get_register_info(mutually_exclusive_register).name == family_register_name) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        linear::register_info get_physical_of_size(linear::register_t id_a, linear::word_size size) const {
+            auto register_info = m_current_unit.value()->platform_info.get_register_info(id_a);
+            if (register_info.size == size) {
+                return register_info;
+            }
+            for (auto mutually_exclusive_register : register_info.mutually_exclusive_registers) {
+                auto mutually_exclusive_register_info = m_current_unit.value()->platform_info.get_register_info(mutually_exclusive_register);
+                if (mutually_exclusive_register_info.size == size) {
+                    return mutually_exclusive_register_info;
+                }
+            }
+            throw std::runtime_error("No physical register of size " + std::to_string(size) + " found");
+        }
+
         // use this to emit pre-amble for function
         virtual void begin_function_preamble(const linear::function_definition& definition);
 

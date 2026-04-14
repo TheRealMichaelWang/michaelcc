@@ -143,6 +143,8 @@ size_t michaelcc::linear::allocators::register_allocator::count_available_regist
     std::vector<register_t> potential_registers;
     for (auto& physical_reg : m_translation_unit.platform_info.registers) {
         if (physical_reg.reg_class != reg_class || physical_reg.size < size || physical_reg.is_protected) { continue; }
+        // enforce stric match if need be
+        if (m_translation_unit.platform_info.strict_physical_register_match && physical_reg.size != size) { continue; }
         potential_registers.push_back(physical_reg.id);
     }
 
@@ -306,6 +308,9 @@ std::vector<michaelcc::linear::virtual_register> michaelcc::linear::allocators::
             if (forbidden_families.contains(physical_reg.id)) { continue; }
             if (physical_reg.reg_class != vreg.reg_class || physical_reg.size < vreg.reg_size || physical_reg.is_protected) { continue; } // families must be of the same class
 
+            // enforce stric match if need be
+            if (m_translation_unit.platform_info.strict_physical_register_match && physical_reg.size != vreg.reg_size) { continue; }
+            
             if (!best_fit.has_value() || better_fit(physical_reg.id, best_fit.value())) {
                 best_fit = physical_reg.id;
             }
