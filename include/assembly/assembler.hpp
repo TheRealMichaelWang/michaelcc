@@ -2,18 +2,18 @@
 #define MICHAELCC_ASSEMBLY_ASSEMBLER_HPP
 
 #include "linear/ir.hpp"
-#include <optional>
+#include "linear/registers.hpp"
 #include <stdexcept>
-#include <string>
 
 namespace michaelcc::assembly {
     class assembler: public linear::instruction_dispatcher<void> {
-    private:
+    protected:
         std::ostream& m_output;
+        std::optional<const linear::translation_unit*> m_current_unit;
     
     public:
 
-        assembler(std::ostream& output) : m_output(output) {}
+        assembler(std::ostream& output) : m_output(output), m_current_unit(std::nullopt) {}
 
         virtual ~assembler() = default;
 
@@ -24,6 +24,10 @@ namespace michaelcc::assembly {
     protected:
         void begin_new_line() {
             m_output << "\n\t";
+        }
+
+        linear::register_info get_physical_register(const linear::virtual_register& vreg) const {
+            return m_current_unit.value()->platform_info.get_register_info(m_current_unit.value()->vreg_colors.at(vreg));
         }
 
         // use this to emit pre-amble for function

@@ -12,8 +12,11 @@ namespace michaelcc::isa::x64 {
         x64_assembler(std::ostream& output) : michaelcc::assembly::assembler(output) {}
 
     protected:
-        void begin_function_call(const linear::function_call& instruction, std::ostream& output) override;
-        
+        void begin_function_preamble(const linear::function_definition& definition) override;
+        void begin_function_call(const linear::function_call& instruction) override;
+
+        void emit_unsigned_multiply(linear::register_info dest, linear::register_info operand_a, linear::register_info operand_b);
+
         void dispatch(const linear::a_instruction& instruction) override;
         void dispatch(const linear::a2_instruction& instruction) override;
         void dispatch(const linear::u_instruction& instruction) override;

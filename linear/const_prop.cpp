@@ -75,7 +75,23 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
         if (node.operand_b().reg_class != MICHAELCC_REGISTER_CLASS_INTEGER) {
             return nullptr;
         } 
+        //return std::make_unique<a2_instruction>(node.type(), node.destination(), node.operand_b(), constant);
+
+        switch (node.type()) {
+        case MICHAELCC_LINEAR_A_ADD:
+        case MICHAELCC_LINEAR_A_UNSIGNED_MULTIPLY:
+        case MICHAELCC_LINEAR_A_BITWISE_AND:
+        case MICHAELCC_LINEAR_A_BITWISE_OR:
+        case MICHAELCC_LINEAR_A_BITWISE_XOR:
+        case MICHAELCC_LINEAR_A_AND:
+        case MICHAELCC_LINEAR_A_OR:
+        case MICHAELCC_LINEAR_A_XOR:
+        case MICHAELCC_LINEAR_A_COMPARE_EQUAL:
+        case MICHAELCC_LINEAR_A_COMPARE_NOT_EQUAL:
         return std::make_unique<a2_instruction>(node.type(), node.destination(), node.operand_b(), constant);
+        default:
+            return nullptr;
+        }
     }
     if (!const_lhs.has_value() && const_rhs.has_value()) {
         auto val = const_rhs.value();
@@ -94,7 +110,7 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
 
         switch (node.type()) {
         case MICHAELCC_LINEAR_A_ADD:
-        case MICHAELCC_LINEAR_A_MULTIPLY:
+        case MICHAELCC_LINEAR_A_UNSIGNED_MULTIPLY:
         case MICHAELCC_LINEAR_A_BITWISE_AND:
         case MICHAELCC_LINEAR_A_BITWISE_OR:
         case MICHAELCC_LINEAR_A_BITWISE_XOR:
@@ -191,7 +207,8 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
     switch (node.type()) {
     case MICHAELCC_LINEAR_A_ADD:           return make_int([](auto a, auto b) { return a + b; });
     case MICHAELCC_LINEAR_A_SUBTRACT:      return make_int([](auto a, auto b) { return a - b; });
-    case MICHAELCC_LINEAR_A_MULTIPLY:      return make_int([](auto a, auto b) { return a * b; });
+    case MICHAELCC_LINEAR_A_SIGNED_MULTIPLY: return make_signed([](auto a, auto b) { return a * b; });
+    case MICHAELCC_LINEAR_A_UNSIGNED_MULTIPLY: return make_int([](auto a, auto b) { return a * b; });
     case MICHAELCC_LINEAR_A_SIGNED_DIVIDE: return make_signed([](auto a, auto b) { return a / b; });
     case MICHAELCC_LINEAR_A_UNSIGNED_DIVIDE: return make_int([](auto a, auto b) { return a / b; });
     case MICHAELCC_LINEAR_A_SIGNED_MODULO: return make_signed([](auto a, auto b) { return a % b; });
@@ -258,7 +275,8 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
             switch (node.type()) {
             case MICHAELCC_LINEAR_A_ADD: return a2_fold(node.type(), [](auto a, auto b) { return a + b; });
             case MICHAELCC_LINEAR_A_SUBTRACT: return a2_fold(node.type(), [](auto a, auto b) { return a + b; });
-            case MICHAELCC_LINEAR_A_MULTIPLY: return a2_fold(node.type(), [](auto a, auto b) { return a * b; });
+            case MICHAELCC_LINEAR_A_SIGNED_MULTIPLY: return a2_fold(node.type(), [](auto a, auto b) { return a * b; });
+            case MICHAELCC_LINEAR_A_UNSIGNED_MULTIPLY: return a2_fold(node.type(), [](auto a, auto b) { return a * b; });
             case MICHAELCC_LINEAR_A_BITWISE_AND: return a2_fold(node.type(), [](auto a, auto b) { return a & b; });
             case MICHAELCC_LINEAR_A_BITWISE_OR: return a2_fold(node.type(), [](auto a, auto b) { return a | b; });
             case MICHAELCC_LINEAR_A_BITWISE_XOR: return a2_fold(node.type(), [](auto a, auto b) { return a ^ b; });
@@ -316,7 +334,8 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
     switch (node.type()) {
     case MICHAELCC_LINEAR_A_ADD:             return fold_int([](auto a, auto b) { return a + b; });
     case MICHAELCC_LINEAR_A_SUBTRACT:        return fold_int([](auto a, auto b) { return a - b; });
-    case MICHAELCC_LINEAR_A_MULTIPLY:        return fold_int([](auto a, auto b) { return a * b; });
+    case MICHAELCC_LINEAR_A_SIGNED_MULTIPLY: return fold_signed([](auto a, auto b) { return a * b; });
+    case MICHAELCC_LINEAR_A_UNSIGNED_MULTIPLY: return fold_int([](auto a, auto b) { return a * b; });
     case MICHAELCC_LINEAR_A_SIGNED_DIVIDE:   return fold_signed([](auto a, auto b) { return a / b; });
     case MICHAELCC_LINEAR_A_UNSIGNED_DIVIDE: return fold_int([](auto a, auto b) { return a / b; });
     case MICHAELCC_LINEAR_A_SIGNED_MODULO:   return fold_signed([](auto a, auto b) { return a % b; });

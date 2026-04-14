@@ -23,13 +23,17 @@ void michaelcc::assembly::assembler::assemble_block(const linear::translation_un
         if (auto* push_arg = dynamic_cast<const linear::push_function_argument*>(instruction.get())) {
             if (!begun_function_calls.contains(push_arg->function_call_id())) {
                 auto* call = function_id_to_call.at(push_arg->function_call_id());
+                m_current_unit = std::make_optional(&unit);
                 begin_function_call(*call);
                 begun_function_calls.insert(push_arg->function_call_id());
+                m_current_unit = std::nullopt;
             }
         }
 
         // dispatch the instruction to individual assembler methods
+        m_current_unit = std::make_optional(&unit);
         (*this)(*instruction);
+        m_current_unit = std::nullopt;
     }
 }
 
@@ -51,7 +55,9 @@ void michaelcc::assembly::assembler::assemble_function(const linear::translation
 
         if (block_id == function->entry_block_id()) {
             m_output << function->name() << ":";
+            m_current_unit = std::make_optional(&unit);
             begin_function_preamble(*function);
+            m_current_unit = std::nullopt;
             assemble_block(unit, block_id, false);
         } else {
             assemble_block(unit, block_id, true);

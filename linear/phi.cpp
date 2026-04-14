@@ -101,7 +101,8 @@ std::optional<a2_instruction> try_fold_a2(const a2_instruction& outer,
         case MICHAELCC_LINEAR_A_SUBTRACT:
             c = inner.constant() + outer.constant();
             break;
-        case MICHAELCC_LINEAR_A_MULTIPLY:
+        case MICHAELCC_LINEAR_A_SIGNED_MULTIPLY:
+        case MICHAELCC_LINEAR_A_UNSIGNED_MULTIPLY:
             c = inner.constant() * outer.constant();
             break;
         default:

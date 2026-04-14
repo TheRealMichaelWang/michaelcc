@@ -193,7 +193,7 @@ void logic_lowerer::emit_memset(linear::virtual_register dest, linear::virtual_r
     emit_iloop(count, [this, dest, value](linear::virtual_register iterator_state) {
         auto offset_reg = m_translation_unit.new_vreg(get_platform_info().int_size, linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER);
         emit(std::make_unique<linear::a2_instruction>(
-            linear::MICHAELCC_LINEAR_A_MULTIPLY, 
+            linear::MICHAELCC_LINEAR_A_UNSIGNED_MULTIPLY, 
             offset_reg, 
             iterator_state, 
             static_cast<size_t>(value.reg_size) / 8
@@ -566,7 +566,7 @@ static linear::a_instruction_type token_to_a_type(token_type op, bool is_float, 
     switch (op) {
         case MICHAELCC_TOKEN_PLUS:           return is_float ? linear::MICHAELCC_LINEAR_A_FLOAT_ADD : linear::MICHAELCC_LINEAR_A_ADD;
         case MICHAELCC_TOKEN_MINUS:          return is_float ? linear::MICHAELCC_LINEAR_A_FLOAT_SUBTRACT : linear::MICHAELCC_LINEAR_A_SUBTRACT;
-        case MICHAELCC_TOKEN_ASTERISK:       return is_float ? linear::MICHAELCC_LINEAR_A_FLOAT_MULTIPLY : linear::MICHAELCC_LINEAR_A_MULTIPLY;
+        case MICHAELCC_TOKEN_ASTERISK:       return is_float ? linear::MICHAELCC_LINEAR_A_FLOAT_MULTIPLY : is_signed ? linear::MICHAELCC_LINEAR_A_SIGNED_MULTIPLY : linear::MICHAELCC_LINEAR_A_UNSIGNED_MULTIPLY;
         case MICHAELCC_TOKEN_SLASH:          return is_float ? linear::MICHAELCC_LINEAR_A_FLOAT_DIVIDE : is_signed ? linear::MICHAELCC_LINEAR_A_SIGNED_DIVIDE : linear::MICHAELCC_LINEAR_A_UNSIGNED_DIVIDE;
         case MICHAELCC_TOKEN_MODULO:         return is_float ? linear::MICHAELCC_LINEAR_A_FLOAT_MODULO : is_signed ? linear::MICHAELCC_LINEAR_A_SIGNED_MODULO : linear::MICHAELCC_LINEAR_A_UNSIGNED_MODULO;
         case MICHAELCC_TOKEN_BITSHIFT_LEFT:  return linear::MICHAELCC_LINEAR_A_SHIFT_LEFT;
@@ -951,7 +951,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
     );
     m_lowerer.emit(std::make_unique<linear::a2_instruction>(
-        linear::MICHAELCC_LINEAR_A_MULTIPLY, 
+        linear::MICHAELCC_LINEAR_A_UNSIGNED_MULTIPLY, 
         offset_reg, 
         m_lowerer.lower_expression(*node.index()), 
         layout.size
@@ -1313,7 +1313,7 @@ linear::virtual_register logic_lowerer::lvalue_lowerer::dispatch(const logic::ar
     auto index_reg = m_lowerer.lower_expression(*node.index());
     auto offset_reg = m_lowerer.m_translation_unit.new_vreg(m_lowerer.get_platform_info().pointer_size, linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER);
     m_lowerer.emit(std::make_unique<linear::a2_instruction>(
-        linear::MICHAELCC_LINEAR_A_MULTIPLY, 
+        linear::MICHAELCC_LINEAR_A_UNSIGNED_MULTIPLY, 
         offset_reg, 
         index_reg, 
         elem_size
