@@ -480,18 +480,19 @@ namespace michaelcc {
         
         private:
             std::vector<virtual_register> m_caller_saved_registers;
-
+            size_t m_function_call_id;
             std::optional<virtual_register> m_destination;
             callable m_callee;
             size_t m_argument_count;
 
         public:
-            function_call(std::optional<virtual_register> destination, callable&& callee, size_t argument_count) 
-                : m_destination(destination), m_callee(std::move(callee)), m_argument_count(argument_count) {}
+            function_call(std::optional<virtual_register> destination, callable&& callee, size_t argument_count, size_t function_call_id) 
+                : m_destination(destination), m_callee(std::move(callee)), m_argument_count(argument_count), m_function_call_id(function_call_id) {}
 
             std::optional<virtual_register> destination() const noexcept { return m_destination; }
             const callable& callee() const noexcept { return m_callee; }
             size_t argument_count() const noexcept { return m_argument_count; }
+            size_t function_call_id() const noexcept { return m_function_call_id; }
 
             std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
             std::vector<linear::virtual_register> operand_registers() const noexcept override { return {}; }
@@ -519,15 +520,17 @@ namespace michaelcc {
         // Push a function argument onto the stack
         class push_function_argument : public instruction {
         private:
+            size_t m_function_call_id;
             function_argument m_argument;
             virtual_register m_value;
 
         public:
-            push_function_argument(function_argument argument, virtual_register value) 
-                : m_argument(argument), m_value(value) {}
+            push_function_argument(function_argument argument, virtual_register value, size_t function_call_id) 
+                : m_argument(argument), m_value(value), m_function_call_id(function_call_id) {}
 
             function_argument argument() const noexcept { return m_argument; }
             virtual_register value() const noexcept { return m_value; }
+            size_t function_call_id() const noexcept { return m_function_call_id; }
 
             bool has_side_effects() const noexcept override { return true; }
             bool is_address() const noexcept { return m_argument.pass_via_stack; }
@@ -614,6 +617,8 @@ namespace michaelcc {
             size_t next_vreg_id = 0;
             std::vector<size_t> free_vreg_ids;
 
+            size_t next_function_call_id = 0;
+
             static_storage::static_sections static_sections;
             const platform_info& platform_info;
 
@@ -636,6 +641,12 @@ namespace michaelcc {
                 if (cannot_spill_vregs.contains(vreg)) {
                     cannot_spill_vregs.erase(vreg);
                 }
+            }
+
+            size_t new_function_call_id() {
+                size_t id = next_function_call_id;
+                next_function_call_id++;
+                return id;
             }
         };
 

@@ -76,7 +76,8 @@ namespace michaelcc::linear::allocators {
             std::unique_ptr<instruction> dispatch(const push_function_argument& node) override {
                 return std::make_unique<push_function_argument>(
                     node.argument(),
-                    m_spiller.get_value(node.value(), m_new_instructions));
+                    m_spiller.get_value(node.value(), m_new_instructions),
+                    node.function_call_id());
             }
 
             std::unique_ptr<instruction> dispatch(const function_call& node) override {
@@ -86,7 +87,8 @@ namespace michaelcc::linear::allocators {
                         [this](const std::string& label) -> function_call::callable { return label; },
                         [this](const virtual_register& vreg) -> function_call::callable { return m_spiller.get_value(vreg, m_new_instructions); }
                     }, node.callee()),
-                    node.argument_count());
+                    node.argument_count(),
+                    node.function_call_id());
             }
 
             std::unique_ptr<instruction> dispatch(const store_memory& node) override {

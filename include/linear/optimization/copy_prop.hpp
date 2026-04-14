@@ -95,7 +95,7 @@ namespace michaelcc {
                 std::unique_ptr<instruction> dispatch(const push_function_argument& node) override {
                     auto a = get_replacement(node.value());
                     if (a != node.value()) {
-                        return std::make_unique<push_function_argument>(node.argument(), a);
+                        return std::make_unique<push_function_argument>(node.argument(), a, node.function_call_id());
                     }
                     return nullptr;
                 }
@@ -108,7 +108,8 @@ namespace michaelcc {
                             auto nc = std::make_unique<function_call>(
                                 node.destination(),
                                 function_call::callable(a),
-                                node.argument_count()
+                                node.argument_count(),
+                                node.function_call_id()
                             );
                             nc->set_caller_saved_registers(
                                 std::vector<virtual_register>(node.caller_saved_registers()));

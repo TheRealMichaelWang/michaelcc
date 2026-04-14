@@ -1163,6 +1163,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         }
     }, node.callee());
 
+    size_t function_call_id = m_lowerer.m_translation_unit.new_function_call_id();
     size_t index = 0;
     for (const auto& argument : node.arguments()) {
         auto argument_reg = m_lowerer.lower_expression(*argument);
@@ -1173,7 +1174,8 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
                 .register_class = m_lowerer.get_register_class(argument->get_type()),
                 .pass_via_stack = calculator.must_alloca(argument->get_type())
             },
-            argument_reg
+            argument_reg,
+            function_call_id
         ));
         index++;
     }
@@ -1182,7 +1184,8 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
         m_lowerer.emit(std::make_unique<linear::function_call>(
             std::nullopt,
             std::move(callee),
-            index
+            index,
+            function_call_id
         ));
         auto dummy = m_lowerer.m_translation_unit.new_vreg(
             m_lowerer.get_platform_info().int_size,
@@ -1204,7 +1207,8 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     m_lowerer.emit(std::make_unique<linear::function_call>(
         dest_reg, 
         std::move(callee), 
-        index
+        index,
+        function_call_id
     ));
     return dest_reg;
 }
