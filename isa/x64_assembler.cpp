@@ -1,6 +1,5 @@
 #include "isa/x64.hpp"
 #include "linear/registers.hpp"
-#include <sys/resource.h>
 
 using namespace michaelcc::isa::x64;
 

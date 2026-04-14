@@ -18,6 +18,7 @@
 #include "linear/optimization/copy_prop.hpp"
 #include "linear/optimization/phi.hpp"
 #include "isa/x64.hpp"
+#include "isa/isa.hpp"
 #include "CLI11.hpp"
 #include <fstream>
 #include <iostream>
@@ -32,12 +33,19 @@ struct CompilerOptions {
 	std::string platform = "x64";
 };
 
-std::unordered_map<std::string, michaelcc::platform_info> platform_infos = {
-	{ "x64", michaelcc::isa::x64::platform_info },
-};
+std::unordered_map<std::string, std::unique_ptr<michaelcc::isa::isa>> make_platforms() {
+	std::unordered_map<std::string, std::unique_ptr<michaelcc::isa::isa>> map;
+	map.emplace("x64", std::make_unique<michaelcc::isa::x64::x64_isa>());
+	return map;
+}
 
 int main(int argc, char* argv[])
 {
+	std::unordered_map<std::string, std::unique_ptr<michaelcc::isa::isa>> platforms = make_platforms();
+	std::vector<std::string> platform_names;
+	for (const auto& [name, _] : platforms)
+		platform_names.push_back(name);
+	
 	CLI::App app("The Michael C Compiler, a basic optimizing C compiler.", "michaelcc");
 	argv = app.ensure_utf8(argv);
 
@@ -48,7 +56,7 @@ int main(int argc, char* argv[])
 	app.add_option("-o, --output", options.output_file, "The output file to compile to")
 		->required();
 	app.add_option("-p, --platform", options.platform, "The platform to compile for")
-		->check(CLI::IsMember(platform_infos))
+		->check(CLI::IsMember(platform_names))
 		->required();
 
 	CLI11_PARSE(app, argc, argv);
@@ -73,23 +81,24 @@ int main(int argc, char* argv[])
 		michaelcc::parser parser(std::move(tokens));
 		std::vector<std::unique_ptr<michaelcc::ast::ast_element>> ast = parser.parse_all();
 
+		auto& platform = platforms.at(options.platform);
 		// lower AST to logical IR
-		michaelcc::semantic_lowerer lowerer(michaelcc::isa::x64::platform_info);
+		michaelcc::semantic_lowerer lowerer(platform->get_platform_info());
 
 		lowerer.lower(ast);
 		auto logic_translation_unit = lowerer.release_translation_unit();
 
 		auto passes = std::vector<std::unique_ptr<michaelcc::logic::optimization::pass>>();
-		passes.emplace_back(michaelcc::logic::optimization::make_constant_folding_pass(michaelcc::isa::x64::platform_info));
-		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::ir_simplify_pass>(michaelcc::isa::x64::platform_info));
+		passes.emplace_back(michaelcc::logic::optimization::make_constant_folding_pass(platform->get_platform_info()));
+		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::ir_simplify_pass>(platform->get_platform_info()));
 		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::dead_code_pass>());
 		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::inline_functions_pass>());
 		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::pointer_propagation_pass>());
-		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::const_propagation_pass>(michaelcc::isa::x64::platform_info));
+		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::const_propagation_pass>(platform->get_platform_info()));
 		michaelcc::logic::optimization::transform(logic_translation_unit, passes);
 		
 		// lower logical IR to linear SSA IR
-		michaelcc::logic_lowerer linear_lowerer(michaelcc::isa::x64::platform_info);
+		michaelcc::logic_lowerer linear_lowerer(platform->get_platform_info());
 		linear_lowerer.lower(logic_translation_unit);
 		auto linear_translation_unit = linear_lowerer.release_translation_unit();
 
@@ -103,6 +112,7 @@ int main(int argc, char* argv[])
 		michaelcc::linear::transform(linear_translation_unit, linear_passes);
 
 		// allocate stack frame (remove alloca)
+		platform->legalize(linear_translation_unit); //legalize register constraints before frame allocation
 		michaelcc::linear::allocators::frame_allocator frame_allocator(linear_translation_unit);
 		frame_allocator.allocate();
 
@@ -114,7 +124,10 @@ int main(int argc, char* argv[])
 		// register allocation (one pass)
 		michaelcc::linear::optimization::postphi::register_allocation(linear_translation_unit, frame_allocator);
 
-		cout << michaelcc::linear::print_linear_ir(linear_translation_unit) << endl;
+		// assemble the linear IR to assembly
+		auto file_out_stream = std::ofstream(options.output_file);
+		auto assembler = platform->create_assembler(file_out_stream);
+		assembler->assemble(linear_translation_unit);
 	}
 	catch (const michaelcc::compilation_error& error) {
 		cerr << "Compilation error: " << error.what() << endl;

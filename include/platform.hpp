@@ -6,6 +6,7 @@
 #include <linear/registers.hpp>
 #include <string>
 #include <vector>
+#include <optional>
 
 namespace michaelcc {
     // generic platform info struct
@@ -64,6 +65,16 @@ namespace michaelcc {
             return std::max_element(registers.begin(), registers.end(), [](const linear::register_info& a, const linear::register_info& b) {
                 return static_cast<size_t>(a.size) < static_cast<size_t>(b.size);
             })->size;
+        }
+
+        std::optional<linear::register_t> find_register(const std::string& name) const {
+            auto it = std::find_if(registers.begin(), registers.end(), [&name](const linear::register_info& reg_info) {
+                return reg_info.name == name;
+            });
+            if (it == registers.end()) {
+                return std::nullopt;
+            }
+            return std::make_optional(it->id);
         }
     };
 }

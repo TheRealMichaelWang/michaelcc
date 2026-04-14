@@ -347,7 +347,6 @@ std::unique_ptr<michaelcc::linear::instruction> michaelcc::linear::optimization:
     case MICHAELCC_LINEAR_A_AND:             return fold_int([](auto a, auto b) { return a && b; });
     case MICHAELCC_LINEAR_A_OR:              return fold_int([](auto a, auto b) { return a || b; });
     case MICHAELCC_LINEAR_A_XOR:             return fold_int([](auto a, auto b) { return (bool)a ^ (bool)b; });
-    case MICHAELCC_LINEAR_A_NOT:             return nullptr;
     case MICHAELCC_LINEAR_A_COMPARE_EQUAL:   return fold_int([](auto a, auto b) { return a == b; });
     case MICHAELCC_LINEAR_A_COMPARE_NOT_EQUAL: return fold_int([](auto a, auto b) { return a != b; });
     default: return nullptr;

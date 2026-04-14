@@ -3,11 +3,10 @@
 
 #include "platform.hpp"
 #include "assembly/assembler.hpp"
+#include "isa/isa.hpp"
 #include <vector>
 
 namespace michaelcc::isa::x64 {
-    extern michaelcc::platform_info platform_info;
-
     class x64_assembler : public michaelcc::assembly::assembler {
     private:
         struct block_preamble_info {
@@ -69,6 +68,13 @@ namespace michaelcc::isa::x64 {
         void dispatch(const linear::push_function_argument& instruction) override;
         void dispatch(const linear::function_call& instruction) override;
         void dispatch(const linear::function_return& instruction) override;
+    };
+
+    class x64_isa : public isa {
+    public:
+        const platform_info& get_platform_info() const noexcept override;
+        std::unique_ptr<assembly::assembler> create_assembler(std::ostream& output) const override { return std::make_unique<x64_assembler>(output); }
+        void legalize(linear::translation_unit& unit) const override;
     };
 }
 

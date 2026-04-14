@@ -7,7 +7,7 @@
 // Callee-saved: rbx, rbp, r12–r15
 // rsp / rbp register entries: is_protected (not for general allocation) but are for stack and frame pointers
 
-michaelcc::platform_info michaelcc::isa::x64::platform_info{
+static const michaelcc::platform_info x64_platform_info = {
     .pointer_size   = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT64,
     .short_size     = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT16,
     .int_size       = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
@@ -402,3 +402,5 @@ michaelcc::platform_info michaelcc::isa::x64::platform_info{
           .is_caller_saved = true, .is_callee_saved = false, .is_protected = false },
     }
 };
+
+const michaelcc::platform_info& michaelcc::isa::x64::x64_isa::get_platform_info() const noexcept { return x64_platform_info; }
