@@ -30,7 +30,7 @@ using namespace std;
 struct CompilerOptions {
 	std::string input_file;
 	std::string output_file;
-	std::string platform = "x64";
+	std::string platform;
 };
 
 std::unordered_map<std::string, std::unique_ptr<michaelcc::isa::isa>> make_platforms() {
