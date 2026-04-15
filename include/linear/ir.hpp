@@ -435,9 +435,10 @@ namespace michaelcc {
             std::string name;
 
             type_layout_info layout;
-            size_t offset;
             
-            std::optional<virtual_register> pass_via_register;
+            std::optional<size_t> offset;
+            std::optional<register_class> register_class;
+            std::optional<register_t> pass_via_register;
 
             bool pass_via_stack() const noexcept {
                 return !pass_via_register.has_value();
@@ -454,8 +455,10 @@ namespace michaelcc {
         // Function Argument
         struct function_argument {
             type_layout_info layout;
-            size_t offset;
-            std::optional<virtual_register> pass_via_register;
+            
+            std::optional<size_t> offset;
+            std::optional<register_class> register_class;
+            std::optional<register_t> pass_via_register;
 
             bool pass_via_stack() const noexcept {
                 return !pass_via_register.has_value();

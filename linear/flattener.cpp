@@ -132,7 +132,7 @@ linear::virtual_register logic_lowerer::get_var_reg(const std::shared_ptr<logic:
         else {
             auto var_reg = m_translation_unit.new_vreg(
                 type_layout_info::get_register_size(parameter_it->second->layout.size),
-                parameter_it->second->pass_via_register.value().reg_class
+                parameter_it->second->register_class.value()
             );
             emit(std::make_unique<linear::load_parameter>(var_reg, *parameter_it->second));
             return var_reg;
@@ -1166,11 +1166,11 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     size_t function_call_id = m_lowerer.m_translation_unit.new_function_call_id();
     std::vector<linear::function_argument> arguments;
     arguments.reserve(node.arguments().size());
-
     for (const auto& argument : node.arguments()) {
         arguments.push_back(linear::function_argument{
             .layout = calculator(*argument->get_type().type()),
             .offset = 0,
+            .register_class = calculator.must_alloca(argument->get_type()) ? std::nullopt : std::make_optional(m_lowerer.get_register_class(argument->get_type())),
             .pass_via_register = std::nullopt
         });
     }
@@ -1619,11 +1619,11 @@ void logic_lowerer::lower_function(const logic::function_definition& node) {
     parameter_map.reserve(node.parameters().size());
 
     type_layout_calculator calculator(get_platform_info());
-
     for (const auto& parameter : node.parameters()) {
         parameters.push_back(linear::function_parameter{
             .name = parameter->name(),
             .layout = calculator(*parameter->get_type().type()),
+            .register_class = calculator.must_alloca(parameter->get_type()) ? std::nullopt : std::make_optional(get_register_class(parameter->get_type())),
             .pass_via_register = std::nullopt
         });
         parameter_map.insert({parameter->name(), &parameters.back()});
@@ -1643,7 +1643,7 @@ void logic_lowerer::lower_function(const logic::function_definition& node) {
         if (!parameter->pass_via_stack()) {
             auto var_reg = m_translation_unit.new_vreg(
                 type_layout_info::get_register_size(parameter->layout.size), 
-                parameter->pass_via_register.value().reg_class
+                parameter->register_class.value()
             );
             emit(std::make_unique<linear::load_parameter>(var_reg, *parameter));
 

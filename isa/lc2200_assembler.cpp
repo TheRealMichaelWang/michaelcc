@@ -1,5 +1,7 @@
 #include "isa/lc2200.hpp"
 #include "linear/ir.hpp"
+#include "linear/registers.hpp"
+#include <vector>
 
 void michaelcc::isa::lc2200::lc2200_assembler::begin_block_preamble(const linear::basic_block& block) {
 
@@ -198,4 +200,59 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::branch_con
 
 void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::push_function_argument& instruction) {
 
+}
+
+// argument registers are $a0, $a1, $a2
+static michaelcc::linear::register_t argument_registers[] = {
+    3, 4, 5
+};
+
+void michaelcc::isa::lc2200::lc2200_isa::assign_parameter_registers(std::vector<linear::function_parameter>& parameters) {
+    size_t offset = 0;
+    size_t used_argument_registers = 0;
+    std::vector<std::pair<size_t, size_t>> parameter_offsets;
+    for (size_t i = 0; i < parameters.size(); i++) {
+        if (parameters[i].register_class.has_value() && used_argument_registers < (sizeof(argument_registers) / sizeof(linear::register_t))) {
+            if (parameters[i].register_class.value() != linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER) {
+                throw std::runtime_error("Only integer registers are supported for argument passing.");
+            }
+
+            parameters[i].pass_via_register = argument_registers[used_argument_registers];
+            used_argument_registers++;
+        } else {
+            // remeber we refer to frame pointer MINUS offset
+            offset += parameters[i].layout.size;
+            size_t padding = parameters[i].layout.alignment - (offset % parameters[i].layout.alignment);
+            offset += padding;
+
+            parameter_offsets.push_back(std::make_pair(i, offset));
+        }
+    }
+
+    for (size_t i = parameter_offsets.size() - 1; i >= 0; i--) {
+        auto [parameter_index, parameter_offset] = parameter_offsets[i];
+        parameters[parameter_index].offset = offset - parameter_offset;
+    }
+}
+
+void michaelcc::isa::lc2200::lc2200_isa::assign_argument_registers(std::vector<linear::function_argument>& arguments) {
+    size_t offset = 0;
+    size_t used_argument_registers = 0;
+    for (size_t i = 0; i < arguments.size(); i++) {
+        if (arguments[i].register_class.has_value() && used_argument_registers < (sizeof(argument_registers) / sizeof(linear::register_t))) {
+            if (arguments[i].register_class.value() != linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER) {
+                throw std::runtime_error("Only integer registers are supported for argument passing.");
+            }
+
+            arguments[i].pass_via_register = argument_registers[used_argument_registers];
+            used_argument_registers++;
+        } else {
+            // remeber we refer to frame pointer MINUS offset
+            offset += arguments[i].layout.size;
+            size_t padding = arguments[i].layout.alignment - (offset % arguments[i].layout.alignment);
+            offset += padding;
+
+            arguments[i].offset = std::make_optional(offset);
+        }
+    }
 }
