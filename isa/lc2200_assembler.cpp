@@ -374,17 +374,18 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::push_funct
         }
         function_call_info.pushed_parameter_size = std::max(function_call_info.pushed_parameter_size, instruction.argument().offset.value() + 1);
     } else {
+        auto physical_argument_register = m_current_unit.value()->platform_info.get_register_info(instruction.argument().pass_via_register.value());
         // read from arg dest register into assigned a register
         if (function_call_info.trashed_registers.contains(argument_physical_register.id)) {
             // good thing v0 isn't used and is protected
             begin_new_line();
             m_output << "lw " << "v0, " << function_call_info.caller_saved_registers_offsets.at(argument_physical_register.id) << "($sp)";
             begin_new_line();
-            m_output << "add " << instruction.argument().pass_via_register.value() << ", $zero, v0";
+            m_output << "add " << physical_argument_register.name << ", $zero, v0";
         } else {
             // read from arg dest register into assigned a register
             begin_new_line();
-            m_output << "add " << instruction.argument().pass_via_register.value() << ", " << argument_physical_register.name << ", $zero";
+            m_output << "add " << physical_argument_register.name << ", " << argument_physical_register.name << ", $zero";
             function_call_info.trashed_registers.insert(instruction.argument().pass_via_register.value());
         }
     }

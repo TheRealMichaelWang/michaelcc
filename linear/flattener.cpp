@@ -208,13 +208,13 @@ void logic_lowerer::emit_memset(linear::virtual_register dest, linear::virtual_r
 }
 
 void logic_lowerer::emit_memcpy(linear::virtual_register dest, linear::virtual_register src, size_t size_bytes, size_t offset) {
-    size_t size_words = size_bytes / static_cast<size_t>(get_platform_info().int_size);
+    size_t size_words = size_bytes / (static_cast<size_t>(get_platform_info().int_size) / 8);
     for (size_t i = 0; i < size_words; i++) {
         auto elem_reg = m_translation_unit.new_vreg(
             get_platform_info().int_size, 
             linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
         );    
-        size_t ioffset = i * static_cast<size_t>(get_platform_info().int_size) / static_cast<size_t>(get_platform_info().char_size);
+        size_t ioffset = i * (static_cast<size_t>(get_platform_info().int_size) / static_cast<size_t>(get_platform_info().char_size));
         emit(std::make_unique<linear::load_memory>(
             elem_reg, 
             src, 
@@ -227,9 +227,9 @@ void logic_lowerer::emit_memcpy(linear::virtual_register dest, linear::virtual_r
         ));
     }
 
-    size_t leftover_bytes = (size_bytes % static_cast<size_t>(get_platform_info().int_size));
-    size_t leftover_chars = leftover_bytes / static_cast<size_t>(get_platform_info().char_size);
-    assert(leftover_bytes % static_cast<size_t>(get_platform_info().char_size) == 0);
+    size_t leftover_bytes = (size_bytes % (static_cast<size_t>(get_platform_info().int_size) / 8));
+    size_t leftover_chars = leftover_bytes / (static_cast<size_t>(get_platform_info().char_size) / 8);
+    assert(leftover_bytes % (static_cast<size_t>(get_platform_info().char_size) / 8) == 0);
     for (size_t i = 0; i < leftover_chars; i++) {
         auto elem_reg = m_translation_unit.new_vreg(
             get_platform_info().char_size, 
