@@ -58,6 +58,8 @@ namespace michaelcc::isa::lc2200 {
         void emit_multiplication(linear::virtual_register destination, linear::virtual_register operand_a, linear::virtual_register operand_b);
         void emit_compare_equal(linear::virtual_register destination, linear::virtual_register operand_a, linear::virtual_register operand_b);
         void emit_compare_not_equal(linear::virtual_register destination, linear::virtual_register operand_a, linear::virtual_register operand_b);
+        void emit_logical_and(linear::virtual_register destination, linear::virtual_register operand_a, linear::virtual_register operand_b);
+        void emit_logical_or(linear::virtual_register destination, linear::virtual_register operand_a, linear::virtual_register operand_b);
 
         void dispatch(const linear::a_instruction& instruction) override;
         void dispatch(const linear::a2_instruction& instruction) override;
