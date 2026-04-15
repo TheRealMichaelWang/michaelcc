@@ -81,24 +81,24 @@ int main(int argc, char* argv[])
 		michaelcc::parser parser(std::move(tokens));
 		std::vector<std::unique_ptr<michaelcc::ast::ast_element>> ast = parser.parse_all();
 
-		auto& platform = platforms.at(options.platform);
+		michaelcc::isa::isa& platform = *platforms.at(options.platform);
 		// lower AST to logical IR
-		michaelcc::semantic_lowerer lowerer(platform->get_platform_info());
+		michaelcc::semantic_lowerer lowerer(platform.get_platform_info());
 
 		lowerer.lower(ast);
 		auto logic_translation_unit = lowerer.release_translation_unit();
 
 		auto passes = std::vector<std::unique_ptr<michaelcc::logic::optimization::pass>>();
-		passes.emplace_back(michaelcc::logic::optimization::make_constant_folding_pass(platform->get_platform_info()));
-		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::ir_simplify_pass>(platform->get_platform_info()));
+		passes.emplace_back(michaelcc::logic::optimization::make_constant_folding_pass(platform.get_platform_info()));
+		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::ir_simplify_pass>(platform.get_platform_info()));
 		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::dead_code_pass>());
 		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::inline_functions_pass>());
 		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::pointer_propagation_pass>());
-		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::const_propagation_pass>(platform->get_platform_info()));
+		passes.emplace_back(std::make_unique<michaelcc::logic::optimization::const_propagation_pass>(platform.get_platform_info()));
 		michaelcc::logic::optimization::transform(logic_translation_unit, passes);
 		
 		// lower logical IR to linear SSA IR
-		michaelcc::logic_lowerer linear_lowerer(platform->get_platform_info());
+		michaelcc::logic_lowerer linear_lowerer(platform);
 		linear_lowerer.lower(logic_translation_unit);
 		auto linear_translation_unit = linear_lowerer.release_translation_unit();
 
@@ -111,8 +111,12 @@ int main(int argc, char* argv[])
 		
 		michaelcc::linear::transform(linear_translation_unit, linear_passes);
 
+		// assemble the linear IR to assembly
+		auto file_out_stream = std::ofstream(options.output_file);
+		auto assembler = platform.create_assembler(file_out_stream);
+
 		// allocate stack frame (remove alloca)
-		platform->legalize(linear_translation_unit); //legalize register constraints before frame allocation
+		assembler->legalize(linear_translation_unit); //legalize register constraints before frame allocation
 		michaelcc::linear::allocators::frame_allocator frame_allocator(linear_translation_unit);
 		frame_allocator.allocate();
 
@@ -124,9 +128,6 @@ int main(int argc, char* argv[])
 		// register allocation (one pass)
 		michaelcc::linear::optimization::postphi::register_allocation(linear_translation_unit, frame_allocator);
 
-		// assemble the linear IR to assembly
-		auto file_out_stream = std::ofstream(options.output_file);
-		auto assembler = platform->create_assembler(file_out_stream);
 		assembler->assemble(linear_translation_unit);
 	}
 	catch (const michaelcc::compilation_error& error) {

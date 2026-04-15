@@ -35,9 +35,6 @@ size_t michaelcc::linear::optimization::gvn_pass::instruction_hasher::hash_funct
     size_t h = std::hash<std::string>{}(p.name);
     hash_combine(h, p.layout.size);
     hash_combine(h, p.layout.alignment);
-    hash_combine(h, p.index);
-    hash_combine(h, static_cast<size_t>(p.register_class));
-    hash_combine(h, static_cast<size_t>(p.pass_via_stack));
     return h;
 }
 

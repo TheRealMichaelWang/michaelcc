@@ -1325,7 +1325,7 @@ protected:
     void dispatch(const linear::push_function_argument& node) override {
         print_indent(m_out, m_indent);
         m_out << "push_fn_arg(arg";
-        if (node.is_address()) {
+        if (node.argument().pass_via_stack()) {
             m_out << "_addr";
         }
         m_out << '=';
@@ -1337,7 +1337,7 @@ protected:
         print_indent(m_out, m_indent);
         print_virtual_register(node.destination(), true, true);
         m_out << " = load_parameter";
-        if (node.is_address()) {
+        if (node.parameter().pass_via_stack()) {
             m_out << "_addr";
         }
         m_out << "(parameter=" << node.parameter().name << ")\n";

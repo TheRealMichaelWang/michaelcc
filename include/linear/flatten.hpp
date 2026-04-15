@@ -7,6 +7,7 @@
 #include "platform.hpp"
 #include "linear/registers.hpp"
 #include "registers.hpp"
+#include "isa/isa.hpp"
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -101,7 +102,7 @@ namespace michaelcc {
 
             size_t static_var_counter = 0;
             std::unordered_map<std::shared_ptr<logic::variable>, std::string> static_var_labels;
-            std::unordered_map<std::string, linear::function_parameter> parameters;
+            std::unordered_map<std::string, linear::function_parameter*> parameters;
 
             std::string next_static_label(const std::shared_ptr<logic::variable>& variable) {
                 size_t id = static_var_counter++;
@@ -132,6 +133,7 @@ namespace michaelcc {
 
         //these values are returned as part of the CFG
         linear::translation_unit m_translation_unit;
+        isa::isa& m_isa;
 
         std::unordered_map<size_t, block_var_ctx> m_finished_block_var_ctx;
         std::unordered_map<size_t, loop_info> m_loop_infos;
@@ -218,9 +220,9 @@ namespace michaelcc {
         void lower_function(const logic::function_definition& function);
         void lower_static_variable_declaration(const logic::variable_declaration& declaration);
     public:
-        explicit logic_lowerer(const platform_info& platform_info) : m_translation_unit(linear::translation_unit{
-            .platform_info = platform_info
-        }) { }
+        explicit logic_lowerer(isa::isa& isa) : m_translation_unit(linear::translation_unit{
+            .platform_info = isa.get_platform_info()
+        }), m_isa(isa) { }
 
         void lower(const logic::translation_unit& translation_unit);
 

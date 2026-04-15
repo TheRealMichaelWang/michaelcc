@@ -40,17 +40,23 @@ namespace michaelcc::isa::lc2200 {
         void dispatch(const linear::alloca_instruction& instruction) override { throw std::runtime_error("alloca instructions shouldve been removed by frame allocator."); }
         void dispatch(const linear::phi_instruction& instruction) override { throw std::runtime_error("phi instructions shouldve been removed."); }
 
+    private:
+        void assign_argument_registers(linear::translation_unit& unit, size_t function_id);
+    
     public:
         void legalize(linear::translation_unit& unit) override;
     };
 
-    class lc2200_isa : public isa {
+    class lc2200_isa final : public isa {
     public:
         const platform_info& get_platform_info() const noexcept override;
         
         std::unique_ptr<assembly::assembler> create_assembler(std::ostream& output) const override { 
             return std::make_unique<lc2200_assembler>(output); 
         }
+
+        void assign_parameter_registers(std::vector<linear::function_parameter>& parameters) override;
+        void assign_argument_registers(std::vector<linear::function_argument>& arguments) override;
     };
 }
 

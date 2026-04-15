@@ -435,28 +435,31 @@ namespace michaelcc {
             std::string name;
 
             type_layout_info layout;
-            size_t index;
+            size_t offset;
+            
+            std::optional<virtual_register> pass_via_register;
 
-            register_class register_class;
-            bool pass_via_stack;
+            bool pass_via_stack() const noexcept {
+                return !pass_via_register.has_value();
+            }
 
             bool operator==(const function_parameter& other) const {
                 return name == other.name
                     && layout.size == other.layout.size
-                    && layout.alignment == other.layout.alignment
-                    && index == other.index
-                    && register_class == other.register_class
-                    && pass_via_stack == other.pass_via_stack;
+                    && layout.alignment == other.layout.alignment;
             }
         };
+
 
         // Function Argument
         struct function_argument {
             type_layout_info layout;
-            size_t index;
-            
-            register_class register_class;
-            bool pass_via_stack;
+            size_t offset;
+            std::optional<virtual_register> pass_via_register;
+
+            bool pass_via_stack() const noexcept {
+                return !pass_via_register.has_value();
+            }
         };
 
         class function_definition {
@@ -537,7 +540,6 @@ namespace michaelcc {
             size_t function_call_id() const noexcept { return m_function_call_id; }
 
             bool has_side_effects() const noexcept override { return true; }
-            bool is_address() const noexcept { return m_argument.pass_via_stack; }
 
             std::optional<linear::virtual_register> destination_register() const noexcept override { return std::nullopt; }
             std::vector<linear::virtual_register> operand_registers() const noexcept override { return { m_value }; }
@@ -557,7 +559,7 @@ namespace michaelcc {
             virtual_register destination() const noexcept { return m_destination; }
             const function_parameter& parameter() const noexcept { return m_parameter; }
 
-            bool is_address() const noexcept { return m_parameter.pass_via_stack; }
+            bool is_address() const noexcept { return m_parameter.pass_via_stack(); }
 
             std::optional<linear::virtual_register> destination_register() const noexcept override { return m_destination; }
             std::vector<linear::virtual_register> operand_registers() const noexcept override { return {}; }

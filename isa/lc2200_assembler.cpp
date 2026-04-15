@@ -195,3 +195,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::branch_con
     begin_new_line();
     m_output << "beq $zero, $zero, block" << instruction.if_true_block_id();
 }
+
+void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::push_function_argument& instruction) {
+
+}

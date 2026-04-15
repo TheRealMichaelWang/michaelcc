@@ -118,23 +118,23 @@ linear::virtual_register logic_lowerer::get_var_reg(const std::shared_ptr<logic:
 
     auto parameter_it = m_current_function->parameters.find(variable->name());
     if (parameter_it != m_current_function->parameters.end()) {
-        if (parameter_it->second.pass_via_stack) {
+        if (parameter_it->second->pass_via_stack()) {
             auto var_addr_reg = m_translation_unit.new_vreg(
                 get_platform_info().pointer_size,
                 linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
             );
             emit(std::make_unique<linear::load_parameter>(
                 var_addr_reg,
-                parameter_it->second
+                *parameter_it->second
             ));
             return var_addr_reg;
         }
         else {
             auto var_reg = m_translation_unit.new_vreg(
-                type_layout_info::get_register_size(parameter_it->second.layout.size),
-                parameter_it->second.register_class
+                type_layout_info::get_register_size(parameter_it->second->layout.size),
+                parameter_it->second->pass_via_register.value().reg_class
             );
-            emit(std::make_unique<linear::load_parameter>(var_reg, parameter_it->second));
+            emit(std::make_unique<linear::load_parameter>(var_reg, *parameter_it->second));
             return var_reg;
         }
     }
@@ -1164,27 +1164,33 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     }, node.callee());
 
     size_t function_call_id = m_lowerer.m_translation_unit.new_function_call_id();
-    size_t index = 0;
+    std::vector<linear::function_argument> arguments;
+    arguments.reserve(node.arguments().size());
+
     for (const auto& argument : node.arguments()) {
-        auto argument_reg = m_lowerer.lower_expression(*argument);
+        arguments.push_back(linear::function_argument{
+            .layout = calculator(*argument->get_type().type()),
+            .offset = 0,
+            .pass_via_register = std::nullopt
+        });
+    }
+    m_lowerer.m_isa.assign_argument_registers(arguments);
+
+
+    for (size_t i = 0; i < arguments.size(); i++) {
+        auto argument_reg = m_lowerer.lower_expression(*node.arguments()[i]);
         m_lowerer.emit(std::make_unique<linear::push_function_argument>(
-            linear::function_argument{
-                .layout = calculator(*argument->get_type().type()),
-                .index = index,
-                .register_class = m_lowerer.get_register_class(argument->get_type()),
-                .pass_via_stack = calculator.must_alloca(argument->get_type())
-            },
+            arguments.at(i),
             argument_reg,
             function_call_id
         ));
-        index++;
     }
 
     if (node.get_type().is_same_type<typing::void_type>()) {
         m_lowerer.emit(std::make_unique<linear::function_call>(
             std::nullopt,
             std::move(callee),
-            index,
+            arguments.size(),
             function_call_id
         ));
         auto dummy = m_lowerer.m_translation_unit.new_vreg(
@@ -1207,7 +1213,7 @@ linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic
     m_lowerer.emit(std::make_unique<linear::function_call>(
         dest_reg, 
         std::move(callee), 
-        index,
+        arguments.size(),
         function_call_id
     ));
     return dest_reg;
@@ -1607,20 +1613,22 @@ void logic_lowerer::statement_lowerer::dispatch(const logic::statement_block& no
 }
 
 void logic_lowerer::lower_function(const logic::function_definition& node) {
-    std::unordered_map<std::string, linear::function_parameter> parameter_map;
+    std::unordered_map<std::string, linear::function_parameter*> parameter_map;
+    std::vector<linear::function_parameter> parameters;
+    parameters.reserve(node.parameters().size());
     parameter_map.reserve(node.parameters().size());
+
     type_layout_calculator calculator(get_platform_info());
-    size_t index = 0;
+
     for (const auto& parameter : node.parameters()) {
-        parameter_map.insert({parameter->name(), linear::function_parameter{
+        parameters.push_back(linear::function_parameter{
             .name = parameter->name(),
             .layout = calculator(*parameter->get_type().type()),
-            .index = index,
-            .register_class = get_register_class(parameter->get_type()),
-            .pass_via_stack = calculator.must_alloca(parameter->get_type())
-        }});
-        index++;
+            .pass_via_register = std::nullopt
+        });
+        parameter_map.insert({parameter->name(), &parameters.back()});
     }
+    m_isa.assign_parameter_registers(parameters);
 
     m_current_function = function_builder{
         .name = node.name(),
@@ -1632,9 +1640,12 @@ void logic_lowerer::lower_function(const logic::function_definition& node) {
 
     // declare registers for params that need to be passed by value, and loaded directly in registers
     for (const auto& [name, parameter] : m_current_function->parameters) {
-        if (!parameter.pass_via_stack) {
-            auto var_reg = m_translation_unit.new_vreg(type_layout_info::get_register_size(parameter.layout.size), parameter.register_class);
-            emit(std::make_unique<linear::load_parameter>(var_reg, parameter));
+        if (!parameter->pass_via_stack()) {
+            auto var_reg = m_translation_unit.new_vreg(
+                type_layout_info::get_register_size(parameter->layout.size), 
+                parameter->pass_via_register.value().reg_class
+            );
+            emit(std::make_unique<linear::load_parameter>(var_reg, *parameter));
 
             auto var = std::find_if(node.parameters().begin(), node.parameters().end(), [&](const auto& p) { return p->name() == name; });
             m_current_block->var_info.m_variable_to_vreg[*var] = linear::var_info{ .vreg = var_reg, .block_id = current_block_id() };
@@ -1647,11 +1658,6 @@ void logic_lowerer::lower_function(const logic::function_definition& node) {
         seal_block();
     }
 
-    std::vector<linear::function_parameter> parameters;
-    parameters.reserve(m_current_function->parameters.size());
-    for (const auto& [name, parameter] : m_current_function->parameters) {
-        parameters.emplace_back(std::move(parameter));
-    }
 
     m_translation_unit.function_definitions.emplace_back(std::make_unique<linear::function_definition>(
         node.name(), 
