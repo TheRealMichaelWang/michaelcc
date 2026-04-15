@@ -38,8 +38,8 @@ void michaelcc::linear::allocators::register_spiller::spill_block(size_t block_i
             auto address_vreg = m_translation_unit.new_vreg(m_translation_unit.platform_info.pointer_size, MICHAELCC_REGISTER_CLASS_INTEGER);
             new_instructions.emplace_back(std::make_unique<alloca_instruction>(
                 address_vreg, 
-                static_cast<size_t>(dest_vreg.reg_size) / 8,
-                static_cast<size_t>(dest_vreg.reg_size) / 8
+                m_translation_unit.platform_info.bits_to_au(dest_vreg.reg_size),
+                m_translation_unit.platform_info.bits_to_au(dest_vreg.reg_size)
             ));
             new_instructions.emplace_back(std::move(new_instruction));
             new_instructions.emplace_back(std::make_unique<store_memory>(

@@ -339,7 +339,7 @@ std::vector<michaelcc::linear::virtual_register> michaelcc::linear::allocators::
                 for (auto& caller_saved_register : caller_saved_registers) {
                     register_t register_id = m_translation_unit.vreg_colors.at(caller_saved_register);
                     auto register_info = m_translation_unit.platform_info.get_register_info(register_id);
-                    if (!register_info.is_caller_saved) {
+                    if (register_info.is_caller_saved) {
                         new_caller_saved_registers.push_back(caller_saved_register);
                     }
                 }

@@ -65,6 +65,14 @@ namespace michaelcc {
             })->size;
         }
 
+        size_t addressable_unit_bits() const {
+            return static_cast<size_t>(char_size);
+        }
+
+        size_t bits_to_au(linear::word_size ws) const {
+            return static_cast<size_t>(ws) / addressable_unit_bits();
+        }
+
         std::optional<linear::register_t> find_register(const std::string& name) const {
             auto it = std::find_if(registers.begin(), registers.end(), [&name](const linear::register_info& reg_info) {
                 return reg_info.name == name;

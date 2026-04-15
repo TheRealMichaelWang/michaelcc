@@ -38,9 +38,9 @@ namespace michaelcc {
             void data_section_builder::dispatch(const logic::integer_constant& node) {
                 auto [value, reg_size] = int_literal_to_regword(node, m_platform_info);
                 m_data_words.push_back(data_word{ .value = value, .size = reg_size });
-                current_size += static_cast<size_t>(reg_size) / 8;
+                current_size += m_platform_info.bits_to_au(reg_size);
 
-                current_alignment = std::max(current_alignment, static_cast<size_t>(reg_size) / 8);
+                current_alignment = std::max(current_alignment, m_platform_info.bits_to_au(reg_size));
             }
 
             void data_section_builder::dispatch(const logic::floating_constant& node) {
@@ -60,17 +60,17 @@ namespace michaelcc {
                     : linear::word_size::MICHAELCC_WORD_SIZE_UINT32;
 
                 m_data_words.push_back(data_word{ .value = value, .size = reg_size });
-                current_size += static_cast<size_t>(reg_size) / 8;
+                current_size += m_platform_info.bits_to_au(reg_size);
 
-                current_alignment = std::max(current_alignment, static_cast<size_t>(reg_size) / 8);
+                current_alignment = std::max(current_alignment, m_platform_info.bits_to_au(reg_size));
             }
 
             void data_section_builder::dispatch(const logic::string_constant& node) {
                 std::string label = "@string_" + std::to_string(node.index());
                 m_data_words.push_back(data_word{ .label_ref = label, .size = m_platform_info.pointer_size });
-                current_size += static_cast<size_t>(m_platform_info.pointer_size) / 8;
+                current_size += m_platform_info.bits_to_au(m_platform_info.pointer_size);
             
-                current_alignment = std::max(current_alignment, static_cast<size_t>(m_platform_info.pointer_size) / 8);
+                current_alignment = std::max(current_alignment, m_platform_info.bits_to_au(m_platform_info.pointer_size));
             }
 
             void data_section_builder::dispatch(const logic::enumerator_literal& node) {
@@ -79,9 +79,9 @@ namespace michaelcc {
                 linear::register_word value = linear::static_storage::const_to_regword(enumerator_value, m_platform_info.int_size, true);
 
                 m_data_words.push_back(data_word{ .value = value, .size = m_platform_info.int_size });
-                current_size += static_cast<size_t>(m_platform_info.int_size) / 8;
+                current_size += m_platform_info.bits_to_au(m_platform_info.int_size);
 
-                current_alignment = std::max(current_alignment, static_cast<size_t>(m_platform_info.int_size) / 8);
+                current_alignment = std::max(current_alignment, m_platform_info.bits_to_au(m_platform_info.int_size));
             }
 
             void data_section_builder::dispatch(const logic::array_initializer& node) {
@@ -137,9 +137,9 @@ namespace michaelcc {
                     }
 
                     m_data_words.push_back(data_word{ .label_ref = label, .size = m_platform_info.pointer_size });
-                    current_size += static_cast<size_t>(m_platform_info.pointer_size) / 8;
+                    current_size += m_platform_info.bits_to_au(m_platform_info.pointer_size);
                 
-                    current_alignment = std::max(current_alignment, static_cast<size_t>(m_platform_info.pointer_size) / 8);
+                    current_alignment = std::max(current_alignment, m_platform_info.bits_to_au(m_platform_info.pointer_size));
                 }
                 else {
                     (*this)(node);

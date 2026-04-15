@@ -20,7 +20,7 @@ namespace michaelcc {
         }
     }
 
-    linear::word_size type_layout_info::get_register_size(size_t size_bytes) {
+    linear::word_size type_layout_info::get_register_size(size_t size_au, const platform_info& platform) {
         linear::word_size sizes_to_fit[] = {
             linear::word_size::MICHAELCC_WORD_SIZE_BYTE,
             linear::word_size::MICHAELCC_WORD_SIZE_UINT16,
@@ -28,21 +28,23 @@ namespace michaelcc {
             linear::word_size::MICHAELCC_WORD_SIZE_UINT64,
         };
 
+        size_t size_bits = size_au * platform.addressable_unit_bits();
         for (linear::word_size size : sizes_to_fit) {
-            if (size_bytes * 8 == static_cast<size_t>(size)) {
+            if (size_bits == static_cast<size_t>(size)) {
                 return size;
             }
         }
 
-        throw std::runtime_error(std::format("Size of {} bytes is does not fit into any register size", size_bytes));
+        throw std::runtime_error(std::format("Size of {} addressable units does not fit into any register size", size_au));
     }
 
     bool type_layout_calculator::must_alloca(const typing::qual_type type) noexcept {
         if (std::dynamic_pointer_cast<typing::union_type>(type.type())) {
             return true;
         }
-        size_t byte_size = (*this)(*type.type()).size;
-        return type.is_same_type<typing::struct_type>() || (byte_size * 8) > static_cast<size_t>(m_platform_info.max_register_size());
+        size_t au_size = (*this)(*type.type()).size;
+        size_t size_bits = au_size * m_platform_info.addressable_unit_bits();
+        return type.is_same_type<typing::struct_type>() || size_bits > static_cast<size_t>(m_platform_info.max_register_size());
     }
 
     bool typing::int_type::is_assignable_from(const typing::base_type& other, const platform_info& platform) const {
@@ -81,16 +83,20 @@ namespace michaelcc {
     }
 
     const type_layout_info type_layout_calculator::dispatch(typing::int_type& type) {
-        size_t size = static_cast<size_t>(get_int_type_size(type, m_platform_info)) / 8;
+        size_t size = static_cast<size_t>(get_int_type_size(type, m_platform_info)) / m_platform_info.addressable_unit_bits();
         return { size, std::min<size_t>(size, m_platform_info.max_alignment) };
     }
 
     const type_layout_info type_layout_calculator::dispatch(typing::float_type& type) {
         switch (type.type_class()) {
-            case typing::FLOAT_FLOAT_CLASS:
-                return { 4, std::min<size_t>(4, m_platform_info.max_alignment) };
-            case typing::DOUBLE_FLOAT_CLASS:
-                return { 8, std::min<size_t>(8, m_platform_info.max_alignment) };
+            case typing::FLOAT_FLOAT_CLASS: {
+                size_t size = m_platform_info.bits_to_au(m_platform_info.float_size);
+                return { size, std::min<size_t>(size, m_platform_info.max_alignment) };
+            }
+            case typing::DOUBLE_FLOAT_CLASS: {
+                size_t size = m_platform_info.bits_to_au(m_platform_info.double_size);
+                return { size, std::min<size_t>(size, m_platform_info.max_alignment) };
+            }
         }
         throw std::runtime_error("Invalid float type class");
     }

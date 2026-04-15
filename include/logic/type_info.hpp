@@ -8,10 +8,10 @@
 
 namespace michaelcc {
     struct type_layout_info {
-        const size_t size;
-        const size_t alignment;
+        const size_t size;      // in addressable units (char_size granularity)
+        const size_t alignment; // in addressable units
 
-        static linear::word_size get_register_size(size_t size_bytes);
+        static linear::word_size get_register_size(size_t size_au, const platform_info& platform);
     };
 
     class type_layout_calculator final : public typing::type_dispatcher<const type_layout_info> {
@@ -20,13 +20,13 @@ namespace michaelcc {
         platform_info m_platform_info;
 
         const type_layout_info pointer_layout = {
-            .size=static_cast<size_t>(m_platform_info.pointer_size) / 8,
-            .alignment=std::min<size_t>(static_cast<size_t>(m_platform_info.pointer_size) / 8, m_platform_info.max_alignment)
+            .size=m_platform_info.bits_to_au(m_platform_info.pointer_size),
+            .alignment=std::min<size_t>(m_platform_info.bits_to_au(m_platform_info.pointer_size), m_platform_info.max_alignment)
         };
 
         const type_layout_info int_layout = {
-            .size=static_cast<size_t>(m_platform_info.int_size) / 8,
-            .alignment=std::min<size_t>(static_cast<size_t>(m_platform_info.int_size) / 8, m_platform_info.max_alignment)
+            .size=m_platform_info.bits_to_au(m_platform_info.int_size),
+            .alignment=std::min<size_t>(m_platform_info.bits_to_au(m_platform_info.int_size), m_platform_info.max_alignment)
         };
 
 

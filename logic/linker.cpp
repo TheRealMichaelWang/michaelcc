@@ -101,6 +101,8 @@ void semantic_lowerer::implement_type_declarations::visit(const ast::struct_decl
     if (!struct_type->implement_field_types(std::move(field_types))) {
         throw m_lowerer.panic("Invalid number of field types for struct " + node.struct_name().value(), node.location());
     }
+
+    m_lowerer.m_type_layout_calculator(*struct_type);
 }
 
 void semantic_lowerer::implement_type_declarations::visit(const ast::union_declaration& node) {

@@ -13,8 +13,8 @@ const michaelcc::platform_info& michaelcc::isa::lc2200::lc2200_isa::get_platform
         .float_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
         .double_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
     
-        // 32 bit processor so assume max alignment is 4 bytes
-        .max_alignment = 4,
+        // word-addressed: max alignment is 1 addressable unit (1 word)
+        .max_alignment = 1,
     
         // optimize struct layout to minimize padding
         .optimize_struct_layout = true,

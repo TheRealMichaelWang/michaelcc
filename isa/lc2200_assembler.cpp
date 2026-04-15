@@ -14,7 +14,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::begin_function_preamble(const lin
     m_output << "addi $sp, $sp, -1";
     write_comment("save old frame pointer");
     begin_new_line();
-    m_output << "sw $fp, -1($sp)";
+    m_output << "sw $fp, 0($sp)";
 
     // set fp to current sp
     begin_new_line();
@@ -62,11 +62,12 @@ void michaelcc::isa::lc2200::lc2200_assembler::begin_function_call(const linear:
     std::unordered_map<linear::register_t, size_t> caller_saved_registers_offsets;
     size_t pushed_register_size = physical_registers_to_save.size();
     for (size_t i = 0; i < physical_registers_to_save.size(); i++) {
+        auto& reg_info = m_current_unit.value()->platform_info.get_register_info(physical_registers_to_save[i]);
         begin_new_line();
-        m_output << "sw " << physical_registers_to_save[i] << ", -" << (i + 1) << "($sp)";
-        write_comment(std::format("saved caller saved register {}", physical_registers_to_save[i]));
+        m_output << "sw " << reg_info.name << ", -" << (i + 1) << "($sp)";
+        write_comment(std::format("saved caller saved register {}", reg_info.name));
 
-        size_t sp_subtract_offset = physical_registers_to_save.size() - i;
+        size_t sp_subtract_offset = physical_registers_to_save.size() - i - 1;
         caller_saved_registers_offsets.insert({ physical_registers_to_save[i], sp_subtract_offset });
     }
 
@@ -98,14 +99,12 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::a_instruct
         m_output << "add " << physical_destination.name << ", " << physical_a.name << ", " << physical_b.name;
         break;
     case linear::a_instruction_type::MICHAELCC_LINEAR_A_SUBTRACT:
-        // negate b and put in dest
-        m_output << "nand " << physical_destination.name << ", " << physical_b.name << ", " << physical_b.name;
+        // negate b into $at (scratch), safe even when dest aliases a or b
+        m_output << "nand $at, " << physical_b.name << ", " << physical_b.name;
         begin_new_line();
-        m_output << "addi " << physical_destination.name << ", " << physical_destination.name << ", 1";
-
-        // add a and negated b (in dest) to dest
+        m_output << "addi $at, $at, 1";
         begin_new_line();
-        m_output << "add " << physical_destination.name << ", " << physical_destination.name << ", " << physical_a.name;
+        m_output << "add " << physical_destination.name << ", " << physical_a.name << ", $at";
         break;
     case linear::a_instruction_type::MICHAELCC_LINEAR_A_BITWISE_AND:
         m_output << "nand " << physical_destination.name << ", " << physical_a.name << ", " << physical_b.name;
@@ -372,7 +371,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::branch_con
 }
 
 void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::push_function_argument& instruction) {
-    auto function_call_info = m_function_call_infos.at(instruction.function_call_id());
+    auto& function_call_info = m_function_call_infos.at(instruction.function_call_id());
     auto argument_physical_register = get_physical_register(instruction.value());
 
     if (instruction.argument().pass_via_stack()) { //save argument onto stack
@@ -456,19 +455,42 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::function_c
 
     // restore caller saved registers
     for (auto [physical_register_id, offset] : function_call_info.caller_saved_registers_offsets) {
+        auto& reg_info = m_current_unit.value()->platform_info.get_register_info(physical_register_id);
         begin_new_line();
-        m_output << "lw " << physical_register_id << ", " << offset << "($sp)";
+        m_output << "lw " << reg_info.name << ", " << offset << "($sp)";
     }
     begin_new_line();
     m_output << "addi $sp, $sp, " << function_call_info.pushed_register_size;
+
+    // copy return value from the return register to the destination vreg if they differ
+    if (instruction.destination().has_value()) {
+        auto dest_physical = get_physical_register(instruction.destination().value());
+        auto return_reg_id = m_current_unit.value()->platform_info.get_return_register_id(
+            instruction.destination().value().reg_class,
+            instruction.destination().value().reg_size
+        );
+        if (dest_physical.id != return_reg_id) {
+            auto& return_reg_info = m_current_unit.value()->platform_info.get_register_info(return_reg_id);
+            begin_new_line();
+            m_output << "add " << dest_physical.name << ", " << return_reg_info.name << ", $zero";
+        }
+    }
 }
 
 void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::function_return& instruction) {
-    // assume return value has already been loaded into the destination register v0
-
     // pop all locals and valloca'd stuff via setting sp to fp
     begin_new_line();
     m_output << "add $sp, $fp, $zero";
+
+    // restore callee-saved registers (saved at fp-1, fp-2, ... by prologue)
+    size_t i = 0;
+    for (auto& register_info : m_current_unit.value()->platform_info.registers) {
+        if (register_info.is_callee_saved && !register_info.is_protected) {
+            i++;
+            begin_new_line();
+            m_output << "lw " << register_info.name << ", -" << i << "($fp)";
+        }
+    }
 
     // restore previous frame pointer
     begin_new_line();
