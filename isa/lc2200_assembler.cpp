@@ -343,6 +343,86 @@ void michaelcc::isa::lc2200::lc2200_assembler::emit_logical_or(linear::virtual_r
     emit_label(end_label);
 }
 
+void michaelcc::isa::lc2200::lc2200_assembler::emit_compare_greater_than(linear::virtual_register destination, linear::virtual_register operand_a, linear::virtual_register operand_b) {
+    auto physical_destination = get_physical_register(destination);
+    auto physical_a = get_physical_register(operand_a);
+    auto physical_b = get_physical_register(operand_b);
+
+    if (next_instruction().has_value()) {
+        if (auto* branch_condition = dynamic_cast<const linear::branch_condition*>(next_instruction().value())) {
+            if (branch_condition->condition() == destination) {
+                begin_new_line();
+                m_output << "bgt " << physical_a.name << ", " << physical_b.name << ", block" << branch_condition->if_true_block_id();
+
+                if (!schedule_block_next(branch_condition->if_false_block_id())) {
+                    begin_new_line();
+                    m_output << "beq $zero, $zero, block" << branch_condition->if_false_block_id();
+                }
+
+                block_add_to_set_to_one(branch_condition->if_true_block_id(), destination);
+                block_add_to_zero(branch_condition->if_false_block_id(), destination);
+                return;
+            }
+        }
+    }
+
+    auto gt_label = generate_symbol();
+    auto end_label = generate_symbol();
+
+    begin_new_line();
+    m_output << "bgt " << physical_a.name << ", " << physical_b.name << ", " << gt_label;
+    begin_new_line();
+    m_output << "add " << physical_destination.name << ", $zero, $zero";
+    begin_new_line();
+    m_output << "beq $zero, $zero, " << end_label;
+    emit_label(gt_label);
+    begin_new_line();
+    m_output << "addi " << physical_destination.name << ", $zero, 1";
+    emit_label(end_label);
+}
+
+void michaelcc::isa::lc2200::lc2200_assembler::emit_compare_greater_than_or_equal(linear::virtual_register destination, linear::virtual_register operand_a, linear::virtual_register operand_b) {
+    auto physical_destination = get_physical_register(destination);
+    auto physical_a = get_physical_register(operand_a);
+    auto physical_b = get_physical_register(operand_b);
+
+    if (next_instruction().has_value()) {
+        if (auto* branch_condition = dynamic_cast<const linear::branch_condition*>(next_instruction().value())) {
+            if (branch_condition->condition() == destination) {
+                begin_new_line();
+                m_output << "bgt " << physical_a.name << ", " << physical_b.name << ", block" << branch_condition->if_true_block_id();
+                begin_new_line();
+                m_output << "beq " << physical_a.name << ", " << physical_b.name << ", block" << branch_condition->if_true_block_id();
+
+                if (!schedule_block_next(branch_condition->if_false_block_id())) {
+                    begin_new_line();
+                    m_output << "beq $zero, $zero, block" << branch_condition->if_false_block_id();
+                }
+
+                block_add_to_set_to_one(branch_condition->if_true_block_id(), destination);
+                block_add_to_zero(branch_condition->if_false_block_id(), destination);
+                return;
+            }
+        }
+    }
+
+    auto gte_label = generate_symbol();
+    auto end_label = generate_symbol();
+
+    begin_new_line();
+    m_output << "bgt " << physical_a.name << ", " << physical_b.name << ", " << gte_label;
+    begin_new_line();
+    m_output << "beq " << physical_a.name << ", " << physical_b.name << ", " << gte_label;
+    begin_new_line();
+    m_output << "add " << physical_destination.name << ", $zero, $zero";
+    begin_new_line();
+    m_output << "beq $zero, $zero, " << end_label;
+    emit_label(gte_label);
+    begin_new_line();
+    m_output << "addi " << physical_destination.name << ", $zero, 1";
+    emit_label(end_label);
+}
+
 void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::a_instruction& instruction) {
     switch (instruction.type()) {
     case linear::a_instruction_type::MICHAELCC_LINEAR_A_SIGNED_MULTIPLY:
@@ -360,6 +440,22 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::a_instruct
         return;
     case linear::a_instruction_type::MICHAELCC_LINEAR_A_OR:
         emit_logical_or(instruction.destination(), instruction.operand_a(), instruction.operand_b());
+        return;
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_COMPARE_SIGNED_GREATER_THAN:
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_COMPARE_UNSIGNED_GREATER_THAN:
+        emit_compare_greater_than(instruction.destination(), instruction.operand_a(), instruction.operand_b());
+        return;
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_COMPARE_SIGNED_GREATER_THAN_OR_EQUAL:
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_COMPARE_UNSIGNED_GREATER_THAN_OR_EQUAL:
+        emit_compare_greater_than_or_equal(instruction.destination(), instruction.operand_a(), instruction.operand_b());
+        return;
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_COMPARE_SIGNED_LESS_THAN:
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_COMPARE_UNSIGNED_LESS_THAN:
+        emit_compare_greater_than(instruction.destination(), instruction.operand_b(), instruction.operand_a());
+        return;
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_COMPARE_SIGNED_LESS_THAN_OR_EQUAL:
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_COMPARE_UNSIGNED_LESS_THAN_OR_EQUAL:
+        emit_compare_greater_than_or_equal(instruction.destination(), instruction.operand_b(), instruction.operand_a());
         return;
     default:
         break; 
