@@ -813,6 +813,8 @@ void michaelcc::isa::lc2200::lc2200_isa::assign_parameter_registers(std::vector<
             size_t padding = parameters[i].layout.alignment - (offset % parameters[i].layout.alignment);
             offset += padding;
 
+            assert(padding == 0); //padding should be 0 because we align to the word size
+
             parameter_offsets.push_back(std::make_pair(i, offset));
         }
     }
