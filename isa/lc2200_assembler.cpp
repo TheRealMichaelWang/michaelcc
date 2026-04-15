@@ -8,6 +8,22 @@
 // how much to subtract from the frame pointer to get to the last parameter
 const size_t fp_to_parameter_offset = 2;
 
+void michaelcc::isa::lc2200::lc2200_assembler::begin_block_preamble(const linear::basic_block& block) {
+    if (m_block_preamble_infos.contains(block.id())) {
+        auto& block_preamble_info = m_block_preamble_infos.at(block.id());
+        for (auto& virtual_register : block_preamble_info.to_zero) {
+            begin_new_line();
+            auto physical_register = get_physical_register(virtual_register);
+            m_output << "add " << physical_register.name << ", $zero, $zero";
+        }
+        for (auto& virtual_register : block_preamble_info.to_set_to_one) {
+            begin_new_line();
+            auto physical_register = get_physical_register(virtual_register);
+            m_output << "addi " << physical_register.name << ", $zero, 1";
+        }
+    }
+}
+
 void michaelcc::isa::lc2200::lc2200_assembler::begin_function_preamble(const linear::function_definition& definition) {
     //push old fp to the stack
     begin_new_line();
@@ -87,7 +103,160 @@ void michaelcc::isa::lc2200::lc2200_assembler::begin_function_call(const linear:
     });
 }
 
+void michaelcc::isa::lc2200::lc2200_assembler::emit_multiplication(linear::virtual_register destination, linear::virtual_register operand_a, linear::virtual_register operand_b) {
+    auto physical_destination = get_physical_register(destination);
+    auto physical_a = get_physical_register(operand_a);
+    auto physical_b = get_physical_register(operand_b);
+
+    auto loop_label = generate_symbol();
+    auto skip_label = generate_symbol();
+    auto done_label = generate_symbol();
+
+    begin_new_line();
+    m_output << "addi $sp, $sp, -4";
+    write_comment(std::format("begin multiplication of {} and {}", physical_a.name, physical_b.name));
+    begin_new_line();
+    m_output << "sw " << physical_a.name << ", 3($sp)";
+    begin_new_line();
+    m_output << "sw " << physical_b.name << ", 2($sp)";
+    begin_new_line();
+    m_output << "addi $at, $zero, 1";
+    begin_new_line();
+    m_output << "sw $at, 1($sp)";
+    begin_new_line();
+    m_output << "sw $zero, 0($sp)";
+
+    emit_label(loop_label);
+    begin_new_line();
+    m_output << "lw $at, 1($sp)";
+    begin_new_line();
+    m_output << "beq $at, $zero, " << done_label;
+    begin_new_line();
+    m_output << "lw " << physical_destination.name << ", 3($sp)";
+    begin_new_line();
+    m_output << "nand $at, " << physical_destination.name << ", $at";
+    begin_new_line();
+    m_output << "nand $at, $at, $at";
+    begin_new_line();
+    m_output << "beq $at, $zero, " << skip_label;
+    begin_new_line();
+    m_output << "lw " << physical_destination.name << ", 0($sp)";
+    begin_new_line();
+    m_output << "lw $at, 2($sp)";
+    begin_new_line();
+    m_output << "add " << physical_destination.name << ", " << physical_destination.name << ", $at";
+    begin_new_line();
+    m_output << "sw " << physical_destination.name << ", 0($sp)";
+
+    emit_label(skip_label);
+    begin_new_line();
+    m_output << "lw $at, 2($sp)";
+    begin_new_line();
+    m_output << "add $at, $at, $at";
+    begin_new_line();
+    m_output << "sw $at, 2($sp)";
+    begin_new_line();
+    m_output << "lw $at, 1($sp)";
+    begin_new_line();
+    m_output << "add $at, $at, $at";
+    begin_new_line();
+    m_output << "sw $at, 1($sp)";
+    begin_new_line();
+    m_output << "beq $zero, $zero, " << loop_label;
+
+    emit_label(done_label);
+    begin_new_line();
+    m_output << "lw " << physical_destination.name << ", 0($sp)";
+    begin_new_line();
+    m_output << "addi $sp, $sp, 4";
+    write_comment(std::format("end multiplication of {} and {}", physical_a.name, physical_b.name));
+}
+
+void michaelcc::isa::lc2200::lc2200_assembler::emit_compare_equal(linear::virtual_register destination, linear::virtual_register operand_a, linear::virtual_register operand_b) {
+    auto physical_destination = get_physical_register(destination);
+    auto physical_a = get_physical_register(operand_a);
+    auto physical_b = get_physical_register(operand_b);
+
+    if(next_instruction().has_value()) {
+        if (auto* branch_condition = dynamic_cast<const linear::branch_condition*>(next_instruction().value())) {
+            if (branch_condition->condition() == destination) {
+                begin_new_line();
+                m_output << "beq " << physical_a.name << ", " << physical_b.name << ", block" << branch_condition->if_true_block_id();
+                begin_new_line();
+                m_output << "beq $zero, $zero, block" << branch_condition->if_false_block_id();
+
+                block_add_to_set_to_one(branch_condition->if_true_block_id(), destination);
+                block_add_to_zero(branch_condition->if_false_block_id(), destination);
+                return;
+            }
+        }
+    }
+
+    auto eq_label = generate_symbol();
+    auto end_label = generate_symbol();
+
+    begin_new_line();
+    m_output << "beq " << physical_a.name << ", " << physical_b.name << ", " << eq_label;
+    begin_new_line();
+    m_output << "add " << physical_destination.name << ", $zero, $zero";
+    begin_new_line();
+    m_output << "beq $zero, $zero, " << end_label;
+    emit_label(eq_label);
+    begin_new_line();
+    m_output << "addi " << physical_destination.name << ", $zero, 1";
+    emit_label(end_label);
+}
+
+void michaelcc::isa::lc2200::lc2200_assembler::emit_compare_not_equal(linear::virtual_register destination, linear::virtual_register operand_a, linear::virtual_register operand_b) {
+    auto physical_destination = get_physical_register(destination);
+    auto physical_a = get_physical_register(operand_a);
+    auto physical_b = get_physical_register(operand_b);
+
+    if (next_instruction().has_value()) {
+        if (auto* branch_condition = dynamic_cast<const linear::branch_condition*>(next_instruction().value())) {
+            if (branch_condition->condition() == destination) {
+                begin_new_line();
+                m_output << "beq " << physical_a.name << ", " << physical_b.name << ", block" << branch_condition->if_false_block_id();
+                begin_new_line();
+                m_output << "beq $zero, $zero, block" << branch_condition->if_true_block_id();
+                block_add_to_set_to_one(branch_condition->if_false_block_id(), destination);
+                block_add_to_zero(branch_condition->if_true_block_id(), destination);
+                return;
+            }
+        }
+    }
+    
+    auto ne_label = generate_symbol();
+    auto end_label = generate_symbol();
+    
+    begin_new_line();
+    m_output << "beq " << physical_a.name << ", " << physical_b.name << ", " << ne_label;
+    begin_new_line();
+    m_output << "addi " << physical_destination.name << ", $zero, 1";
+    begin_new_line();
+    m_output << "beq $zero, $zero, " << end_label;
+    emit_label(ne_label);
+    begin_new_line();
+    m_output << "add " << physical_destination.name << ", $zero, $zero";
+    emit_label(end_label);
+}
+
 void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::a_instruction& instruction) {
+    switch (instruction.type()) {
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_SIGNED_MULTIPLY:
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_UNSIGNED_MULTIPLY:
+        emit_multiplication(instruction.destination(), instruction.operand_a(), instruction.operand_b());
+        return;
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_COMPARE_EQUAL:
+        emit_compare_equal(instruction.destination(), instruction.operand_a(), instruction.operand_b());
+        return;
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_COMPARE_NOT_EQUAL:
+        emit_compare_not_equal(instruction.destination(), instruction.operand_a(), instruction.operand_b());
+        return;
+    default:
+        break; 
+    }
+
     auto physical_destination = get_physical_register(instruction.destination());
     auto physical_a = get_physical_register(instruction.operand_a());
     auto physical_b = get_physical_register(instruction.operand_b());
@@ -114,98 +283,8 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::a_instruct
     case linear::a_instruction_type::MICHAELCC_LINEAR_A_BITWISE_NAND:
         m_output << "nand " << physical_destination.name << ", " << physical_a.name << ", " << physical_b.name;
         break;
-    case linear::a_instruction_type::MICHAELCC_LINEAR_A_SIGNED_MULTIPLY:
-    case linear::a_instruction_type::MICHAELCC_LINEAR_A_UNSIGNED_MULTIPLY: {
-        auto loop_label = generate_symbol();
-        auto skip_label = generate_symbol();
-        auto done_label = generate_symbol();
-
-        m_output << "addi $sp, $sp, -4";
-        begin_new_line();
-        m_output << "sw " << physical_a.name << ", 3($sp)";
-        begin_new_line();
-        m_output << "sw " << physical_b.name << ", 2($sp)";
-        begin_new_line();
-        m_output << "addi $at, $zero, 1";
-        begin_new_line();
-        m_output << "sw $at, 1($sp)";
-        begin_new_line();
-        m_output << "sw $zero, 0($sp)";
-
-        emit_label(loop_label);
-        begin_new_line();
-        m_output << "lw $at, 1($sp)";
-        begin_new_line();
-        m_output << "beq $at, $zero, " << done_label;
-        begin_new_line();
-        m_output << "lw " << physical_destination.name << ", 3($sp)";
-        begin_new_line();
-        m_output << "nand $at, " << physical_destination.name << ", $at";
-        begin_new_line();
-        m_output << "nand $at, $at, $at";
-        begin_new_line();
-        m_output << "beq $at, $zero, " << skip_label;
-        begin_new_line();
-        m_output << "lw " << physical_destination.name << ", 0($sp)";
-        begin_new_line();
-        m_output << "lw $at, 2($sp)";
-        begin_new_line();
-        m_output << "add " << physical_destination.name << ", " << physical_destination.name << ", $at";
-        begin_new_line();
-        m_output << "sw " << physical_destination.name << ", 0($sp)";
-
-        emit_label(skip_label);
-        begin_new_line();
-        m_output << "lw $at, 2($sp)";
-        begin_new_line();
-        m_output << "add $at, $at, $at";
-        begin_new_line();
-        m_output << "sw $at, 2($sp)";
-        begin_new_line();
-        m_output << "lw $at, 1($sp)";
-        begin_new_line();
-        m_output << "add $at, $at, $at";
-        begin_new_line();
-        m_output << "sw $at, 1($sp)";
-        begin_new_line();
-        m_output << "beq $zero, $zero, " << loop_label;
-
-        emit_label(done_label);
-        begin_new_line();
-        m_output << "lw " << physical_destination.name << ", 0($sp)";
-        begin_new_line();
-        m_output << "addi $sp, $sp, 4";
-        break;
-    }
-    case linear::a_instruction_type::MICHAELCC_LINEAR_A_COMPARE_EQUAL: {
-        auto eq_label = generate_symbol();
-        auto end_label = generate_symbol();
-        m_output << "beq " << physical_a.name << ", " << physical_b.name << ", " << eq_label;
-        begin_new_line();
-        m_output << "add " << physical_destination.name << ", $zero, $zero";
-        begin_new_line();
-        m_output << "beq $zero, $zero, " << end_label;
-        emit_label(eq_label);
-        begin_new_line();
-        m_output << "addi " << physical_destination.name << ", $zero, 1";
-        emit_label(end_label);
-        break;
-    }
-    case linear::a_instruction_type::MICHAELCC_LINEAR_A_COMPARE_NOT_EQUAL: {
-        auto ne_label = generate_symbol();
-        auto end_label = generate_symbol();
-        m_output << "beq " << physical_a.name << ", " << physical_b.name << ", " << ne_label;
-        begin_new_line();
-        m_output << "addi " << physical_destination.name << ", $zero, 1";
-        begin_new_line();
-        m_output << "beq $zero, $zero, " << end_label;
-        emit_label(ne_label);
-        begin_new_line();
-        m_output << "add " << physical_destination.name << ", $zero, $zero";
-        emit_label(end_label);
-        break;
-    }
-    default: throw std::runtime_error("Invalid a instruction type");
+    default: 
+        throw std::runtime_error("Invalid a instruction type");
     }
 }
 

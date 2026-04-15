@@ -9,6 +9,7 @@
 #include <memory>
 #include <ostream>
 #include <unordered_set>
+#include <vector>
 
 namespace michaelcc::isa::lc2200 {
     class lc2200_assembler : public assembly::assembler {
@@ -22,15 +23,41 @@ namespace michaelcc::isa::lc2200 {
             size_t pushed_register_size; // size for registers on stack
         };
 
+        struct block_preamble_info {
+            std::vector<linear::virtual_register> to_zero;
+            std::vector<linear::virtual_register> to_set_to_one;
+        };
+
         std::unordered_map<size_t, function_call_info> m_function_call_infos;
+        std::unordered_map<size_t, block_preamble_info> m_block_preamble_infos;
+
+        void block_add_to_zero(size_t block_id, linear::virtual_register register_to_zero) {
+            if (m_block_preamble_infos.contains(block_id)) {
+                m_block_preamble_infos.at(block_id).to_zero.push_back(register_to_zero);
+            } else {
+                m_block_preamble_infos.insert({ block_id, block_preamble_info{ { register_to_zero }, {} } });
+            }
+        }
+
+        void block_add_to_set_to_one(size_t block_id, linear::virtual_register register_to_set_to_one) {
+            if (m_block_preamble_infos.contains(block_id)) {
+                m_block_preamble_infos.at(block_id).to_set_to_one.push_back(register_to_set_to_one);
+            } else {
+                m_block_preamble_infos.insert({ block_id, block_preamble_info{ {}, { register_to_set_to_one } } });
+            }
+        }
     
     public:
         lc2200_assembler(std::ostream& output) : assembly::assembler(output) {}
         
     protected:
-        void begin_block_preamble(const linear::basic_block& block) override { }
+        void begin_block_preamble(const linear::basic_block& block) override;
         void begin_function_preamble(const linear::function_definition& definition) override;
         void begin_function_call(const linear::function_call& instruction) override;
+
+        void emit_multiplication(linear::virtual_register destination, linear::virtual_register operand_a, linear::virtual_register operand_b);
+        void emit_compare_equal(linear::virtual_register destination, linear::virtual_register operand_a, linear::virtual_register operand_b);
+        void emit_compare_not_equal(linear::virtual_register destination, linear::virtual_register operand_a, linear::virtual_register operand_b);
 
         void dispatch(const linear::a_instruction& instruction) override;
         void dispatch(const linear::a2_instruction& instruction) override;
