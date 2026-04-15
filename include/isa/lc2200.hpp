@@ -17,6 +17,8 @@ namespace michaelcc::isa::lc2200 {
             // add each offset to sp to get the address of the caller saved register
             std::unordered_map<linear::register_t, size_t> caller_saved_registers_offsets;
             std::unordered_set<linear::register_t> trashed_registers;
+
+            size_t pushed_parameter_size;
         };
 
         std::unordered_map<size_t, function_call_info> m_function_call_infos;
@@ -26,7 +28,7 @@ namespace michaelcc::isa::lc2200 {
         
     protected:
         void begin_block_preamble(const linear::basic_block& block) override { }
-        void begin_function_preamble(const linear::function_definition& definition) override { }
+        void begin_function_preamble(const linear::function_definition& definition) override;
         void begin_function_call(const linear::function_call& instruction) override;
         
         void emit_logical_and(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b);

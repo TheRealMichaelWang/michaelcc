@@ -1,7 +1,29 @@
 #include "isa/lc2200.hpp"
 #include "linear/ir.hpp"
 #include "linear/registers.hpp"
+#include "utils.hpp"
 #include <vector>
+#include <variant>
+
+void michaelcc::isa::lc2200::lc2200_assembler::begin_function_preamble(const linear::function_definition& definition) {
+    //push old fp to the stack
+    begin_new_line();
+    m_output << "sw $fp, -1($sp)";
+
+    // set fp to current sp
+    begin_new_line();
+    m_output << "addi $fp, $sp, 0";
+
+    // save s0 to s2
+    for (size_t i = 0; i < 3; i++) {
+        begin_new_line();
+        m_output << "sw $s" << i << ", -" << (i + 1) << "($sp)";
+    }
+    begin_new_line(); //update sp
+    m_output << "add $sp, $sp, -3";
+
+    
+}
 
 void michaelcc::isa::lc2200::lc2200_assembler::begin_function_call(const linear::function_call& instruction) {
     std::vector<linear::register_t> physical_registers_to_save;
@@ -31,7 +53,8 @@ void michaelcc::isa::lc2200::lc2200_assembler::begin_function_call(const linear:
         instruction.function_call_id(), 
         function_call_info{ 
             std::move(caller_saved_registers_offsets), 
-            {} 
+            {} ,
+            0
         } 
     });
 }
@@ -236,6 +259,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::push_funct
                 m_output << "sw " << "v0, -" << ((instruction.argument().offset.value() + 1) - i) << "($sp)";
             }
         }
+        function_call_info.pushed_parameter_size = std::max(function_call_info.pushed_parameter_size, instruction.argument().offset.value() + 1);
     } else {
         // read from arg dest register into assigned a register
         if (function_call_info.trashed_registers.contains(argument_physical_register.id)) {
@@ -251,6 +275,35 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::push_funct
             function_call_info.trashed_registers.insert(instruction.argument().pass_via_register.value());
         }
     }
+}
+
+void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::function_call& instruction) {
+    auto function_call_info = m_function_call_infos.at(instruction.function_call_id());
+
+    begin_new_line();
+    if (function_call_info.pushed_parameter_size > 0) { //finalize push parameters
+        m_output << "add $sp, $sp, -" << function_call_info.pushed_parameter_size;
+    }
+
+    begin_new_line();
+    m_output << "addi $sp, $sp, -1"; //update sp
+    begin_new_line();
+    m_output << "sw $ra, ($sp)"; //save return address to stack
+
+    // use $at as scratchpad
+    std::visit(overloaded{
+        [this](const std::string& function_name) -> void {
+            begin_new_line();
+            m_output << "la $at, " << function_name;
+            begin_new_line();
+            m_output << "jalr $at, $ra";
+        },
+        [this](const linear::virtual_register& function_vreg) -> void {
+            begin_new_line();
+            auto physical_function_vreg = get_physical_register(function_vreg);
+            m_output << "jalr " << physical_function_vreg.name << ", $ra";
+        }
+    }, instruction.callee());
 }
 
 // argument registers are $a0, $a1, $a2
@@ -282,7 +335,9 @@ void michaelcc::isa::lc2200::lc2200_isa::assign_parameter_registers(std::vector<
 
     for (size_t i = parameter_offsets.size() - 1; i >= 0; i--) {
         auto [parameter_index, parameter_offset] = parameter_offsets[i];
-        parameters[parameter_index].offset = offset - parameter_offset;
+        parameters[parameter_index].offset = (offset - parameter_offset) + 2;
+
+        // the plus two is to account for: sizeof(prev frame ptr) + sizeof(prev return addr) + sizeof(return value space)
     }
 }
 
