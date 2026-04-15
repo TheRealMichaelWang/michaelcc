@@ -11,20 +11,31 @@ const size_t fp_to_parameter_offset = 2;
 void michaelcc::isa::lc2200::lc2200_assembler::begin_function_preamble(const linear::function_definition& definition) {
     //push old fp to the stack
     begin_new_line();
+    m_output << "addi $sp, $sp, -1";
+    write_comment("save old frame pointer");
+    begin_new_line();
     m_output << "sw $fp, -1($sp)";
 
     // set fp to current sp
     begin_new_line();
     m_output << "addi $fp, $sp, 0";
+    write_comment("set frame pointer to current stack pointer");
 
-    // save s0 to s2
-    for (size_t i = 0; i < 3; i++) {
-        begin_new_line();
-        m_output << "sw $s" << i << ", -" << (i + 1) << "($sp)";
+    // save all callee saved registers
+    size_t i = 0;
+    for (auto& register_info : m_current_unit.value()->platform_info.registers) {
+        if (register_info.is_callee_saved && !register_info.is_protected) {
+            begin_new_line();
+            i++;
+            m_output << "sw " << register_info.name << ", -" << i << "($sp)";
+
+            write_comment(std::format("saved callee saved register {}", register_info.name));
+        }
     }
-    begin_new_line(); //update sp
-    m_output << "add $sp, $sp, -3";
-
+    if (i > 0) {
+        begin_new_line(); //update sp
+        m_output << "add $sp, $sp, -" << i;
+    }
     
     //reserve space for locals
     auto& frame_allocator = *m_current_frame_allocator.value();
@@ -32,6 +43,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::begin_function_preamble(const lin
     
     begin_new_line();
     m_output << "add $sp, $sp, -" << reserved_stack_space;
+    write_comment("reserve space for locals");
 }
 
 void michaelcc::isa::lc2200::lc2200_assembler::begin_function_call(const linear::function_call& instruction) {
@@ -52,12 +64,16 @@ void michaelcc::isa::lc2200::lc2200_assembler::begin_function_call(const linear:
     for (size_t i = 0; i < physical_registers_to_save.size(); i++) {
         begin_new_line();
         m_output << "sw " << physical_registers_to_save[i] << ", -" << (i + 1) << "($sp)";
+        write_comment(std::format("saved caller saved register {}", physical_registers_to_save[i]));
 
         size_t sp_subtract_offset = physical_registers_to_save.size() - i;
         caller_saved_registers_offsets.insert({ physical_registers_to_save[i], sp_subtract_offset });
     }
-    begin_new_line();
-    m_output << "add $sp, $sp, -" << physical_registers_to_save.size();
+
+    if (physical_registers_to_save.size() > 0) {
+        begin_new_line();
+        m_output << "add $sp, $sp, -" << physical_registers_to_save.size();
+    }
 
     m_function_call_infos.insert({ 
         instruction.function_call_id(), 
@@ -361,15 +377,18 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::push_funct
 
     if (instruction.argument().pass_via_stack()) { //save argument onto stack
         if (instruction.argument().register_class.has_value()) { //this is a register on the stack
+            begin_new_line();
             m_output << "sw " << argument_physical_register.name << ", -" << (instruction.argument().offset.value() + 1) << "($sp)";
+            write_comment("saved argument to stack");
         } else {
             //manual memcopy to stack
             for (size_t i = 0; i < instruction.argument().layout.size; i++) {
-                // v0 is not currently in use and is therefore protected
+                // at is the ultimate scratchpad register
                 begin_new_line();
-                m_output << "lw " << "v0, " << i << '(' << argument_physical_register.name << ')';
+                m_output << "lw " << "$at, " << i << '(' << argument_physical_register.name << ')';
+                write_comment(std::format("copywing word {}/{} of argument onto stack", i, instruction.argument().layout.size));
                 begin_new_line();
-                m_output << "sw " << "v0, -" << ((instruction.argument().offset.value() + 1) - i) << "($sp)";
+                m_output << "sw " << "$at, -" << ((instruction.argument().offset.value() + 1) - i) << "($sp)";
             }
         }
         function_call_info.pushed_parameter_size = std::max(function_call_info.pushed_parameter_size, instruction.argument().offset.value() + 1);
@@ -378,10 +397,12 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::push_funct
         // read from arg dest register into assigned a register
         if (function_call_info.trashed_registers.contains(argument_physical_register.id)) {
             // good thing v0 isn't used and is protected
-            begin_new_line();
-            m_output << "lw " << "v0, " << function_call_info.caller_saved_registers_offsets.at(argument_physical_register.id) << "($sp)";
-            begin_new_line();
-            m_output << "add " << physical_argument_register.name << ", $zero, v0";
+            if (argument_physical_register.id != physical_argument_register.id) {
+                begin_new_line();
+                m_output << "lw " << "$at, " << function_call_info.caller_saved_registers_offsets.at(argument_physical_register.id) << "($sp)";
+                begin_new_line();
+                m_output << "add " << physical_argument_register.name << ", $zero, $at";
+            }
         } else {
             // read from arg dest register into assigned a register
             begin_new_line();
@@ -394,13 +415,15 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::push_funct
 void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::function_call& instruction) {
     auto function_call_info = m_function_call_infos.at(instruction.function_call_id());
 
-    begin_new_line();
     if (function_call_info.pushed_parameter_size > 0) { //finalize push parameters
+        begin_new_line();
         m_output << "addi $sp, $sp, -" << function_call_info.pushed_parameter_size;
+        write_comment("finalize push parameters");
     }
 
     begin_new_line();
     m_output << "addi $sp, $sp, -1"; //update sp
+    write_comment("save return address to stack");
     begin_new_line();
     m_output << "sw $ra, ($sp)"; //save return address to stack
 
@@ -422,12 +445,14 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::function_c
     // control has now been returned to the caller
     begin_new_line();
     m_output << "lw $ra, 0($sp)";
+    write_comment("restore return address from stack");
     begin_new_line();
     m_output << "addi $sp, $sp, 1";
 
     // tear down parameters
     begin_new_line();
     m_output << "addi $sp, $sp, " << function_call_info.pushed_parameter_size;
+    write_comment("tear down parameters");
 
     // restore caller saved registers
     for (auto [physical_register_id, offset] : function_call_info.caller_saved_registers_offsets) {

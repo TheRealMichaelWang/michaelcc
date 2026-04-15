@@ -34,6 +34,10 @@ namespace michaelcc::assembly {
             m_output << "\n\t";
         }
 
+        void write_comment(std::string comment) {
+            m_output << "\t;" << comment;
+        }
+
         std::string generate_symbol() {
             m_symbol_counter++;
             return "sym" + std::to_string(m_symbol_counter);
