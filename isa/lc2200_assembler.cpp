@@ -99,6 +99,97 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::a_instruct
     case linear::a_instruction_type::MICHAELCC_LINEAR_A_BITWISE_NAND:
         m_output << "nand " << physical_destination.name << ", " << physical_a.name << ", " << physical_b.name;
         break;
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_SIGNED_MULTIPLY:
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_UNSIGNED_MULTIPLY: {
+        auto loop_label = generate_symbol();
+        auto skip_label = generate_symbol();
+        auto done_label = generate_symbol();
+
+        m_output << "addi $sp, $sp, -4";
+        begin_new_line();
+        m_output << "sw " << physical_a.name << ", 3($sp)";
+        begin_new_line();
+        m_output << "sw " << physical_b.name << ", 2($sp)";
+        begin_new_line();
+        m_output << "addi $at, $zero, 1";
+        begin_new_line();
+        m_output << "sw $at, 1($sp)";
+        begin_new_line();
+        m_output << "sw $zero, 0($sp)";
+
+        emit_label(loop_label);
+        begin_new_line();
+        m_output << "lw $at, 1($sp)";
+        begin_new_line();
+        m_output << "beq $at, $zero, " << done_label;
+        begin_new_line();
+        m_output << "lw " << physical_destination.name << ", 3($sp)";
+        begin_new_line();
+        m_output << "nand $at, " << physical_destination.name << ", $at";
+        begin_new_line();
+        m_output << "nand $at, $at, $at";
+        begin_new_line();
+        m_output << "beq $at, $zero, " << skip_label;
+        begin_new_line();
+        m_output << "lw " << physical_destination.name << ", 0($sp)";
+        begin_new_line();
+        m_output << "lw $at, 2($sp)";
+        begin_new_line();
+        m_output << "add " << physical_destination.name << ", " << physical_destination.name << ", $at";
+        begin_new_line();
+        m_output << "sw " << physical_destination.name << ", 0($sp)";
+
+        emit_label(skip_label);
+        begin_new_line();
+        m_output << "lw $at, 2($sp)";
+        begin_new_line();
+        m_output << "add $at, $at, $at";
+        begin_new_line();
+        m_output << "sw $at, 2($sp)";
+        begin_new_line();
+        m_output << "lw $at, 1($sp)";
+        begin_new_line();
+        m_output << "add $at, $at, $at";
+        begin_new_line();
+        m_output << "sw $at, 1($sp)";
+        begin_new_line();
+        m_output << "beq $zero, $zero, " << loop_label;
+
+        emit_label(done_label);
+        begin_new_line();
+        m_output << "lw " << physical_destination.name << ", 0($sp)";
+        begin_new_line();
+        m_output << "addi $sp, $sp, 4";
+        break;
+    }
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_COMPARE_EQUAL: {
+        auto eq_label = generate_symbol();
+        auto end_label = generate_symbol();
+        m_output << "beq " << physical_a.name << ", " << physical_b.name << ", " << eq_label;
+        begin_new_line();
+        m_output << "add " << physical_destination.name << ", $zero, $zero";
+        begin_new_line();
+        m_output << "beq $zero, $zero, " << end_label;
+        emit_label(eq_label);
+        begin_new_line();
+        m_output << "addi " << physical_destination.name << ", $zero, 1";
+        emit_label(end_label);
+        break;
+    }
+    case linear::a_instruction_type::MICHAELCC_LINEAR_A_COMPARE_NOT_EQUAL: {
+        auto ne_label = generate_symbol();
+        auto end_label = generate_symbol();
+        m_output << "beq " << physical_a.name << ", " << physical_b.name << ", " << ne_label;
+        begin_new_line();
+        m_output << "addi " << physical_destination.name << ", $zero, 1";
+        begin_new_line();
+        m_output << "beq $zero, $zero, " << end_label;
+        emit_label(ne_label);
+        begin_new_line();
+        m_output << "add " << physical_destination.name << ", $zero, $zero";
+        emit_label(end_label);
+        break;
+    }
     default: throw std::runtime_error("Invalid a instruction type");
     }
 }

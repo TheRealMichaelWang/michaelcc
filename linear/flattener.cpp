@@ -197,7 +197,7 @@ void logic_lowerer::emit_memset(linear::virtual_register dest, linear::virtual_r
             linear::MICHAELCC_LINEAR_A_UNSIGNED_MULTIPLY, 
             offset_reg, 
             iterator_state, 
-            static_cast<size_t>(value.reg_size) / 8
+            static_cast<size_t>(value.reg_size) / static_cast<size_t>(get_platform_info().char_size)
         ));
         auto address_reg = m_translation_unit.new_vreg(get_platform_info().pointer_size, linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER);
         emit(std::make_unique<linear::a_instruction>(
@@ -208,9 +208,31 @@ void logic_lowerer::emit_memset(linear::virtual_register dest, linear::virtual_r
 }
 
 void logic_lowerer::emit_memcpy(linear::virtual_register dest, linear::virtual_register src, size_t size_bytes, size_t offset) {
-    for (size_t i = 0; i < size_bytes; i += 1) {
+    size_t size_words = size_bytes / static_cast<size_t>(get_platform_info().int_size);
+    for (size_t i = 0; i < size_words; i++) {
         auto elem_reg = m_translation_unit.new_vreg(
-            linear::word_size::MICHAELCC_WORD_SIZE_BYTE, 
+            get_platform_info().int_size, 
+            linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
+        );    
+        size_t ioffset = i * static_cast<size_t>(get_platform_info().int_size) / static_cast<size_t>(get_platform_info().char_size);
+        emit(std::make_unique<linear::load_memory>(
+            elem_reg, 
+            src, 
+            ioffset + offset
+        ));
+        emit(std::make_unique<linear::store_memory>(
+            dest, 
+            elem_reg, 
+            ioffset + offset
+        ));
+    }
+
+    size_t leftover_bytes = (size_bytes % static_cast<size_t>(get_platform_info().int_size));
+    size_t leftover_chars = leftover_bytes / static_cast<size_t>(get_platform_info().char_size);
+    assert(leftover_bytes % static_cast<size_t>(get_platform_info().char_size) == 0);
+    for (size_t i = 0; i < leftover_chars; i++) {
+        auto elem_reg = m_translation_unit.new_vreg(
+            get_platform_info().char_size, 
             linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
         );    
         emit(std::make_unique<linear::load_memory>(
@@ -1646,6 +1668,7 @@ void logic_lowerer::lower_function(const logic::function_definition& node) {
                 type_layout_info::get_register_size(parameter->layout.size), 
                 parameter->register_class.value()
             );
+            m_translation_unit.vreg_colors.insert({ var_reg, parameter->pass_via_register.value() });
             emit(std::make_unique<linear::load_parameter>(var_reg, *parameter));
 
             auto var = std::find_if(node.parameters().begin(), node.parameters().end(), [&](const auto& p) { return p->name() == name; });

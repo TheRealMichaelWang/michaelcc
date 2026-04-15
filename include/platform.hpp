@@ -13,6 +13,7 @@ namespace michaelcc {
     struct platform_info {
         linear::word_size pointer_size;
 
+        linear::word_size char_size;
         linear::word_size short_size;
         linear::word_size int_size;
         linear::word_size long_size;
@@ -23,9 +24,6 @@ namespace michaelcc {
 
         size_t max_alignment;
         bool optimize_struct_layout;
-
-        // if true the physical register sizes must precisely match the virtual register sizes
-        bool strict_physical_register_match; 
 
         linear::register_t return_register_int8_id;
         linear::register_t return_register_int16_id;

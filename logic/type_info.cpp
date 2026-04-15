@@ -6,7 +6,7 @@ namespace michaelcc {
     linear::word_size type_layout_calculator::get_int_type_size(const typing::int_type& type, const platform_info& info) {
         switch (type.type_class()) {
             case typing::CHAR_INT_CLASS:
-                return linear::word_size::MICHAELCC_WORD_SIZE_BYTE;
+                return info.char_size;
             case typing::SHORT_INT_CLASS:
                 return info.short_size;
             case typing::INT_INT_CLASS:

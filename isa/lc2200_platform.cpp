@@ -3,6 +3,7 @@
 const michaelcc::platform_info& michaelcc::isa::lc2200::lc2200_isa::get_platform_info() const noexcept {
     static const michaelcc::platform_info lc2200_platform_info = {
         .pointer_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
+        .char_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
         .short_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
         .int_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
         .long_size = michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32,
@@ -17,7 +18,6 @@ const michaelcc::platform_info& michaelcc::isa::lc2200::lc2200_isa::get_platform
     
         // optimize struct layout to minimize padding
         .optimize_struct_layout = true,
-        .strict_physical_register_match = true,
     
         // return register ids (always $v0)
         .return_register_int8_id = 2,
