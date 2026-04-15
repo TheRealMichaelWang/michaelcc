@@ -476,7 +476,7 @@ void logic_lowerer::statement_lowerer::dispatch(const logic::variable_declaratio
 }
 
 linear::virtual_register logic_lowerer::expression_lowerer::dispatch(const logic::set_address& node) {
-    auto dest_addr = m_lowerer.compute_lvalue_address(*node.destination());
+    auto dest_addr = m_lowerer.lower_expression(*node.destination());
     return m_lowerer.lower_at_address(dest_addr, node.value(), 0);
 }
 
