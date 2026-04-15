@@ -106,6 +106,8 @@ namespace michaelcc::assembly {
 
     public:
         void assemble(const linear::translation_unit& unit);
+
+        virtual void legalize(linear::translation_unit& unit) = 0;
     };
 }
 
