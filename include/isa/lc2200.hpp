@@ -2,20 +2,31 @@
 #define MICHAELCC_ISA_LC2200_HPP
 
 #include "isa.hpp"
+#include "linear/registers.hpp"
 #include "platform.hpp"
 #include "assembly/assembler.hpp"
 #include "linear/ir.hpp"
 #include <memory>
 #include <ostream>
+#include <unordered_set>
 
 namespace michaelcc::isa::lc2200 {
     class lc2200_assembler : public assembly::assembler {
+    private:
+        struct function_call_info {
+            // add each offset to sp to get the address of the caller saved register
+            std::unordered_map<linear::register_t, size_t> caller_saved_registers_offsets;
+            std::unordered_set<linear::register_t> trashed_registers;
+        };
+
+        std::unordered_map<size_t, function_call_info> m_function_call_infos;
+    
     public:
         lc2200_assembler(std::ostream& output) : assembly::assembler(output) {}
         
     protected:
-        void begin_block_preamble(const linear::basic_block& block) override;
-        void begin_function_preamble(const linear::function_definition& definition) override;
+        void begin_block_preamble(const linear::basic_block& block) override { }
+        void begin_function_preamble(const linear::function_definition& definition) override { }
         void begin_function_call(const linear::function_call& instruction) override;
         
         void emit_logical_and(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b);

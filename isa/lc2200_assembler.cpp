@@ -3,16 +3,37 @@
 #include "linear/registers.hpp"
 #include <vector>
 
-void michaelcc::isa::lc2200::lc2200_assembler::begin_block_preamble(const linear::basic_block& block) {
-
-}
-
-void michaelcc::isa::lc2200::lc2200_assembler::begin_function_preamble(const linear::function_definition& definition) {
-
-}
-
 void michaelcc::isa::lc2200::lc2200_assembler::begin_function_call(const linear::function_call& instruction) {
+    std::vector<linear::register_t> physical_registers_to_save;
+    for (auto vreg : instruction.caller_saved_registers()) {
+        auto physical_register = get_physical_register(vreg);
+        assert(physical_register.size == michaelcc::linear::word_size::MICHAELCC_WORD_SIZE_UINT32);
 
+        if (!physical_register.is_caller_saved) {
+            continue;
+        }
+
+        physical_registers_to_save.push_back(physical_register.id);
+    }
+
+    std::unordered_map<linear::register_t, size_t> caller_saved_registers_offsets;
+    for (size_t i = 0; i < physical_registers_to_save.size(); i++) {
+        begin_new_line();
+        m_output << "sw " << physical_registers_to_save[i] << ", -" << (i + 1) << "($sp)";
+
+        size_t sp_subtract_offset = physical_registers_to_save.size() - i;
+        caller_saved_registers_offsets.insert({ physical_registers_to_save[i], sp_subtract_offset });
+    }
+    begin_new_line();
+    m_output << "add $sp, $sp, -" << physical_registers_to_save.size();
+
+    m_function_call_infos.insert({ 
+        instruction.function_call_id(), 
+        function_call_info{ 
+            std::move(caller_saved_registers_offsets), 
+            {} 
+        } 
+    });
 }
 
 void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::a_instruction& instruction) {
@@ -142,7 +163,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::load_memor
     auto physical_source_address = get_physical_register(instruction.source_address());
 
     begin_new_line();
-    m_output << "lw " << physical_destination.name << ", " << "0x" << instruction.offset();
+    m_output << "lw " << physical_destination.name << ", " << instruction.offset();
     m_output << "(" << physical_source_address.name << ");";
 }
 
@@ -151,7 +172,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::store_memo
     auto physical_destination_address = get_physical_register(instruction.destination_address());
 
     begin_new_line();
-    m_output << "sw " << physical_value.name << ", " << "0x" << instruction.offset();
+    m_output << "sw " << physical_value.name << ", " << instruction.offset();
     m_output << "(" << physical_destination_address.name << ");";
 }
 
@@ -199,7 +220,37 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::branch_con
 }
 
 void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::push_function_argument& instruction) {
+    auto function_call_info = m_function_call_infos.at(instruction.function_call_id());
+    auto argument_physical_register = get_physical_register(instruction.value());
 
+    if (instruction.argument().pass_via_stack()) { //save argument onto stack
+        if (instruction.argument().register_class.has_value()) { //this is a register on the stack
+            m_output << "sw " << argument_physical_register.name << ", -" << (instruction.argument().offset.value() + 1) << "($sp)";
+        } else {
+            //manual memcopy to stack
+            for (size_t i = 0; i < instruction.argument().layout.size; i++) {
+                // v0 is not currently in use and is therefore protected
+                begin_new_line();
+                m_output << "lw " << "v0, " << i << '(' << argument_physical_register.name << ')';
+                begin_new_line();
+                m_output << "sw " << "v0, -" << ((instruction.argument().offset.value() + 1) - i) << "($sp)";
+            }
+        }
+    } else {
+        // read from arg dest register into assigned a register
+        if (function_call_info.trashed_registers.contains(argument_physical_register.id)) {
+            // good thing v0 isn't used and is protected
+            begin_new_line();
+            m_output << "lw " << "v0, " << function_call_info.caller_saved_registers_offsets.at(argument_physical_register.id) << "($sp)";
+            begin_new_line();
+            m_output << "add " << instruction.argument().pass_via_register.value() << ", $zero, v0";
+        } else {
+            // read from arg dest register into assigned a register
+            begin_new_line();
+            m_output << "add " << instruction.argument().pass_via_register.value() << ", " << argument_physical_register.name << ", $zero";
+            function_call_info.trashed_registers.insert(instruction.argument().pass_via_register.value());
+        }
+    }
 }
 
 // argument registers are $a0, $a1, $a2
@@ -251,6 +302,8 @@ void michaelcc::isa::lc2200::lc2200_isa::assign_argument_registers(std::vector<l
             offset += arguments[i].layout.size;
             size_t padding = arguments[i].layout.alignment - (offset % arguments[i].layout.alignment);
             offset += padding;
+
+            assert(padding == 0); //padding should be 0 because we align to the word size
 
             arguments[i].offset = std::make_optional(offset);
         }

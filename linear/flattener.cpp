@@ -134,6 +134,7 @@ linear::virtual_register logic_lowerer::get_var_reg(const std::shared_ptr<logic:
                 type_layout_info::get_register_size(parameter_it->second->layout.size),
                 parameter_it->second->register_class.value()
             );
+            m_translation_unit.vreg_colors.insert({ var_reg, parameter_it->second->pass_via_register.value() });
             emit(std::make_unique<linear::load_parameter>(var_reg, *parameter_it->second));
             return var_reg;
         }
