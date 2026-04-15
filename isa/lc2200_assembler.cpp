@@ -34,7 +34,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::begin_function_preamble(const lin
     }
     if (i > 0) {
         begin_new_line(); //update sp
-        m_output << "add $sp, $sp, -" << i;
+        m_output << "addi $sp, $sp, -" << i;
     }
     
     //reserve space for locals
@@ -42,7 +42,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::begin_function_preamble(const lin
     size_t reserved_stack_space = frame_allocator.get_reserved_stack_space(definition.entry_block_id());    
     
     begin_new_line();
-    m_output << "add $sp, $sp, -" << reserved_stack_space;
+    m_output << "addi $sp, $sp, -" << reserved_stack_space;
     write_comment("reserve space for locals");
 }
 
@@ -73,7 +73,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::begin_function_call(const linear:
 
     if (physical_registers_to_save.size() > 0) {
         begin_new_line();
-        m_output << "add $sp, $sp, -" << physical_registers_to_save.size();
+        m_output << "addi $sp, $sp, -" << physical_registers_to_save.size();
     }
 
     m_function_call_infos.insert({ 
@@ -272,7 +272,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::init_regis
     auto physical_value = instruction.value();
 
     begin_new_line();
-    m_output << "add " << physical_destination.name << ", $zero, ";
+    m_output << "addi " << physical_destination.name << ", $zero, ";
 
     switch (instruction.destination().reg_size) {
     case michaelcc::linear::MICHAELCC_WORD_SIZE_BYTE:
@@ -297,7 +297,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::load_memor
 
     begin_new_line();
     m_output << "lw " << physical_destination.name << ", " << instruction.offset();
-    m_output << "(" << physical_source_address.name << ");";
+    m_output << "(" << physical_source_address.name << ")";
 }
 
 void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::store_memory& instruction) {
@@ -306,7 +306,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::store_memo
 
     begin_new_line();
     m_output << "sw " << physical_value.name << ", " << instruction.offset();
-    m_output << "(" << physical_destination_address.name << ");";
+    m_output << "(" << physical_destination_address.name << ")";
 }
 
 void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::load_effective_address& instruction) {
@@ -321,7 +321,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::load_param
     if (instruction.parameter().pass_via_stack()) {
         // load a stack alloced objects address into the physical destination register
         begin_new_line();
-        m_output << "add " << physical_destination.name << ", $fp, -" << (instruction.parameter().offset.value() + fp_to_parameter_offset);
+        m_output << "addi " << physical_destination.name << ", $fp, -" << (instruction.parameter().offset.value() + fp_to_parameter_offset);
     } else if (instruction.parameter().pass_via_register.has_value()){
         assert(physical_destination.id == instruction.parameter().pass_via_register.value());
         // do nothing because the parameter is already in the physical destination register
@@ -343,7 +343,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::valloca_in
 
     // negate size and put in dest
     begin_new_line();
-    m_output << "nand" << physical_destination.name << ", " << physical_size.name << ", " << physical_size.name;
+    m_output << "nand " << physical_destination.name << ", " << physical_size.name << ", " << physical_size.name;
     begin_new_line();
     m_output << "addi " << physical_destination.name << ", " << physical_destination.name << ", 1";
 
@@ -385,7 +385,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::push_funct
                 // at is the ultimate scratchpad register
                 begin_new_line();
                 m_output << "lw " << "$at, " << i << '(' << argument_physical_register.name << ')';
-                write_comment(std::format("copywing word {}/{} of argument onto stack", i, instruction.argument().layout.size));
+                write_comment(std::format("copying word {}/{} of argument onto stack", i, instruction.argument().layout.size));
                 begin_new_line();
                 m_output << "sw " << "$at, -" << ((instruction.argument().offset.value() + 1) - i) << "($sp)";
             }
@@ -424,7 +424,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::function_c
     m_output << "addi $sp, $sp, -1"; //update sp
     write_comment("save return address to stack");
     begin_new_line();
-    m_output << "sw $ra, ($sp)"; //save return address to stack
+    m_output << "sw $ra, 0($sp)"; //save return address to stack
 
     // use $at as scratchpad
     std::visit(overloaded{
@@ -496,7 +496,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::function_r
     begin_new_line();
     m_output << "lw $fp, 0($sp)";
     begin_new_line();
-    m_output << "add $sp, $sp, 1";
+    m_output << "addi $sp, $sp, 1";
 
     // jump to caller control
     begin_new_line();
