@@ -182,8 +182,11 @@ void michaelcc::isa::lc2200::lc2200_assembler::emit_compare_equal(linear::virtua
             if (branch_condition->condition() == destination) {
                 begin_new_line();
                 m_output << "beq " << physical_a.name << ", " << physical_b.name << ", block" << branch_condition->if_true_block_id();
-                begin_new_line();
-                m_output << "beq $zero, $zero, block" << branch_condition->if_false_block_id();
+                
+                if (!schedule_block_next(branch_condition->if_false_block_id())) {
+                    begin_new_line();
+                    m_output << "beq $zero, $zero, block" << branch_condition->if_false_block_id();
+                }
 
                 block_add_to_set_to_one(branch_condition->if_true_block_id(), destination);
                 block_add_to_zero(branch_condition->if_false_block_id(), destination);
@@ -217,8 +220,12 @@ void michaelcc::isa::lc2200::lc2200_assembler::emit_compare_not_equal(linear::vi
             if (branch_condition->condition() == destination) {
                 begin_new_line();
                 m_output << "beq " << physical_a.name << ", " << physical_b.name << ", block" << branch_condition->if_false_block_id();
-                begin_new_line();
-                m_output << "beq $zero, $zero, block" << branch_condition->if_true_block_id();
+                
+                if (!schedule_block_next(branch_condition->if_true_block_id())) {
+                    begin_new_line();
+                    m_output << "beq $zero, $zero, block" << branch_condition->if_true_block_id();
+                }
+                
                 block_add_to_set_to_one(branch_condition->if_false_block_id(), destination);
                 block_add_to_zero(branch_condition->if_true_block_id(), destination);
                 return;
@@ -445,8 +452,11 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::branch_con
 
     begin_new_line();
     m_output << "beq " << physical_condition.name << ", $zero, block" << instruction.if_false_block_id();
-    begin_new_line();
-    m_output << "beq $zero, $zero, block" << instruction.if_true_block_id();
+
+    if (!schedule_block_next(instruction.if_true_block_id())) {
+        begin_new_line();
+        m_output << "beq $zero, $zero, block" << instruction.if_true_block_id();
+    }
 }
 
 void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::push_function_argument& instruction) {

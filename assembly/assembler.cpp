@@ -3,7 +3,8 @@
 #include "linear/ir.hpp"
 #include <unordered_map>
 #include <unordered_set>
-#include <queue>
+#include <algorithm>
+#include <vector>
 
 void michaelcc::assembly::assembler::assemble_block(const linear::translation_unit& unit, size_t block_id, bool emit_label) {
     std::unordered_map<size_t, const linear::function_call*> function_id_to_call;
@@ -55,19 +56,17 @@ void michaelcc::assembly::assembler::assemble_block(const linear::translation_un
 
 void michaelcc::assembly::assembler::assemble_function(const linear::translation_unit& unit, size_t function_id) {
     auto& function = unit.function_definitions.at(function_id);
-    std::queue<size_t> blocks_to_assemble;
+    std::vector<size_t> blocks_to_assemble;
+    blocks_to_assemble.push_back(function->entry_block_id());
 
-    blocks_to_assemble.push(function->entry_block_id());
-
-    std::unordered_set<size_t> assembled_blocks;
     while (!blocks_to_assemble.empty()) {
-        size_t block_id = blocks_to_assemble.front();
-        blocks_to_assemble.pop();
+        size_t block_id = blocks_to_assemble.back();
+        blocks_to_assemble.pop_back();
 
-        if (assembled_blocks.contains(block_id)) {
+        if (m_assembled_blocks.contains(block_id)) {
             continue;
         }
-        assembled_blocks.insert(block_id);
+        m_assembled_blocks.insert(block_id);
 
         if (block_id == function->entry_block_id()) {
             emit_label(function->name());
@@ -81,10 +80,18 @@ void michaelcc::assembly::assembler::assemble_function(const linear::translation
 
         auto& block = unit.blocks.at(block_id);
         for (size_t successor : block.successor_block_ids()) {
-            if (!assembled_blocks.contains(successor)) {
-                blocks_to_assemble.push(successor);
+            if (std::find(prioritized_blocks_to_assemble.begin(), prioritized_blocks_to_assemble.end(), successor) != prioritized_blocks_to_assemble.end()) {
+                continue;
+            }
+            if (!m_assembled_blocks.contains(successor)) {
+                blocks_to_assemble.push_back(successor);
             }
         }
+        
+        for (auto it = prioritized_blocks_to_assemble.rbegin(); it != prioritized_blocks_to_assemble.rend(); it++) {
+            blocks_to_assemble.push_back(*it);
+        }
+        prioritized_blocks_to_assemble.clear();
     }
 }
 

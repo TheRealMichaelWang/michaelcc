@@ -5,6 +5,7 @@
 #include "linear/registers.hpp"
 #include "linear/allocators/frame_allocator.hpp"
 #include <stdexcept>
+#include <vector>
 
 namespace michaelcc::assembly {
     class assembler: public linear::instruction_dispatcher<void> {
@@ -13,11 +14,21 @@ namespace michaelcc::assembly {
         std::optional<const linear::instruction*> m_next_instruction;
         size_t m_symbol_counter;
 
+        std::unordered_set<size_t> m_assembled_blocks;
+        std::vector<size_t> prioritized_blocks_to_assemble;
     protected:
+
         std::ostream& m_output;
         std::optional<const linear::translation_unit*> m_current_unit;
         std::optional<const linear::allocators::frame_allocator*> m_current_frame_allocator;
     
+        bool schedule_block_next(size_t block_id) {
+            if (m_assembled_blocks.contains(block_id)) {
+                return false;
+            }
+            prioritized_blocks_to_assemble.push_back(block_id);
+            return prioritized_blocks_to_assemble.size() == 1;
+        }
     public:
 
         assembler(std::ostream& output) 
