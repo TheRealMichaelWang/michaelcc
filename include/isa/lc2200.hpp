@@ -31,9 +31,6 @@ namespace michaelcc::isa::lc2200 {
         void begin_block_preamble(const linear::basic_block& block) override { }
         void begin_function_preamble(const linear::function_definition& definition) override;
         void begin_function_call(const linear::function_call& instruction) override;
-        
-        void emit_logical_and(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b);
-        void emit_logical_or(linear::virtual_register dest, linear::virtual_register operand_a, linear::virtual_register operand_b);
 
         void dispatch(const linear::a_instruction& instruction) override;
         void dispatch(const linear::a2_instruction& instruction) override;
@@ -56,9 +53,6 @@ namespace michaelcc::isa::lc2200 {
 
     private:
         void assign_argument_registers(linear::translation_unit& unit, size_t function_id);
-    
-    public:
-        void legalize(linear::translation_unit& unit) override;
     };
 
     class lc2200_isa final : public isa {

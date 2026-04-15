@@ -111,12 +111,8 @@ int main(int argc, char* argv[])
 		
 		michaelcc::linear::transform(linear_translation_unit, linear_passes);
 
-		// assemble the linear IR to assembly
-		auto file_out_stream = std::ofstream(options.output_file);
-		auto assembler = platform.create_assembler(file_out_stream);
 
 		// allocate stack frame (remove alloca)
-		assembler->legalize(linear_translation_unit); //legalize register constraints before frame allocation
 		michaelcc::linear::allocators::frame_allocator frame_allocator(linear_translation_unit);
 		frame_allocator.allocate();
 
@@ -128,6 +124,9 @@ int main(int argc, char* argv[])
 		// register allocation (one pass)
 		michaelcc::linear::optimization::postphi::register_allocation(linear_translation_unit, frame_allocator);
 
+		// assemble the linear IR to assembly
+		auto file_out_stream = std::ofstream(options.output_file);
+		auto assembler = platform.create_assembler(file_out_stream);
 		assembler->assemble(linear_translation_unit, frame_allocator);
 	}
 	catch (const michaelcc::compilation_error& error) {

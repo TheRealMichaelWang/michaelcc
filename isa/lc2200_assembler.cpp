@@ -71,13 +71,6 @@ void michaelcc::isa::lc2200::lc2200_assembler::begin_function_call(const linear:
 }
 
 void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::a_instruction& instruction) {
-    switch (instruction.type()) {
-    case linear::a_instruction_type::MICHAELCC_LINEAR_A_AND:
-        emit_logical_and(instruction.destination(), instruction.operand_a(), instruction.operand_b());
-        return;
-    default: break;
-    };
-
     auto physical_destination = get_physical_register(instruction.destination());
     auto physical_a = get_physical_register(instruction.operand_a());
     auto physical_b = get_physical_register(instruction.operand_b());
@@ -401,8 +394,8 @@ void michaelcc::isa::lc2200::lc2200_isa::assign_parameter_registers(std::vector<
     }
 
     // look at the offsets from "the end perspective"
-    for (size_t i = parameter_offsets.size() - 1; i >= 0; i--) {
-        auto [parameter_index, parameter_offset] = parameter_offsets[i];
+    for (size_t i = parameter_offsets.size(); i > 0; i--) {
+        auto [parameter_index, parameter_offset] = parameter_offsets[i - 1];
         parameters[parameter_index].offset = (offset - parameter_offset) + fp_to_parameter_offset;
 
         // the plus two is to account for: sizeof(prev frame ptr) + sizeof(prev return addr) + sizeof(return value space)

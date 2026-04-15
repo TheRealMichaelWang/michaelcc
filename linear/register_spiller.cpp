@@ -29,10 +29,11 @@ void michaelcc::linear::allocators::register_spiller::spill_block(size_t block_i
         std::unique_ptr<linear::instruction> new_instruction = transform(*instruction.get());
         if (!new_instruction) {
             new_instruction = std::move(instruction);
+            assert(new_instruction != nullptr);
         }
 
         // save destination if necessary
-        if (instruction->destination_register().has_value() && m_spilled_vregs.contains(new_instruction->destination_register().value())) {
+        if (new_instruction->destination_register().has_value() && m_spilled_vregs.contains(new_instruction->destination_register().value())) {
             auto dest_vreg = new_instruction->destination_register().value();
             auto address_vreg = m_translation_unit.new_vreg(m_translation_unit.platform_info.pointer_size, MICHAELCC_REGISTER_CLASS_INTEGER);
             new_instructions.emplace_back(std::make_unique<alloca_instruction>(

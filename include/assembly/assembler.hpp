@@ -108,8 +108,6 @@ namespace michaelcc::assembly {
 
     public:
         void assemble(const linear::translation_unit& unit, const linear::allocators::frame_allocator& frame_allocator);
-
-        virtual void legalize(linear::translation_unit& unit) = 0;
     };
 }
 
