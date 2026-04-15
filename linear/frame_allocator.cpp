@@ -8,14 +8,14 @@ michaelcc::linear::allocators::frame_allocator::frame_allocator(linear::translat
             linear::register_class::MICHAELCC_REGISTER_CLASS_INTEGER
         );
         translation_unit.vreg_colors.insert({frame_pointer_vreg, translation_unit.platform_info.frame_pointer_register_id});
-        function_to_frame_pointer.insert({ function.get(), std::make_pair(0, frame_pointer_vreg) });
+        function_to_frame_pointer.insert({ function->entry_block_id(), std::make_pair(0, frame_pointer_vreg) });
     }
 }
 
 void michaelcc::linear::allocators::frame_allocator::allocate_block(linear::function_definition* function, size_t block_id) {
     auto& block = translation_unit.blocks.at(block_id);
     
-    auto [current_offset, frame_pointer_vreg] = function_to_frame_pointer.at(function);
+    auto [current_offset, frame_pointer_vreg] = function_to_frame_pointer.at(function->entry_block_id());
 
     auto released_instructions = block.release_instructions();
     std::vector<std::unique_ptr<instruction>> new_instructions;
@@ -37,7 +37,7 @@ void michaelcc::linear::allocators::frame_allocator::allocate_block(linear::func
     }
 
     block.replace_instructions(std::move(new_instructions));
-    function_to_frame_pointer.at(function) = std::make_pair(current_offset, frame_pointer_vreg);
+    function_to_frame_pointer.at(function->entry_block_id()) = std::make_pair(current_offset, frame_pointer_vreg);
 }
 
 void michaelcc::linear::allocators::frame_allocator::allocate() {

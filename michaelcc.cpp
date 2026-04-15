@@ -128,7 +128,7 @@ int main(int argc, char* argv[])
 		// register allocation (one pass)
 		michaelcc::linear::optimization::postphi::register_allocation(linear_translation_unit, frame_allocator);
 
-		assembler->assemble(linear_translation_unit);
+		assembler->assemble(linear_translation_unit, frame_allocator);
 	}
 	catch (const michaelcc::compilation_error& error) {
 		cerr << "Compilation error: " << error.what() << endl;

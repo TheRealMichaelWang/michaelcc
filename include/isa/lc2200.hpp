@@ -18,7 +18,8 @@ namespace michaelcc::isa::lc2200 {
             std::unordered_map<linear::register_t, size_t> caller_saved_registers_offsets;
             std::unordered_set<linear::register_t> trashed_registers;
 
-            size_t pushed_parameter_size;
+            size_t pushed_parameter_size; // size for parameters on stack
+            size_t pushed_register_size; // size for registers on stack
         };
 
         std::unordered_map<size_t, function_call_info> m_function_call_infos;

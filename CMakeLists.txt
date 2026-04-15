@@ -40,4 +40,5 @@ add_executable(michaelcc
     linear/phi.cpp
     assembly/assembler.cpp
     isa/lc2200_platform.cpp
+    isa/lc2200_assembler.cpp
 )

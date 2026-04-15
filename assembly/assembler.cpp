@@ -1,4 +1,5 @@
 #include "assembly/assembler.hpp"
+#include "linear/allocators/frame_allocator.hpp"
 #include "linear/ir.hpp"
 #include <unordered_map>
 #include <unordered_set>
@@ -87,8 +88,10 @@ void michaelcc::assembly::assembler::assemble_function(const linear::translation
     }
 }
 
-void michaelcc::assembly::assembler::assemble(const linear::translation_unit& unit) {
+void michaelcc::assembly::assembler::assemble(const linear::translation_unit& unit, const linear::allocators::frame_allocator& frame_allocator) {
+    m_current_frame_allocator = std::make_optional(&frame_allocator);
     for (size_t i = 0; i < unit.function_definitions.size(); i++) {
         assemble_function(unit, i);
     }
+    m_current_frame_allocator = std::nullopt;
 }

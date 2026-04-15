@@ -3,6 +3,7 @@
 
 #include "linear/ir.hpp"
 #include "linear/registers.hpp"
+#include "linear/allocators/frame_allocator.hpp"
 #include <stdexcept>
 
 namespace michaelcc::assembly {
@@ -15,6 +16,7 @@ namespace michaelcc::assembly {
     protected:
         std::ostream& m_output;
         std::optional<const linear::translation_unit*> m_current_unit;
+        std::optional<const linear::allocators::frame_allocator*> m_current_frame_allocator;
     
     public:
 
@@ -105,7 +107,7 @@ namespace michaelcc::assembly {
         void dispatch(const linear::phi_instruction& instruction) override { throw std::runtime_error("phi instructions are not supported by the assembler"); }
 
     public:
-        void assemble(const linear::translation_unit& unit);
+        void assemble(const linear::translation_unit& unit, const linear::allocators::frame_allocator& frame_allocator);
 
         virtual void legalize(linear::translation_unit& unit) = 0;
     };

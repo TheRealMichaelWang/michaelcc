@@ -14,13 +14,17 @@ namespace michaelcc::linear::allocators {
 
         // map of block id to current stack offset and frame pointer virtual register
         // NOTE: offset is SUBRACTED from the frame pointer
-        std::unordered_map<linear::function_definition*, std::pair<size_t, linear::virtual_register>> function_to_frame_pointer;
+        std::unordered_map<size_t, std::pair<size_t, linear::virtual_register>> function_to_frame_pointer;
 
         void allocate_block(linear::function_definition* function, size_t block_id);
     public:
         frame_allocator(linear::translation_unit& translation_unit);
 
         void allocate();
+
+        size_t get_reserved_stack_space(size_t function_id) const {
+            return function_to_frame_pointer.at(function_id).first;
+        }
     };
 
 }

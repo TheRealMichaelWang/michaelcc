@@ -5,6 +5,9 @@
 #include <vector>
 #include <variant>
 
+// how much to subtract from the frame pointer to get to the last parameter
+const size_t fp_to_parameter_offset = 2;
+
 void michaelcc::isa::lc2200::lc2200_assembler::begin_function_preamble(const linear::function_definition& definition) {
     //push old fp to the stack
     begin_new_line();
@@ -23,6 +26,12 @@ void michaelcc::isa::lc2200::lc2200_assembler::begin_function_preamble(const lin
     m_output << "add $sp, $sp, -3";
 
     
+    //reserve space for locals
+    auto& frame_allocator = *m_current_frame_allocator.value();
+    size_t reserved_stack_space = frame_allocator.get_reserved_stack_space(definition.entry_block_id());    
+    
+    begin_new_line();
+    m_output << "add $sp, $sp, -" << reserved_stack_space;
 }
 
 void michaelcc::isa::lc2200::lc2200_assembler::begin_function_call(const linear::function_call& instruction) {
@@ -39,6 +48,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::begin_function_call(const linear:
     }
 
     std::unordered_map<linear::register_t, size_t> caller_saved_registers_offsets;
+    size_t pushed_register_size = physical_registers_to_save.size();
     for (size_t i = 0; i < physical_registers_to_save.size(); i++) {
         begin_new_line();
         m_output << "sw " << physical_registers_to_save[i] << ", -" << (i + 1) << "($sp)";
@@ -54,7 +64,8 @@ void michaelcc::isa::lc2200::lc2200_assembler::begin_function_call(const linear:
         function_call_info{ 
             std::move(caller_saved_registers_offsets), 
             {} ,
-            0
+            0,
+            pushed_register_size
         } 
     });
 }
@@ -206,6 +217,24 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::load_effec
     m_output << "lea " << physical_destination.name << ", " << instruction.label();
 }
 
+void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::load_parameter& instruction) {
+    auto physical_destination = get_physical_register(instruction.destination());
+    if (instruction.parameter().pass_via_stack()) {
+        // load a stack alloced objects address into the physical destination register
+        begin_new_line();
+        m_output << "add " << physical_destination.name << ", $fp, -" << (instruction.parameter().offset.value() + fp_to_parameter_offset);
+    } else if (instruction.parameter().pass_via_register.has_value()){
+        assert(physical_destination.id == instruction.parameter().pass_via_register.value());
+        // do nothing because the parameter is already in the physical destination register
+    } else {
+        assert(instruction.parameter().register_class.has_value());
+
+        // load the parameter into register from the stack
+        begin_new_line();
+        m_output << "lw " << physical_destination.name << ", " << (instruction.parameter().offset.value() + fp_to_parameter_offset) << "($fp)";
+    }
+}
+
 void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::valloca_instruction& instruction) {
     auto physical_destination = get_physical_register(instruction.destination());
     auto physical_size = get_physical_register(instruction.size());
@@ -282,7 +311,7 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::function_c
 
     begin_new_line();
     if (function_call_info.pushed_parameter_size > 0) { //finalize push parameters
-        m_output << "add $sp, $sp, -" << function_call_info.pushed_parameter_size;
+        m_output << "addi $sp, $sp, -" << function_call_info.pushed_parameter_size;
     }
 
     begin_new_line();
@@ -304,6 +333,42 @@ void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::function_c
             m_output << "jalr " << physical_function_vreg.name << ", $ra";
         }
     }, instruction.callee());
+
+    // control has now been returned to the caller
+    begin_new_line();
+    m_output << "lw $ra, 0($sp)";
+    begin_new_line();
+    m_output << "addi $sp, $sp, 1";
+
+    // tear down parameters
+    begin_new_line();
+    m_output << "addi $sp, $sp, " << function_call_info.pushed_parameter_size;
+
+    // restore caller saved registers
+    for (auto [physical_register_id, offset] : function_call_info.caller_saved_registers_offsets) {
+        begin_new_line();
+        m_output << "lw " << physical_register_id << ", " << offset << "($sp)";
+    }
+    begin_new_line();
+    m_output << "addi $sp, $sp, " << function_call_info.pushed_register_size;
+}
+
+void michaelcc::isa::lc2200::lc2200_assembler::dispatch(const linear::function_return& instruction) {
+    // assume return value has already been loaded into the destination register v0
+
+    // pop all locals and valloca'd stuff via setting sp to fp
+    begin_new_line();
+    m_output << "add $sp, $fp, $zero";
+
+    // restore previous frame pointer
+    begin_new_line();
+    m_output << "lw $fp, 0($sp)";
+    begin_new_line();
+    m_output << "add $sp, $sp, 1";
+
+    // jump to caller control
+    begin_new_line();
+    m_output << "jalr $ra, $zero";
 }
 
 // argument registers are $a0, $a1, $a2
@@ -314,6 +379,8 @@ static michaelcc::linear::register_t argument_registers[] = {
 void michaelcc::isa::lc2200::lc2200_isa::assign_parameter_registers(std::vector<linear::function_parameter>& parameters) {
     size_t offset = 0;
     size_t used_argument_registers = 0;
+
+    // compute parameter offsets as if they were argument offsets
     std::vector<std::pair<size_t, size_t>> parameter_offsets;
     for (size_t i = 0; i < parameters.size(); i++) {
         if (parameters[i].register_class.has_value() && used_argument_registers < (sizeof(argument_registers) / sizeof(linear::register_t))) {
@@ -333,9 +400,10 @@ void michaelcc::isa::lc2200::lc2200_isa::assign_parameter_registers(std::vector<
         }
     }
 
+    // look at the offsets from "the end perspective"
     for (size_t i = parameter_offsets.size() - 1; i >= 0; i--) {
         auto [parameter_index, parameter_offset] = parameter_offsets[i];
-        parameters[parameter_index].offset = (offset - parameter_offset) + 2;
+        parameters[parameter_index].offset = (offset - parameter_offset) + fp_to_parameter_offset;
 
         // the plus two is to account for: sizeof(prev frame ptr) + sizeof(prev return addr) + sizeof(return value space)
     }
