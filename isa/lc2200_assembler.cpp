@@ -810,7 +810,7 @@ void michaelcc::isa::lc2200::lc2200_isa::assign_parameter_registers(std::vector<
         } else {
             // remeber we refer to frame pointer MINUS offset
             offset += parameters[i].layout.size;
-            size_t padding = parameters[i].layout.alignment - (offset % parameters[i].layout.alignment);
+            size_t padding = (parameters[i].layout.alignment - (offset % parameters[i].layout.alignment)) % parameters[i].layout.alignment;
             offset += padding;
 
             assert(padding == 0); //padding should be 0 because we align to the word size
@@ -842,7 +842,7 @@ void michaelcc::isa::lc2200::lc2200_isa::assign_argument_registers(std::vector<l
         } else {
             // remeber we refer to frame pointer MINUS offset
             offset += arguments[i].layout.size;
-            size_t padding = arguments[i].layout.alignment - (offset % arguments[i].layout.alignment);
+            size_t padding = (arguments[i].layout.alignment - (offset % arguments[i].layout.alignment)) % arguments[i].layout.alignment;
             offset += padding;
 
             assert(padding == 0); //padding should be 0 because we align to the word size
