@@ -18,6 +18,9 @@ const michaelcc::platform_info& michaelcc::isa::lc2200::lc2200_isa::get_platform
     
         // optimize struct layout to minimize padding
         .optimize_struct_layout = true,
+
+        // enforce strict physical register match
+        .strict_physical_register_match = true,
     
         // return register ids (always $v0)
         .return_register_int8_id = 2,

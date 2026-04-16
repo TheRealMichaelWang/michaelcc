@@ -24,6 +24,7 @@ namespace michaelcc {
 
         size_t max_alignment;
         bool optimize_struct_layout;
+        bool strict_physical_register_match;
 
         linear::register_t return_register_int8_id;
         linear::register_t return_register_int16_id;
